@@ -64,4 +64,4 @@ electron/
 - Config in `electron-builder.yml`
 
 ### GitHub
-- Repo: https://github.com/hazmanaziz/subcable
+- Repo: https://github.com/zemang86/subcable
