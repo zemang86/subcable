@@ -1,0 +1,16 @@
+appId: com.tm.subcable
+productName: TM Submarine Cable
+directories:
+  output: dist
+files:
+  - electron/**/*
+  - out/**/*
+mac:
+  target: dmg
+  identity: null
+  category: public.app-category.utilities
+win:
+  target: nsis
+nsis:
+  oneClick: true
+  perMachine: true

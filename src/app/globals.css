@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0e1a;
+  --foreground: #e2e8f0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-mono), "IBM Plex Mono", monospace;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Scrollbar styling for sidebar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(35, 98, 221, 0.3);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(35, 98, 221, 0.5);
+}
+
+/* Globe tooltip styling */
+.scene-tooltip {
+  pointer-events: none !important;
+  z-index: 100 !important;
+}
+
+/* Pulse animation for landing points */
+@keyframes point-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
