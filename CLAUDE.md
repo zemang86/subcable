@@ -59,9 +59,12 @@ electron/
 
 ### Desktop (Electron)
 - GitHub Actions builds macOS DMG + Windows exe on every push to `main`
-- Download installers from GitHub Actions artifacts tab
+- Download installers from GitHub Actions artifacts tab (requires GitHub login, expires 90 days)
+- For permanent distribution, create a GitHub Release and attach the .dmg/.exe files
 - No code signing configured (internal distribution)
 - Config in `electron-builder.yml`
+- CI workflow: `.github/workflows/build.yml`
 
 ### GitHub
 - Repo: https://github.com/zemang86/subcable
+- Releases: https://github.com/zemang86/subcable/releases/latest

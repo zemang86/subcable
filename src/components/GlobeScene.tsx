@@ -26,6 +26,11 @@ const TEXTURES = {
 } as const;
 const BUMP_IMAGE = "/textures/earth-topology.png";
 
+const SATELLITE_TILE_URL = (x: number, y: number, level: number) =>
+  `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${level}/${y}/${x}`;
+
+const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables tiles
+
 type GlobeMode = "night" | "day";
 
 interface PathData {
@@ -42,6 +47,7 @@ export default function GlobeScene() {
   const [globeMode, setGlobeMode] = useState<GlobeMode>("night");
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [zoomLevel, setZoomLevel] = useState(2.2);
+  const [autoRotate, setAutoRotate] = useState(false);
 
   // Resize handler
   useEffect(() => {
@@ -81,10 +87,9 @@ export default function GlobeScene() {
         { lat: 5, lng: 108, altitude: 2.2 },
         0
       );
-      // Enable auto-rotation
       const controls = globeRef.current.controls();
       if (controls) {
-        controls.autoRotate = true;
+        controls.autoRotate = false;
         controls.autoRotateSpeed = 0.3;
         controls.enableDamping = true;
         controls.dampingFactor = 0.1;
@@ -99,7 +104,14 @@ export default function GlobeScene() {
     setTimeout(() => setIsLoaded(true), 500);
   }, []);
 
-  // Stop auto-rotation on interaction, resume after idle
+  // Sync auto-rotate state with controls
+  useEffect(() => {
+    if (!globeRef.current) return;
+    const controls = globeRef.current.controls();
+    if (controls) controls.autoRotate = autoRotate;
+  }, [autoRotate, isLoaded]);
+
+  // Pause auto-rotation on interaction, resume after idle
   useEffect(() => {
     if (!globeRef.current) return;
     const controls = globeRef.current.controls();
@@ -110,9 +122,11 @@ export default function GlobeScene() {
     const stopAutoRotate = () => {
       controls.autoRotate = false;
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        controls.autoRotate = true;
-      }, 8000);
+      if (autoRotate) {
+        idleTimer = setTimeout(() => {
+          controls.autoRotate = true;
+        }, 8000);
+      }
     };
 
     const el = globeRef.current.renderer().domElement;
@@ -124,7 +138,7 @@ export default function GlobeScene() {
       el.removeEventListener("touchstart", stopAutoRotate);
       clearTimeout(idleTimer);
     };
-  }, [isLoaded]);
+  }, [isLoaded, autoRotate]);
 
   // Track camera altitude for dynamic scaling
   useEffect(() => {
@@ -144,8 +158,8 @@ export default function GlobeScene() {
   // Linear interpolation helper for zoom-based scaling
   const scaleByZoom = useCallback(
     (farVal: number, closeVal: number) => {
-      const ALT_FAR = 2.2;
-      const ALT_CLOSE = 0.5;
+      const ALT_FAR = 4.0;
+      const ALT_CLOSE = 0.15;
       const t = Math.max(0, Math.min(1, (zoomLevel - ALT_CLOSE) / (ALT_FAR - ALT_CLOSE)));
       return closeVal + t * (farVal - closeVal);
     },
@@ -168,7 +182,7 @@ export default function GlobeScene() {
         const latSpread = Math.max(...points.map((p) => p.lat)) - Math.min(...points.map((p) => p.lat));
         const lngSpread = Math.max(...points.map((p) => p.lng)) - Math.min(...points.map((p) => p.lng));
         const spread = Math.max(latSpread, lngSpread);
-        const altitude = Math.max(0.8, Math.min(2.5, spread / 15));
+        const altitude = Math.max(0.5, Math.min(2.5, spread / 20));
 
         globeRef.current.pointOfView(
           { lat: avgLat, lng: avgLng, altitude },
@@ -185,7 +199,7 @@ export default function GlobeScene() {
   const handlePointClick = useCallback((point: LandingPoint) => {
     if (globeRef.current) {
       globeRef.current.pointOfView(
-        { lat: point.lat, lng: point.lng, altitude: 0.8 },
+        { lat: point.lat, lng: point.lng, altitude: 0.15 },
         1500
       );
     }
@@ -221,15 +235,27 @@ export default function GlobeScene() {
     [selectedCable]
   );
 
-  // Point size based on selection
+  // Point size based on selection, scaled by zoom
   const getPointAltitude = useCallback(
     (point: any) => {
-      if (!selectedCable) return 0.01;
-      if (selectedCable.landingPointIds.includes(point.id)) return 0.03;
-      return 0.005;
+      const base = !selectedCable
+        ? 0.01
+        : selectedCable.landingPointIds.includes(point.id)
+          ? 0.03
+          : 0.005;
+      return base * scaleByZoom(1, 0.15);
     },
-    [selectedCable]
+    [selectedCable, scaleByZoom]
   );
+
+  const [useTiles, setUseTiles] = useState(false);
+  useEffect(() => {
+    if (!useTiles && zoomLevel < TILE_ZOOM_THRESHOLD) {
+      setUseTiles(true);
+    } else if (useTiles && zoomLevel > TILE_ZOOM_THRESHOLD + 0.15) {
+      setUseTiles(false);
+    }
+  }, [zoomLevel, useTiles]);
 
   return (
     <div
@@ -243,6 +269,7 @@ export default function GlobeScene() {
         width={Math.max(dimensions.width - 380, 400)}
         height={dimensions.height}
         globeImageUrl={TEXTURES[globeMode].globe}
+        globeTileEngineUrl={useTiles ? SATELLITE_TILE_URL : undefined}
         bumpImageUrl={BUMP_IMAGE}
         backgroundImageUrl={TEXTURES[globeMode].bg}
         showAtmosphere={true}
@@ -254,11 +281,9 @@ export default function GlobeScene() {
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
         pathColor={getPathColor as any}
-        pathStroke={(path: any) =>
-          selectedCable?.id === path.cableId ? 3 : 1.5
-        }
-        pathDashLength={0.15}
-        pathDashGap={0.05}
+        pathStroke={selectedCable ? 4 : 2.5}
+        pathDashLength={scaleByZoom(0.25, 0.03)}
+        pathDashGap={scaleByZoom(0.08, 0.01)}
         pathDashAnimateTime={15000}
         pathLabel={(path: any) => `<div style="padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;">${path.name}</div>`}
         onPathClick={handlePathClick as any}
@@ -268,7 +293,7 @@ export default function GlobeScene() {
         pointLng="lng"
         pointColor={getPointColor as any}
         pointAltitude={getPointAltitude as any}
-        pointRadius={scaleByZoom(0.35, 0.1)}
+        pointRadius={scaleByZoom(0.55, 0.03)}
         pointLabel={(p: any) => `<div style="padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;">${p.city}, ${p.country}</div>`}
         onPointClick={(point: any) => {
           handlePointClick(point);
@@ -281,9 +306,9 @@ export default function GlobeScene() {
         labelLat="lat"
         labelLng="lng"
         labelText="city"
-        labelSize={scaleByZoom(0.6, 0.15)}
+        labelSize={scaleByZoom(1.0, 0.08)}
         labelColor={() => "rgba(226, 232, 240, 0.8)"}
-        labelDotRadius={scaleByZoom(0.15, 0.04)}
+        labelDotRadius={scaleByZoom(0.25, 0.015)}
         labelAltitude={0.015}
         labelResolution={2}
         // Events
@@ -298,18 +323,34 @@ export default function GlobeScene() {
         onPointClick={handlePointClick}
       />
 
-      {/* Day/Night toggle */}
-      <button
-        onClick={() => setGlobeMode(globeMode === "night" ? "day" : "night")}
-        className="absolute bottom-6 right-[400px] z-10 flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
-      >
-        <div className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${globeMode === "night" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}>
-          <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${globeMode === "night" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`} />
-        </div>
-        <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
-          {globeMode === "night" ? "NIGHT" : "DAY"}
-        </span>
-      </button>
+      {/* Bottom-right controls */}
+      <div className="absolute bottom-6 right-[400px] z-10 flex items-center gap-2">
+        {/* Auto-rotate toggle */}
+        <button
+          onClick={() => setAutoRotate(!autoRotate)}
+          className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
+        >
+          <div className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#2362DD]/40" : "bg-[#1A1F35]"}`}>
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-[#60A5FA]" : "left-0.5 bg-[#475569]"}`} />
+          </div>
+          <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+            ROTATE
+          </span>
+        </button>
+
+        {/* Day/Night toggle */}
+        <button
+          onClick={() => setGlobeMode(globeMode === "night" ? "day" : "night")}
+          className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
+        >
+          <div className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${globeMode === "night" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}>
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${globeMode === "night" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`} />
+          </div>
+          <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+            {globeMode === "night" ? "NIGHT" : "DAY"}
+          </span>
+        </button>
+      </div>
 
       {/* Controls overlay */}
       <div className="absolute bottom-6 left-6 z-10 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg pointer-events-none">
