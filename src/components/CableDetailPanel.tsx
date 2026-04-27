@@ -9,15 +9,38 @@ interface CableDetailPanelProps {
   onClose: () => void;
 }
 
+const STATUS_LABEL: Record<CableSystem["status"], string> = {
+  active: "ACTIVE",
+  planned: "PLANNED",
+  retired: "RETIRED",
+  inactive: "LEGACY",
+};
+
+const STATUS_COLOR: Record<CableSystem["status"], string> = {
+  active: "text-green-400 border-green-500/40 bg-green-500/10",
+  planned: "text-cyan-300 border-cyan-500/40 bg-cyan-500/10",
+  retired: "text-slate-400 border-slate-500/40 bg-slate-500/10",
+  inactive: "text-slate-400 border-slate-500/40 bg-slate-500/10",
+};
+
+const CLASSIFICATION_LABEL: Record<CableSystem["classification"], string> = {
+  international: "International",
+  iru: "IRU",
+  domestic: "Domestic",
+};
+
 export default function CableDetailPanel({
   cable,
   landingPoints,
   onPointClick,
   onClose,
 }: CableDetailPanelProps) {
-  const points = landingPoints.filter((p) =>
-    cable.landingPointIds.includes(p.id)
-  );
+  // Pre-filter relevant landing points; preserves the cable's defined ordering.
+  const orderIndex: Record<string, number> = {};
+  cable.landingPointIds.forEach((id, i) => (orderIndex[id] = i));
+  const points = landingPoints
+    .filter((p) => p.id in orderIndex)
+    .sort((a, b) => orderIndex[a.id] - orderIndex[b.id]);
 
   return (
     <div className="animate-in slide-in-from-right">
@@ -30,6 +53,11 @@ export default function CableDetailPanel({
           <h3 className="text-base font-bold text-white tracking-wide">
             {cable.shortName}
           </h3>
+          <span
+            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wider ${STATUS_COLOR[cable.status]}`}
+          >
+            {STATUS_LABEL[cable.status]}
+          </span>
         </div>
         <button
           onClick={onClose}
@@ -39,18 +67,28 @@ export default function CableDetailPanel({
         </button>
       </div>
 
-      <p className="text-xs text-[#94A3B8] mb-4">{cable.name}</p>
+      <p className="text-xs text-[#94A3B8] mb-1">{cable.name}</p>
+      <p className="text-[10px] text-[#60A5FA] tracking-wider mb-4">
+        {CLASSIFICATION_LABEL[cable.classification].toUpperCase()} · {cable.regions.join(" · ")}
+      </p>
 
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <div className="p-3 bg-[#0A0E1A]/60 rounded-lg border border-[#2362DD]/10">
-          <div className="text-[10px] text-[#94A3B8] tracking-wider mb-1">LENGTH</div>
-          <div className="text-sm font-semibold text-white">{cable.length}</div>
-        </div>
-        <div className="p-3 bg-[#0A0E1A]/60 rounded-lg border border-[#2362DD]/10">
-          <div className="text-[10px] text-[#94A3B8] tracking-wider mb-1">RFS</div>
-          <div className="text-sm font-semibold text-white">{cable.rfs}</div>
-        </div>
+        <Stat label="LENGTH" value={cable.length} />
+        <Stat label="RFS" value={cable.rfs} />
+        {cable.buildYear && (
+          <Stat label="BUILT" value={String(cable.buildYear)} />
+        )}
+        {cable.capacity && <Stat label="CAPACITY" value={cable.capacity} />}
       </div>
+
+      {cable.routeSummary && (
+        <div className="mb-4">
+          <div className="text-[10px] text-[#94A3B8] tracking-wider mb-2">ROUTE</div>
+          <p className="text-xs text-[#E2E8F0] leading-relaxed">
+            {cable.routeSummary}
+          </p>
+        </div>
+      )}
 
       <div className="mb-4">
         <div className="text-[10px] text-[#94A3B8] tracking-wider mb-2">OWNERS</div>
@@ -77,7 +115,7 @@ export default function CableDetailPanel({
 
       <div>
         <div className="text-[10px] text-[#94A3B8] tracking-wider mb-2">
-          LANDING POINTS
+          LANDING POINTS · {points.length}
         </div>
         <div className="space-y-1.5">
           {points.map((point) => (
@@ -87,17 +125,33 @@ export default function CableDetailPanel({
               className="w-full flex items-center gap-3 p-3 bg-[#0A0E1A]/40 border border-[#2362DD]/10 rounded-lg text-left active:bg-white/5 min-h-[48px]"
             >
               <div className="w-2 h-2 rounded-full bg-[#60A5FA] flex-shrink-0" />
-              <div>
-                <div className="text-xs font-medium text-white">{point.city}</div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-white truncate">
+                  {point.city}
+                  {point.kind === "pop" && (
+                    <span className="ml-1.5 text-[9px] text-cyan-400 tracking-wider">
+                      PoP
+                    </span>
+                  )}
+                </div>
                 <div className="text-[10px] text-[#94A3B8]">{point.country}</div>
               </div>
-              <div className="ml-auto text-[10px] text-[#94A3B8] tabular-nums">
-                {point.lat.toFixed(2)}N, {point.lng.toFixed(2)}E
+              <div className="ml-auto text-[10px] text-[#94A3B8] tabular-nums whitespace-nowrap">
+                {point.lat.toFixed(2)}, {point.lng.toFixed(2)}
               </div>
             </button>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-3 bg-[#0A0E1A]/60 rounded-lg border border-[#2362DD]/10">
+      <div className="text-[10px] text-[#94A3B8] tracking-wider mb-1">{label}</div>
+      <div className="text-xs font-semibold text-white leading-snug">{value}</div>
     </div>
   );
 }

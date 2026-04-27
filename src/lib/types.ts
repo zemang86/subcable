@@ -3,17 +3,48 @@ export interface LandingPoint {
   name: string;
   city: string;
   country: string;
+  region: Region;
   lat: number;
   lng: number;
   cableIds: string[];
+  /** Marks "PoP" / terrestrial-only locations from the source data. */
+  kind?: "submarine" | "pop";
 }
+
+export type Region =
+  | "Malaysia"
+  | "Southeast Asia"
+  | "South Asia"
+  | "East Asia"
+  | "Pacific"
+  | "Middle East"
+  | "Europe"
+  | "Africa"
+  | "Americas";
+
+export type Classification = "international" | "iru" | "domestic";
+export type Status = "active" | "retired" | "planned" | "inactive";
 
 export interface CableSystem {
   id: string;
   name: string;
   shortName: string;
-  length: string;
+  classification: Classification;
+  status: Status;
+  /** Year construction started, when known. */
+  buildYear?: number;
+  /** Ready-for-service date or year. */
   rfs: string;
+  /** Cable length, free-form (e.g. "20,000 km"). */
+  length: string;
+  /** Numeric distance for sorting / aggregation; in km. */
+  distanceKm?: number;
+  /** Design capacity for TM's portion, free-form (e.g. "698 Gbps"). */
+  capacity?: string;
+  /** Geographic regions the cable touches. */
+  regions: Region[];
+  /** Free-form route summary from source data. */
+  routeSummary?: string;
   owners: string[];
   landingPointIds: string[];
   color: string;
@@ -29,4 +60,12 @@ export interface CableSegment {
 export interface CableRoute {
   cableId: string;
   segments: CableSegment[];
+}
+
+export interface CableLandingStation {
+  id: string;
+  name: string;
+  region: "Peninsular" | "East Malaysia";
+  status: "existing" | "ongoing";
+  cables: string[];
 }

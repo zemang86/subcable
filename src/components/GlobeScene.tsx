@@ -5,7 +5,7 @@ import Globe from "./GlobeWrapper";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import LoadingScreen from "./LoadingScreen";
-import { cables } from "@/data/cables";
+import { cables, cablesById } from "@/data/cables";
 import { landingPoints } from "@/data/landingPoints";
 import { cableRoutes } from "@/data/cableRoutes";
 import { CableSystem, LandingPoint } from "@/lib/types";
@@ -31,7 +31,8 @@ const SATELLITE_TILE_URL = (x: number, y: number, level: number) =>
 
 const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables tiles
 
-const TOOLTIP_STYLE = "padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;";
+const TOOLTIP_STYLE =
+  "padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;";
 const renderPathLabel = (path: any) =>
   `<div style="${TOOLTIP_STYLE}">${path.name}</div>`;
 const renderPointLabel = (p: any) =>
@@ -45,6 +46,7 @@ interface PathData {
   cableId: string;
   name: string;
   color: string;
+  status: CableSystem["status"];
 }
 
 export default function GlobeScene() {
@@ -65,17 +67,26 @@ export default function GlobeScene() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Prepare path data for globe
+  // Prepare path data for globe — one entry per route segment.
   const pathsData: PathData[] = useMemo(() => {
-    return cableRoutes.flatMap((route) =>
-      route.segments.map((seg) => ({
+    return cableRoutes.flatMap((route) => {
+      const cable = cablesById[route.cableId];
+      const baseColor = CABLE_COLORS[route.cableId] || "#ffffff";
+      const status = cable?.status ?? "active";
+      const colorByStatus =
+        status === "retired" || status === "inactive"
+          ? TM_COLORS.cableRetired
+          : status === "planned"
+            ? TM_COLORS.cablePlanned
+            : baseColor;
+      return route.segments.map((seg) => ({
         coords: seg.coords,
         cableId: route.cableId,
-        name:
-          cables.find((c) => c.id === route.cableId)?.shortName || route.cableId,
-        color: CABLE_COLORS[route.cableId] || "#ffffff",
-      }))
-    );
+        name: cable?.shortName || route.cableId,
+        color: colorByStatus,
+        status,
+      }));
+    });
   }, []);
 
   // Prepare points data for globe
@@ -90,10 +101,7 @@ export default function GlobeScene() {
   // Initialize globe view centered on SEA
   const handleGlobeReady = useCallback(() => {
     if (globeRef.current) {
-      globeRef.current.pointOfView(
-        { lat: 5, lng: 108, altitude: 2.2 },
-        0
-      );
+      globeRef.current.pointOfView({ lat: 5, lng: 108, altitude: 2.2 }, 0);
       const controls = globeRef.current.controls();
       if (controls) {
         controls.autoRotate = false;
@@ -173,40 +181,43 @@ export default function GlobeScene() {
     (farVal: number, closeVal: number) => {
       const ALT_FAR = 4.0;
       const ALT_CLOSE = 0.15;
-      const t = Math.max(0, Math.min(1, (zoomLevel - ALT_CLOSE) / (ALT_FAR - ALT_CLOSE)));
+      const t = Math.max(
+        0,
+        Math.min(1, (zoomLevel - ALT_CLOSE) / (ALT_FAR - ALT_CLOSE))
+      );
       return closeVal + t * (farVal - closeVal);
     },
     [zoomLevel]
   );
 
   // Handle cable selection
-  const handleSelectCable = useCallback(
-    (cable: CableSystem | null) => {
-      setSelectedCable(cable);
-      if (cable && globeRef.current) {
-        // Find center of cable's landing points
-        const points = landingPoints.filter((p) =>
-          cable.landingPointIds.includes(p.id)
-        );
-        const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-        const avgLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
+  const handleSelectCable = useCallback((cable: CableSystem | null) => {
+    setSelectedCable(cable);
+    if (cable && globeRef.current) {
+      const points = landingPoints.filter((p) =>
+        cable.landingPointIds.includes(p.id)
+      );
+      if (points.length === 0) return;
+      const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
+      const avgLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
 
-        // Zoom level based on cable extent
-        const latSpread = Math.max(...points.map((p) => p.lat)) - Math.min(...points.map((p) => p.lat));
-        const lngSpread = Math.max(...points.map((p) => p.lng)) - Math.min(...points.map((p) => p.lng));
-        const spread = Math.max(latSpread, lngSpread);
-        const altitude = Math.max(0.5, Math.min(2.5, spread / 20));
+      const latSpread =
+        Math.max(...points.map((p) => p.lat)) -
+        Math.min(...points.map((p) => p.lat));
+      const lngSpread =
+        Math.max(...points.map((p) => p.lng)) -
+        Math.min(...points.map((p) => p.lng));
+      const spread = Math.max(latSpread, lngSpread);
+      const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
 
-        globeRef.current.pointOfView(
-          { lat: avgLat, lng: avgLng, altitude },
-          1500
-        );
-      } else if (!cable && globeRef.current) {
-        globeRef.current.pointOfView({ lat: 5, lng: 108, altitude: 2.2 }, 1500);
-      }
-    },
-    []
-  );
+      globeRef.current.pointOfView(
+        { lat: avgLat, lng: avgLng, altitude },
+        1500
+      );
+    } else if (!cable && globeRef.current) {
+      globeRef.current.pointOfView({ lat: 5, lng: 108, altitude: 2.2 }, 1500);
+    }
+  }, []);
 
   // Handle point click
   const handlePointClick = useCallback((point: LandingPoint) => {
@@ -219,53 +230,75 @@ export default function GlobeScene() {
   }, []);
 
   // Click on a globe point: pan to it and select its first associated cable.
-  const handleGlobePointClick = useCallback((point: any) => {
-    handlePointClick(point);
-    const cable = cables.find((c) => point.cableIds?.includes(c.id));
-    if (cable) setSelectedCable(cable);
-  }, [handlePointClick]);
+  const handleGlobePointClick = useCallback(
+    (point: any) => {
+      handlePointClick(point);
+      const firstCableId = point.cableIds?.[0];
+      if (firstCableId && cablesById[firstCableId]) {
+        setSelectedCable(cablesById[firstCableId]);
+      }
+    },
+    [handlePointClick]
+  );
 
   // Handle globe path click
   const handlePathClick = useCallback(
     (path: PathData) => {
-      const cable = cables.find((c) => c.id === path.cableId);
+      const cable = cablesById[path.cableId];
       if (cable) handleSelectCable(cable);
     },
     [handleSelectCable]
   );
 
-  // Path color based on selection state
+  // Path color based on selection state.
   const getPathColor = useCallback(
     (path: PathData) => {
       if (!selectedCable) return path.color;
       if (path.cableId === selectedCable.id) return path.color;
-      return "rgba(100, 100, 100, 0.15)";
+      return TM_COLORS.cableMuted;
     },
+    [selectedCable]
+  );
+
+  // Path stroke — thicker for selected cable, thinner for non-trunk planned cables.
+  const getPathStroke = useCallback(
+    (path: PathData) => {
+      if (selectedCable && path.cableId === selectedCable.id) return 4;
+      if (path.status === "planned") return 1.6;
+      if (path.status === "retired" || path.status === "inactive") return 1.2;
+      return 2.2;
+    },
+    [selectedCable]
+  );
+
+  // Set of active landing-point IDs for the selected cable (O(1) lookup in the
+  // per-point callbacks below).
+  const selectedLPSet = useMemo(
+    () => (selectedCable ? new Set(selectedCable.landingPointIds) : null),
     [selectedCable]
   );
 
   // Point color based on selection state
   const getPointColor = useCallback(
     (point: any) => {
-      if (!selectedCable) return TM_COLORS.landingPointDefault;
-      if (selectedCable.landingPointIds.includes(point.id))
-        return TM_COLORS.cableHighlight;
+      if (!selectedLPSet) return TM_COLORS.landingPointDefault;
+      if (selectedLPSet.has(point.id)) return TM_COLORS.cableHighlight;
       return "rgba(100, 100, 100, 0.3)";
     },
-    [selectedCable]
+    [selectedLPSet]
   );
 
   // Point size based on selection, scaled by zoom
   const getPointAltitude = useCallback(
     (point: any) => {
-      const base = !selectedCable
+      const base = !selectedLPSet
         ? 0.01
-        : selectedCable.landingPointIds.includes(point.id)
+        : selectedLPSet.has(point.id)
           ? 0.03
           : 0.005;
       return base * scaleByZoom(1, 0.15);
     },
-    [selectedCable, scaleByZoom]
+    [selectedLPSet, scaleByZoom]
   );
 
   const [useTiles, setUseTiles] = useState(false);
@@ -301,7 +334,7 @@ export default function GlobeScene() {
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
         pathColor={getPathColor as any}
-        pathStroke={selectedCable ? 4 : 2.5}
+        pathStroke={getPathStroke as any}
         pathDashLength={scaleByZoom(0.25, 0.03)}
         pathDashGap={scaleByZoom(0.08, 0.01)}
         pathDashAnimateTime={15000}
@@ -345,8 +378,12 @@ export default function GlobeScene() {
           onClick={() => setAutoRotate(!autoRotate)}
           className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
         >
-          <div className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#2362DD]/40" : "bg-[#1A1F35]"}`}>
-            <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-[#60A5FA]" : "left-0.5 bg-[#475569]"}`} />
+          <div
+            className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#2362DD]/40" : "bg-[#1A1F35]"}`}
+          >
+            <div
+              className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-[#60A5FA]" : "left-0.5 bg-[#475569]"}`}
+            />
           </div>
           <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
             ROTATE
@@ -358,8 +395,12 @@ export default function GlobeScene() {
           onClick={() => setGlobeMode(globeMode === "night" ? "day" : "night")}
           className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
         >
-          <div className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${globeMode === "night" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}>
-            <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${globeMode === "night" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`} />
+          <div
+            className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${globeMode === "night" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}
+          >
+            <div
+              className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${globeMode === "night" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`}
+            />
           </div>
           <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
             {globeMode === "night" ? "NIGHT" : "DAY"}
