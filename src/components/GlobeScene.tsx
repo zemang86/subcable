@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 import Globe from "./GlobeWrapper";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
@@ -12,6 +13,13 @@ import countries from "@/data/countries.json";
 import robotoMedium from "@/data/roboto-medium.typeface.json";
 import { CableSystem, LandingPoint } from "@/lib/types";
 import { TM_COLORS, CABLE_COLORS } from "@/lib/colors";
+
+// Travelling-dot tuning. Replaced the path-dash trick (dot length scaled with
+// segment length → wildly variable visual size). These spheres are constant
+// world-size; speed is clamped on short segments to avoid 0.5s loops.
+const DOT_RADIUS = 0.11;
+const DOT_SPEED_KM_PER_SEC = 375;
+const DOT_MIN_LOOP_SEC = 4;
 
 // 1x1 transparent PNG — fed to globeImageUrl in outline mode so three.js
 // loads a clean (color-keyed) texture instead of holding onto the earth bitmap.
@@ -118,8 +126,6 @@ interface PathData {
   name: string;
   color: string;
   status: CableSystem["status"];
-  /** "line" = solid cable, "dot" = animated travelling glow */
-  kind: "line" | "dot";
 }
 
 export default function GlobeScene() {
@@ -143,7 +149,8 @@ export default function GlobeScene() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Prepare path data — two layers per segment: solid line + animated glow dot.
+  // Solid line per segment. Travelling dots are NOT in this list — they're
+  // real THREE.Mesh spheres added directly to the scene (see RAF effect below).
   const pathsData: PathData[] = useMemo(() => {
     const out: PathData[] = [];
     for (const route of cableRoutes) {
@@ -157,18 +164,50 @@ export default function GlobeScene() {
             ? TM_COLORS.cablePlanned
             : baseColor;
       for (const seg of route.segments) {
-        const base = {
+        out.push({
           coords: seg.coords,
           cableId: route.cableId,
           name: cable?.shortName || route.cableId,
           color: colorByStatus,
           status,
-        };
-        out.push({ ...base, kind: "line" });
-        out.push({ ...base, kind: "dot" });
+        });
       }
     }
     return out;
+  }, []);
+
+  // Per-segment metadata for the travelling-dot RAF: cumulative arc-length in
+  // km along each polyline, so we can map elapsed-time → sub-leg → lat/lng.
+  const dotSegments = useMemo(() => {
+    const haversine = (a: [number, number], b: [number, number]) => {
+      const R = 6371;
+      const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+      const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+      const la1 = (a[0] * Math.PI) / 180;
+      const la2 = (b[0] * Math.PI) / 180;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(x));
+    };
+    type Seg = {
+      coords: [number, number][];
+      cumKm: number[];
+      totalKm: number;
+    };
+    const segs: Seg[] = [];
+    for (const route of cableRoutes) {
+      for (const seg of route.segments) {
+        const coords = seg.coords;
+        if (coords.length < 2) continue;
+        const cumKm = [0];
+        for (let i = 1; i < coords.length; i++) {
+          cumKm.push(cumKm[i - 1] + haversine(coords[i - 1], coords[i]));
+        }
+        segs.push({ coords, cumKm, totalKm: cumKm[cumKm.length - 1] });
+      }
+    }
+    return segs;
   }, []);
 
   // Greedy cluster: any landing points within CLUSTER_KM of an existing cluster
@@ -485,8 +524,8 @@ export default function GlobeScene() {
     [handleSelectCable]
   );
 
-  // Path color: dots render brighter than the underlying line. On a light
-  // canvas, muted lines/dots need a dark stroke or they vanish into the basemap.
+  // Path color: muted lines on a light canvas need a dark stroke or they
+  // vanish into the basemap. Dots are now real meshes — see RAF effect.
   const isLightCanvas = theme === "light";
   const mutedCableColor = isLightCanvas
     ? "rgba(30, 40, 60, 0.35)"
@@ -496,38 +535,18 @@ export default function GlobeScene() {
     (path: PathData) => {
       const isSel = selectedCable && path.cableId === selectedCable.id;
       const isMuted = selectedCable && !isSel;
-      if (path.kind === "dot") {
-        if (isMuted) return "rgba(0,0,0,0)"; // hide muted dots
-        return dotColor;
-      }
       if (isMuted) return mutedCableColor;
       return path.color;
     },
-    [selectedCable, dotColor, mutedCableColor]
+    [selectedCable, mutedCableColor]
   );
 
-  // Stroke: lines uniform; dots slightly thicker for the glow effect.
   const getPathStroke = useCallback(
     (path: PathData) => {
       const isSel = selectedCable && path.cableId === selectedCable.id;
-      if (path.kind === "dot") return isSel ? 5 : 3.5;
       return isSel ? 4 : 2;
     },
     [selectedCable]
-  );
-
-  // Dash params: lines solid, dots = tiny segment + huge gap = travelling dot.
-  const getDashLength = useCallback(
-    (path: PathData) => (path.kind === "dot" ? 0.005 : 1),
-    []
-  );
-  const getDashGap = useCallback(
-    (path: PathData) => (path.kind === "dot" ? 0.995 : 0),
-    []
-  );
-  const getDashAnimateTime = useCallback(
-    (path: PathData) => (path.kind === "dot" ? 6000 : 0),
-    []
   );
 
   // Set of active landing-point IDs for the selected cable (O(1) lookup in the
@@ -619,6 +638,64 @@ export default function GlobeScene() {
     return () => clearTimeout(id);
   }, [isLoaded, style.globeColor, style.globe]);
 
+  // Travelling dots — one THREE.Sphere mesh per cable segment, all animated
+  // continuously regardless of selection. Self-contained RAF; meshes share a
+  // single geometry + material to keep GPU state changes minimal.
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+
+    const geo = new THREE.SphereGeometry(DOT_RADIUS, 12, 8);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(dotColor),
+      depthTest: false,
+      transparent: true,
+    });
+    const meshes: THREE.Mesh[] = dotSegments.map(() => {
+      const m = new THREE.Mesh(geo, mat);
+      m.renderOrder = 999;
+      m.frustumCulled = false;
+      scene.add(m);
+      return m;
+    });
+
+    let raf = 0;
+    const start = performance.now();
+    const tick = () => {
+      const elapsedSec = (performance.now() - start) / 1000;
+      for (let i = 0; i < dotSegments.length; i++) {
+        const seg = dotSegments[i];
+        if (seg.totalKm <= 0) continue;
+        const speed = Math.min(
+          DOT_SPEED_KM_PER_SEC,
+          seg.totalKm / DOT_MIN_LOOP_SEC
+        );
+        const dist = (elapsedSec * speed) % seg.totalKm;
+        let j = 1;
+        while (j < seg.cumKm.length && seg.cumKm[j] < dist) j++;
+        if (j >= seg.cumKm.length) j = seg.cumKm.length - 1;
+        const a = seg.coords[j - 1];
+        const b = seg.coords[j];
+        const legKm = seg.cumKm[j] - seg.cumKm[j - 1];
+        const t = legKm > 0 ? (dist - seg.cumKm[j - 1]) / legKm : 0;
+        const lat = a[0] + (b[0] - a[0]) * t;
+        const lng = a[1] + (b[1] - a[1]) * t;
+        const xyz = globeRef.current.getCoords(lat, lng, 0.005);
+        meshes[i].position.set(xyz.x, xyz.y, xyz.z);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      for (const m of meshes) scene.remove(m);
+      geo.dispose();
+      mat.dispose();
+    };
+  }, [isLoaded, dotSegments, dotColor]);
+
   // Country polygons render in both outline mode (with fill) and mono mode
   // (stroke-only overlay on top of CARTO tiles for crisp vector edges).
   const polygonsData = useMemo(
@@ -643,7 +720,6 @@ export default function GlobeScene() {
         globeImageUrl={style.globe}
         globeTileEngineUrl={useTiles ? tileUrl : undefined}
         bumpImageUrl={renderStyle === "texture" ? BUMP_IMAGE : undefined}
-        backgroundImageUrl={style.bg}
         showAtmosphere={renderStyle !== "mono"}
         atmosphereColor={style.atmosphere}
         atmosphereAltitude={0.18}
@@ -663,9 +739,6 @@ export default function GlobeScene() {
         pathPointAlt={() => 0.003}
         pathColor={getPathColor as any}
         pathStroke={getPathStroke as any}
-        pathDashLength={getDashLength as any}
-        pathDashGap={getDashGap as any}
-        pathDashAnimateTime={getDashAnimateTime as any}
         pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
         // Points (landing stations)
