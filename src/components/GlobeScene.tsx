@@ -184,16 +184,38 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(rafId);
   }, [isLoaded]);
 
-  // Linear interpolation helper for zoom-based scaling
+  // Linear interpolation between two anchor altitudes (clamped at both ends).
   const scaleByZoom = useCallback(
     (farVal: number, closeVal: number) => {
       const ALT_FAR = 4.0;
-      const ALT_CLOSE = 0.15;
+      const ALT_CLOSE = 0.35;
       const t = Math.max(
         0,
         Math.min(1, (zoomLevel - ALT_CLOSE) / (ALT_FAR - ALT_CLOSE))
       );
       return closeVal + t * (farVal - closeVal);
+    },
+    [zoomLevel]
+  );
+
+  // Piecewise scaler — accepts a list of [altitude, value] anchors sorted from
+  // far to close. Linearly interpolates between adjacent stops; clamps at ends.
+  // Useful when sizing should ramp down twice (e.g. labels: shrink at mid zoom,
+  // then shrink again at very close zoom so they don't dominate the viewport).
+  const piecewiseByZoom = useCallback(
+    (stops: [number, number][]) => {
+      const z = zoomLevel;
+      if (z >= stops[0][0]) return stops[0][1];
+      if (z <= stops[stops.length - 1][0]) return stops[stops.length - 1][1];
+      for (let i = 0; i < stops.length - 1; i++) {
+        const [a, va] = stops[i];
+        const [b, vb] = stops[i + 1];
+        if (z <= a && z >= b) {
+          const t = (z - b) / (a - b);
+          return vb + t * (va - vb);
+        }
+      }
+      return stops[stops.length - 1][1];
     },
     [zoomLevel]
   );
@@ -380,11 +402,22 @@ export default function GlobeScene() {
         labelLat="lat"
         labelLng="lng"
         labelText="city"
-        labelSize={scaleByZoom(1.0, 0.08)}
+        labelSize={piecewiseByZoom([
+          [4.0, 0.9],
+          [1.5, 0.45],
+          [0.35, 0.18],
+          [0.05, 0.06],
+        ])}
         labelColor={labelColorFn}
-        labelDotRadius={scaleByZoom(0.25, 0.015)}
-        labelAltitude={0.015}
+        labelDotRadius={piecewiseByZoom([
+          [4.0, 0.22],
+          [1.5, 0.12],
+          [0.35, 0.05],
+          [0.05, 0.02],
+        ])}
+        labelAltitude={0.001}
         labelResolution={2}
+        labelIncludeDot={true}
         // Events
         onGlobeReady={handleGlobeReady}
         animateIn={true}
