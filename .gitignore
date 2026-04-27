@@ -45,3 +45,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# import script cache (raw upstream GeoJSON, regenerated on demand)
+/scripts/.cache/
