@@ -630,7 +630,7 @@ export default function GlobeScene() {
 
   return (
     <div
-      className="relative w-full h-screen overflow-hidden bg-[#0A0E1A]"
+      className="relative w-full h-screen overflow-hidden bg-[#06013A]"
       style={{ touchAction: "none" }}
     >
       {!isLoaded && <LoadingScreen />}
@@ -750,7 +750,7 @@ export default function GlobeScene() {
         <button
           onClick={() => setSettingsOpen((v) => !v)}
           aria-label="Display settings"
-          className="flex items-center justify-center w-12 h-12 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-[#94A3B8] active:bg-white/5 transition-colors"
+          className="flex items-center justify-center w-12 h-12 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg text-[#A8B0D6] active:bg-white/5 transition-colors"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -768,51 +768,51 @@ export default function GlobeScene() {
         </button>
 
         {settingsOpen && (
-          <div className="absolute bottom-14 right-0 flex flex-col gap-2 p-3 bg-[#0A0E1A]/95 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg min-w-[200px]">
-            <div className="text-[10px] text-[#60A5FA] font-bold tracking-[0.1em] mb-1">
-              DISPLAY
+          <div className="absolute bottom-14 right-0 flex flex-col gap-2 p-3 bg-[#06013A]/95 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg min-w-[200px]">
+            <div className="font-display text-[10px] text-white font-bold tracking-[0.2em] mb-1 uppercase">
+              Display
             </div>
 
             <button
               onClick={() => setAutoRotate(!autoRotate)}
-              className="flex items-center gap-2 px-3 py-2 bg-[#0A0E1A]/60 border border-[#2362DD]/20 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
+              className="flex items-center gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
             >
               <div
-                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#2362DD]/40" : "bg-[#1A1F35]"}`}
+                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#1800E7]" : "bg-[#0B0750]"}`}
               >
                 <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-[#60A5FA]" : "left-0.5 bg-[#475569]"}`}
+                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-white" : "left-0.5 bg-[#A8B0D6]"}`}
                 />
               </div>
-              <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+              <span className="font-display text-[11px] font-bold tracking-wider text-[#A8B0D6]">
                 ROTATE
               </span>
             </button>
 
             <button
               onClick={() => setRenderStyle(nextStyle(renderStyle))}
-              className="flex items-center justify-between gap-2 px-3 py-2 bg-[#0A0E1A]/60 border border-[#2362DD]/20 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
+              className="flex items-center justify-between gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
             >
-              <span className="text-[11px] font-semibold tracking-wider text-[#60A5FA]">
+              <span className="font-display text-[11px] font-bold tracking-wider text-white">
                 STYLE
               </span>
-              <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+              <span className="font-display text-[11px] font-bold tracking-wider text-[#FF7A00]">
                 {RENDER_STYLE_LABEL[renderStyle]}
               </span>
             </button>
 
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="flex items-center gap-2 px-3 py-2 bg-[#0A0E1A]/60 border border-[#2362DD]/20 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
+              className="flex items-center gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
             >
               <div
-                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${theme === "dark" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}
+                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${theme === "dark" ? "bg-[#0B0750]" : "bg-[#1800E7]"}`}
               >
                 <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${theme === "dark" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`}
+                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${theme === "dark" ? "left-0.5 bg-[#A8B0D6]" : "left-5 bg-[#FF5E00]"}`}
                 />
               </div>
-              <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+              <span className="font-display text-[11px] font-bold tracking-wider text-[#A8B0D6]">
                 {theme === "dark" ? "DARK" : "LIGHT"}
               </span>
             </button>
@@ -821,11 +821,11 @@ export default function GlobeScene() {
       </div>
 
       {/* Controls overlay */}
-      <div className="absolute bottom-6 left-6 z-10 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg pointer-events-none">
-        <div className="text-[10px] text-[#60A5FA] font-bold tracking-[0.1em] mb-2">
-          CONTROLS
+      <div className="absolute bottom-6 left-6 z-10 px-4 py-3 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg pointer-events-none">
+        <div className="font-display text-[10px] text-white font-bold tracking-[0.2em] mb-2 uppercase">
+          Controls
         </div>
-        <div className="space-y-1 text-[11px] text-[#94A3B8]">
+        <div className="space-y-1 text-[11px] text-[#A8B0D6] font-medium">
           <div>DRAG &mdash; Rotate globe</div>
           <div>PINCH &mdash; Zoom in/out</div>
           <div>TAP &mdash; Select cable/point</div>

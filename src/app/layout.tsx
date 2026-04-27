@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono } from "next/font/google";
+import { Roboto } from "next/font/google";
 import "./globals.css";
 
-const ibmPlexMono = IBM_Plex_Mono({
-  variable: "--font-mono",
+// Roboto = TM Global body/subhead font. HK Grotesk Wide (headlines) is
+// self-hosted via @font-face in globals.css.
+const roboto = Roboto({
+  variable: "--font-roboto",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["300", "400", "500", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "TM Submarine Cable Network",
+  title: "TM Global · Submarine Cable Network",
   description:
-    "Interactive 3D globe visualization of Telekom Malaysia submarine cable systems",
+    "Interactive 3D globe visualization of TM Global submarine cable systems",
 };
 
 export default function RootLayout({
@@ -21,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${ibmPlexMono.variable} antialiased`}>{children}</body>
+      <body className={`${roboto.variable} antialiased font-light`}>{children}</body>
     </html>
   );
 }
