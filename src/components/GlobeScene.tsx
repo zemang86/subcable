@@ -47,16 +47,16 @@ const STYLES = {
     globe: BLANK_PIXEL,
     bg: "/textures/night-sky.webp",
     atmosphere: "#cfe6ff",
-    globeColor: "#7EC0EE", // clear blue sea
-    countryStroke: "#000000",
-    countryFill: "#7BC47F", // green land
+    globeColor: "#EDE9DE", // cream sea — soft mono backdrop
+    countryStroke: "rgba(40, 50, 70, 0.85)", // charcoal hairline
+    countryFill: "#FAFAF6", // off-white land
   },
   "mono-dark": {
     globe: BLANK_PIXEL,
     bg: "/textures/night-sky.webp",
     atmosphere: "#2362DD",
     globeColor: "#1a1a1a",
-    countryStroke: undefined,
+    countryStroke: "rgba(220, 230, 250, 0.55)", // hairline overlay on dark tiles
     countryFill: undefined,
   },
   "mono-light": {
@@ -64,7 +64,7 @@ const STYLES = {
     bg: "/textures/night-sky.webp",
     atmosphere: "#cfe6ff",
     globeColor: "#fafaf8",
-    countryStroke: undefined,
+    countryStroke: "rgba(30, 40, 70, 0.55)", // hairline overlay on light tiles
     countryFill: undefined,
   },
 } as const;
@@ -76,11 +76,13 @@ const SATELLITE_TILE_URL = (x: number, y: number, level: number) =>
 
 // CARTO basemaps (monochrome, free for non-commercial w/ attribution).
 // Subdomain rotation a/b/c/d to spread requests across CDN edges.
+// Use the `_nolabels` variants — we draw our own city/cable labels on top, and
+// dropping CARTO's baked glyphs halves PNG size and skips a render pass.
 const cartoSub = (z: number) => "abcd"[(z * 7) % 4];
 const CARTO_LIGHT_TILE_URL = (x: number, y: number, level: number) =>
-  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/light_all/${level}/${x}/${y}.png`;
+  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/light_nolabels/${level}/${x}/${y}.png`;
 const CARTO_DARK_TILE_URL = (x: number, y: number, level: number) =>
-  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/dark_all/${level}/${x}/${y}.png`;
+  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/dark_nolabels/${level}/${x}/${y}.png`;
 
 const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables satellite tiles
 
@@ -90,7 +92,6 @@ const renderPathLabel = (path: any) =>
   `<div style="${TOOLTIP_STYLE}">${path.name}</div>`;
 const renderPointLabel = (p: any) =>
   `<div style="${TOOLTIP_STYLE}">${p.city}, ${p.country}</div>`;
-const labelColorFn = () => "rgba(226, 232, 240, 0.8)";
 
 type GlobeStyle = keyof typeof STYLES;
 type Theme = "dark" | "light";
@@ -124,12 +125,13 @@ export default function GlobeScene() {
   const globeRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [renderStyle, setRenderStyle] = useState<RenderStyle>("texture");
+  const [theme, setTheme] = useState<Theme>("light");
+  const [renderStyle, setRenderStyle] = useState<RenderStyle>("mono");
   const style = STYLES[styleKey(renderStyle, theme)];
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [zoomLevel, setZoomLevel] = useState(2.2);
   const [autoRotate, setAutoRotate] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Resize handler
   useEffect(() => {
@@ -176,6 +178,72 @@ export default function GlobeScene() {
       color: TM_COLORS.landingPointDefault,
     }));
   }, []);
+
+  // Country labels — derived once from countries.json. We pick the largest
+  // polygon per feature (so MultiPolygon countries label on their main body,
+  // not a stray island), then use its outer-ring bbox centre. Tiny countries
+  // are filtered out to keep the globe uncluttered at far zoom.
+  const countryLabels = useMemo(() => {
+    const out: { lat: number; lng: number; name: string; area: number }[] = [];
+    const ringArea = (ring: number[][]) => {
+      let a = 0;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
+      }
+      return Math.abs(a) / 2;
+    };
+    const ringCentre = (ring: number[][]) => {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+      return [(minX + maxX) / 2, (minY + maxY) / 2];
+    };
+    for (const f of (countries as any).features) {
+      const g = f.geometry;
+      if (!g) continue;
+      const polys =
+        g.type === "Polygon"
+          ? [g.coordinates]
+          : g.type === "MultiPolygon"
+            ? g.coordinates
+            : [];
+      let bestRing: number[][] | null = null;
+      let bestArea = 0;
+      for (const poly of polys) {
+        const outer = poly[0];
+        if (!outer || outer.length < 3) continue;
+        const a = ringArea(outer);
+        if (a > bestArea) {
+          bestArea = a;
+          bestRing = outer;
+        }
+      }
+      if (!bestRing || bestArea < 4) continue; // skip tiny countries (~degrees²)
+      const [lng, lat] = ringCentre(bestRing);
+      out.push({
+        lat,
+        lng,
+        name: (f.properties?.name || "").toUpperCase(),
+        area: bestArea,
+      });
+    }
+    return out;
+  }, []);
+
+  // Combined labels feed: cities (landing points) + country names. We branch
+  // accessors on the `kind` field so each type gets its own size/color/dot.
+  const allLabels = useMemo(() => {
+    const cities = pointsData.map((p) => ({ ...p, kind: "city" as const }));
+    const countriesL = countryLabels.map((c) => ({
+      ...c,
+      kind: "country" as const,
+    }));
+    return [...countriesL, ...cities];
+  }, [pointsData, countryLabels]);
 
   // Initialize globe view centered on SEA
   const handleGlobeReady = useCallback(() => {
@@ -351,19 +419,25 @@ export default function GlobeScene() {
     [handleSelectCable]
   );
 
-  // Path color: dots render brighter than the underlying line.
+  // Path color: dots render brighter than the underlying line. On a light
+  // canvas, muted lines/dots need a dark stroke or they vanish into the basemap.
+  const isLightCanvas = theme === "light";
+  const mutedCableColor = isLightCanvas
+    ? "rgba(30, 40, 60, 0.35)"
+    : TM_COLORS.cableMuted;
+  const dotColor = isLightCanvas ? "#0B1A3A" : "#FFFFFF";
   const getPathColor = useCallback(
     (path: PathData) => {
       const isSel = selectedCable && path.cableId === selectedCable.id;
       const isMuted = selectedCable && !isSel;
       if (path.kind === "dot") {
-        if (isMuted) return "rgba(255,255,255,0)"; // hide muted dots
-        return "#FFFFFF";
+        if (isMuted) return "rgba(0,0,0,0)"; // hide muted dots
+        return dotColor;
       }
-      if (isMuted) return TM_COLORS.cableMuted;
+      if (isMuted) return mutedCableColor;
       return path.color;
     },
-    [selectedCable]
+    [selectedCable, dotColor, mutedCableColor]
   );
 
   // Stroke: lines uniform; dots slightly thicker for the glow effect.
@@ -398,13 +472,16 @@ export default function GlobeScene() {
   );
 
   // Point color based on selection state
+  const mutedPointColor = isLightCanvas
+    ? "rgba(30, 40, 60, 0.35)"
+    : "rgba(100, 100, 100, 0.3)";
   const getPointColor = useCallback(
     (point: any) => {
       if (!selectedLPSet) return TM_COLORS.landingPointDefault;
       if (selectedLPSet.has(point.id)) return TM_COLORS.cableHighlight;
-      return "rgba(100, 100, 100, 0.3)";
+      return mutedPointColor;
     },
-    [selectedLPSet]
+    [selectedLPSet, mutedPointColor]
   );
 
   // Point size based on selection, scaled by zoom
@@ -476,8 +553,13 @@ export default function GlobeScene() {
     return () => clearTimeout(id);
   }, [isLoaded, style.globeColor, style.globe]);
 
+  // Country polygons render in both outline mode (with fill) and mono mode
+  // (stroke-only overlay on top of CARTO tiles for crisp vector edges).
   const polygonsData = useMemo(
-    () => (renderStyle === "outline" ? (countries as any).features : []),
+    () =>
+      renderStyle === "outline" || renderStyle === "mono"
+        ? (countries as any).features
+        : [],
     [renderStyle]
   );
 
@@ -496,7 +578,7 @@ export default function GlobeScene() {
         globeTileEngineUrl={useTiles ? tileUrl : undefined}
         bumpImageUrl={renderStyle === "texture" ? BUMP_IMAGE : undefined}
         backgroundImageUrl={style.bg}
-        showAtmosphere={true}
+        showAtmosphere={renderStyle !== "mono"}
         atmosphereColor={style.atmosphere}
         atmosphereAltitude={0.18}
         // Country outlines (only populated in outline mode)
@@ -529,27 +611,49 @@ export default function GlobeScene() {
         pointRadius={scaleByZoom(0.55, 0.03)}
         pointLabel={renderPointLabel}
         onPointClick={handleGlobePointClick}
-        // Labels
-        labelsData={pointsData}
+        // Labels — combined feed (countries + cities), accessors branch on kind
+        labelsData={allLabels}
         labelLat="lat"
         labelLng="lng"
-        labelText="city"
-        labelSize={piecewiseByZoom([
-          [4.0, 0.9],
-          [1.5, 0.45],
-          [0.35, 0.18],
-          [0.05, 0.06],
-        ])}
-        labelColor={labelColorFn}
-        labelDotRadius={piecewiseByZoom([
-          [4.0, 0.22],
-          [1.5, 0.12],
-          [0.35, 0.05],
-          [0.05, 0.02],
-        ])}
+        labelText={(l: any) => (l.kind === "country" ? l.name : l.city)}
+        labelColor={(l: any) => {
+          if (l.kind === "country") {
+            return isLightCanvas
+              ? "rgba(60, 70, 95, 0.65)"
+              : "rgba(180, 200, 230, 0.55)";
+          }
+          return isLightCanvas
+            ? "rgba(15, 23, 42, 0.9)"
+            : "rgba(226, 232, 240, 0.85)";
+        }}
+        labelSize={(l: any) => {
+          if (l.kind === "country") {
+            return piecewiseByZoom([
+              [4.0, 0.7],
+              [1.5, 0.4],
+              [0.35, 0.18],
+              [0.05, 0.1],
+            ]);
+          }
+          return piecewiseByZoom([
+            [4.0, 0.9],
+            [1.5, 0.45],
+            [0.35, 0.18],
+            [0.05, 0.06],
+          ]);
+        }}
+        labelDotRadius={(l: any) => {
+          if (l.kind === "country") return 0;
+          return piecewiseByZoom([
+            [4.0, 0.22],
+            [1.5, 0.12],
+            [0.35, 0.05],
+            [0.05, 0.02],
+          ]);
+        }}
         labelAltitude={0.005}
-        labelResolution={2}
-        labelIncludeDot={true}
+        labelResolution={renderStyle === "mono" ? 1 : 2}
+        labelIncludeDot={(l: any) => l.kind !== "country"}
         // Events
         onGlobeReady={handleGlobeReady}
         animateIn={true}
@@ -562,54 +666,79 @@ export default function GlobeScene() {
         onPointClick={handlePointClick}
       />
 
-      {/* Bottom-right controls */}
-      <div className="absolute bottom-6 right-[400px] z-10 flex items-center gap-2">
-        {/* Auto-rotate toggle */}
+      {/* Bottom-right settings toggle */}
+      <div className="absolute bottom-6 right-[400px] z-10">
         <button
-          onClick={() => setAutoRotate(!autoRotate)}
-          className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
+          onClick={() => setSettingsOpen((v) => !v)}
+          aria-label="Display settings"
+          className="flex items-center justify-center w-12 h-12 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-[#94A3B8] active:bg-white/5 transition-colors"
         >
-          <div
-            className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#2362DD]/40" : "bg-[#1A1F35]"}`}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-5 h-5"
           >
-            <div
-              className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-[#60A5FA]" : "left-0.5 bg-[#475569]"}`}
-            />
-          </div>
-          <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
-            ROTATE
-          </span>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
         </button>
 
-        {/* Style cycle: TEXTURE -> OUTLINE -> MONO */}
-        <button
-          onClick={() => setRenderStyle(nextStyle(renderStyle))}
-          className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
-        >
-          <span className="text-[11px] font-semibold tracking-wider text-[#60A5FA]">
-            STYLE
-          </span>
-          <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
-            {RENDER_STYLE_LABEL[renderStyle]}
-          </span>
-        </button>
+        {settingsOpen && (
+          <div className="absolute bottom-14 right-0 flex flex-col gap-2 p-3 bg-[#0A0E1A]/95 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg min-w-[200px]">
+            <div className="text-[10px] text-[#60A5FA] font-bold tracking-[0.1em] mb-1">
+              DISPLAY
+            </div>
 
-        {/* Theme toggle (dark vs light) */}
-        <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
-        >
-          <div
-            className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${theme === "dark" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}
-          >
-            <div
-              className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${theme === "dark" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`}
-            />
+            <button
+              onClick={() => setAutoRotate(!autoRotate)}
+              className="flex items-center gap-2 px-3 py-2 bg-[#0A0E1A]/60 border border-[#2362DD]/20 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
+            >
+              <div
+                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#2362DD]/40" : "bg-[#1A1F35]"}`}
+              >
+                <div
+                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-[#60A5FA]" : "left-0.5 bg-[#475569]"}`}
+                />
+              </div>
+              <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+                ROTATE
+              </span>
+            </button>
+
+            <button
+              onClick={() => setRenderStyle(nextStyle(renderStyle))}
+              className="flex items-center justify-between gap-2 px-3 py-2 bg-[#0A0E1A]/60 border border-[#2362DD]/20 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
+            >
+              <span className="text-[11px] font-semibold tracking-wider text-[#60A5FA]">
+                STYLE
+              </span>
+              <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+                {RENDER_STYLE_LABEL[renderStyle]}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="flex items-center gap-2 px-3 py-2 bg-[#0A0E1A]/60 border border-[#2362DD]/20 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
+            >
+              <div
+                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${theme === "dark" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}
+              >
+                <div
+                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${theme === "dark" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`}
+                />
+              </div>
+              <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+                {theme === "dark" ? "DARK" : "LIGHT"}
+              </span>
+            </button>
           </div>
-          <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
-            {theme === "dark" ? "DARK" : "LIGHT"}
-          </span>
-        </button>
+        )}
       </div>
 
       {/* Controls overlay */}

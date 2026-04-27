@@ -14,11 +14,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, "..");
 const OUT_FILE = path.join(REPO, "src/data/countries.json");
 const CACHE_DIR = path.join(__dirname, ".cache");
+// NE 50m gives crisper coastlines than 110m without ballooning file size.
+// 10m exists too but is overkill (~20MB raw) for a globe-scale view.
 const URL =
-  "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson";
+  "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson";
 
-const SIMPLIFY_TOLERANCE_DEG = 0.15; // ~17 km — fine for country outlines
-const COORD_DECIMALS = 2;
+const SIMPLIFY_TOLERANCE_DEG = 0.06; // ~6 km — tighter for the higher-res source
+const COORD_DECIMALS = 3;
 
 async function load() {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
