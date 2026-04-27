@@ -47,6 +47,8 @@ interface PathData {
   name: string;
   color: string;
   status: CableSystem["status"];
+  /** "line" = solid cable, "dot" = animated travelling glow */
+  kind: "line" | "dot";
 }
 
 export default function GlobeScene() {
@@ -67,9 +69,10 @@ export default function GlobeScene() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Prepare path data for globe — one entry per route segment.
+  // Prepare path data — two layers per segment: solid line + animated glow dot.
   const pathsData: PathData[] = useMemo(() => {
-    return cableRoutes.flatMap((route) => {
+    const out: PathData[] = [];
+    for (const route of cableRoutes) {
       const cable = cablesById[route.cableId];
       const baseColor = CABLE_COLORS[route.cableId] || "#ffffff";
       const status = cable?.status ?? "active";
@@ -79,14 +82,19 @@ export default function GlobeScene() {
           : status === "planned"
             ? TM_COLORS.cablePlanned
             : baseColor;
-      return route.segments.map((seg) => ({
-        coords: seg.coords,
-        cableId: route.cableId,
-        name: cable?.shortName || route.cableId,
-        color: colorByStatus,
-        status,
-      }));
-    });
+      for (const seg of route.segments) {
+        const base = {
+          coords: seg.coords,
+          cableId: route.cableId,
+          name: cable?.shortName || route.cableId,
+          color: colorByStatus,
+          status,
+        };
+        out.push({ ...base, kind: "line" });
+        out.push({ ...base, kind: "dot" });
+      }
+    }
+    return out;
   }, []);
 
   // Prepare points data for globe
@@ -250,25 +258,43 @@ export default function GlobeScene() {
     [handleSelectCable]
   );
 
-  // Path color based on selection state.
+  // Path color: dots render brighter than the underlying line.
   const getPathColor = useCallback(
     (path: PathData) => {
-      if (!selectedCable) return path.color;
-      if (path.cableId === selectedCable.id) return path.color;
-      return TM_COLORS.cableMuted;
+      const isSel = selectedCable && path.cableId === selectedCable.id;
+      const isMuted = selectedCable && !isSel;
+      if (path.kind === "dot") {
+        if (isMuted) return "rgba(255,255,255,0)"; // hide muted dots
+        return "#FFFFFF";
+      }
+      if (isMuted) return TM_COLORS.cableMuted;
+      return path.color;
     },
     [selectedCable]
   );
 
-  // Path stroke — thicker for selected cable, thinner for non-trunk planned cables.
+  // Stroke: lines uniform; dots slightly thicker for the glow effect.
   const getPathStroke = useCallback(
     (path: PathData) => {
-      if (selectedCable && path.cableId === selectedCable.id) return 4;
-      if (path.status === "planned") return 1.6;
-      if (path.status === "retired" || path.status === "inactive") return 1.2;
-      return 2.2;
+      const isSel = selectedCable && path.cableId === selectedCable.id;
+      if (path.kind === "dot") return isSel ? 5 : 3.5;
+      return isSel ? 4 : 2;
     },
     [selectedCable]
+  );
+
+  // Dash params: lines solid, dots = tiny segment + huge gap = travelling dot.
+  const getDashLength = useCallback(
+    (path: PathData) => (path.kind === "dot" ? 0.005 : 1),
+    []
+  );
+  const getDashGap = useCallback(
+    (path: PathData) => (path.kind === "dot" ? 0.995 : 0),
+    []
+  );
+  const getDashAnimateTime = useCallback(
+    (path: PathData) => (path.kind === "dot" ? 6000 : 0),
+    []
   );
 
   // Set of active landing-point IDs for the selected cable (O(1) lookup in the
@@ -335,9 +361,9 @@ export default function GlobeScene() {
         pathPointLng={(p: any) => p[1]}
         pathColor={getPathColor as any}
         pathStroke={getPathStroke as any}
-        pathDashLength={scaleByZoom(0.25, 0.03)}
-        pathDashGap={scaleByZoom(0.08, 0.01)}
-        pathDashAnimateTime={15000}
+        pathDashLength={getDashLength as any}
+        pathDashGap={getDashGap as any}
+        pathDashAnimateTime={getDashAnimateTime as any}
         pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
         // Points (landing stations)
