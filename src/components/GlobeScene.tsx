@@ -170,14 +170,79 @@ export default function GlobeScene() {
     return out;
   }, []);
 
-  // Prepare points data for globe
-  const pointsData = useMemo(() => {
-    return landingPoints.map((p) => ({
-      ...p,
-      size: 0.4,
-      color: TM_COLORS.landingPointDefault,
-    }));
+  // Greedy cluster: any landing points within CLUSTER_KM of an existing cluster
+  // centroid get merged. Avoids stacked dots/labels for near-duplicate sites
+  // (Sedili CLS1+CLS2, Bayan Baru/Pulau Jerejak, Katong/East Coast, etc.).
+  const CLUSTER_KM = 6;
+  const pointClusters = useMemo(() => {
+    const haversine = (
+      a: { lat: number; lng: number },
+      b: { lat: number; lng: number }
+    ) => {
+      const R = 6371;
+      const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+      const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+      const la1 = (a.lat * Math.PI) / 180;
+      const la2 = (b.lat * Math.PI) / 180;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(x));
+    };
+    type Cluster = {
+      lat: number;
+      lng: number;
+      members: typeof landingPoints;
+    };
+    const result: Cluster[] = [];
+    for (const p of landingPoints) {
+      const c = result.find((c) => haversine(c, p) < CLUSTER_KM);
+      if (c) {
+        c.members.push(p);
+        c.lat = c.members.reduce((s, m) => s + m.lat, 0) / c.members.length;
+        c.lng = c.members.reduce((s, m) => s + m.lng, 0) / c.members.length;
+      } else {
+        result.push({ lat: p.lat, lng: p.lng, members: [p] });
+      }
+    }
+    return result;
   }, []);
+
+  // Switch between clustered (far/mid zoom) and individual (close zoom) points.
+  // Close enough that the two dots no longer overlap visually -> show both.
+  const useClusters = zoomLevel > 0.18;
+
+  // Prepare points data for globe — either cluster reps or raw points.
+  const pointsData = useMemo(() => {
+    if (!useClusters) {
+      return landingPoints.map((p) => ({
+        ...p,
+        memberIds: [p.id],
+        size: 0.4,
+        color: TM_COLORS.landingPointDefault,
+      }));
+    }
+    return pointClusters.map((c) => {
+      const ids = c.members.map((m) => m.id);
+      const cities = Array.from(new Set(c.members.map((m) => m.city)));
+      const cableIds = Array.from(
+        new Set(c.members.flatMap((m) => m.cableIds))
+      );
+      return {
+        id: ids.join("+"),
+        name: c.members[0].name,
+        city: cities.join(" / "),
+        country: c.members[0].country,
+        region: c.members[0].region,
+        lat: c.lat,
+        lng: c.lng,
+        cableIds,
+        memberIds: ids,
+        size: 0.4,
+        color: TM_COLORS.landingPointDefault,
+      };
+    });
+  }, [useClusters, pointClusters]);
 
   // Country labels — derived once from countries.json. We pick the largest
   // polygon per feature (so MultiPolygon countries label on their main body,
@@ -471,31 +536,31 @@ export default function GlobeScene() {
     [selectedCable]
   );
 
-  // Point color based on selection state
+  // Point color based on selection state. Cluster points highlight when ANY
+  // member id is in the selected set.
   const mutedPointColor = isLightCanvas
     ? "rgba(30, 40, 60, 0.35)"
     : "rgba(100, 100, 100, 0.3)";
+  const isPointSelected = useCallback(
+    (point: any) => {
+      if (!selectedLPSet) return false;
+      const ids: string[] = point.memberIds || [point.id];
+      return ids.some((id) => selectedLPSet.has(id));
+    },
+    [selectedLPSet]
+  );
   const getPointColor = useCallback(
     (point: any) => {
       if (!selectedLPSet) return TM_COLORS.landingPointDefault;
-      if (selectedLPSet.has(point.id)) return TM_COLORS.cableHighlight;
+      if (isPointSelected(point)) return TM_COLORS.cableHighlight;
       return mutedPointColor;
     },
-    [selectedLPSet, mutedPointColor]
+    [selectedLPSet, isPointSelected, mutedPointColor]
   );
 
-  // Point size based on selection, scaled by zoom
-  const getPointAltitude = useCallback(
-    (point: any) => {
-      const base = !selectedLPSet
-        ? 0.01
-        : selectedLPSet.has(point.id)
-          ? 0.03
-          : 0.005;
-      return base * scaleByZoom(1, 0.15);
-    },
-    [selectedLPSet, scaleByZoom]
-  );
+  // Flatten dots onto the globe surface (no cylinder height) so they read as
+  // pinned markers, not floating poles.
+  const getPointAltitude = useCallback(() => 0.001, []);
 
   const [useTiles, setUseTiles] = useState(false);
   useEffect(() => {
@@ -608,7 +673,13 @@ export default function GlobeScene() {
         pointLng="lng"
         pointColor={getPointColor as any}
         pointAltitude={getPointAltitude as any}
-        pointRadius={scaleByZoom(0.55, 0.03)}
+        pointRadius={piecewiseByZoom([
+          [4.0, 0],
+          [1.2, 0],
+          [0.8, 0.18],
+          [0.35, 0.06],
+          [0.05, 0.025],
+        ])}
         pointLabel={renderPointLabel}
         onPointClick={handleGlobePointClick}
         // Labels — combined feed (countries + cities), accessors branch on kind
@@ -635,20 +706,28 @@ export default function GlobeScene() {
               [0.05, 0.1],
             ]);
           }
+          // City labels hidden at far zoom; fade in past alt 1.2. Sizes kept
+          // small at close zoom so adjacent landing points don't collide.
+          // Extra breakpoint at alt 0.02 for very-close zoom (single station
+          // detail view) where labels need to be tiny.
           return piecewiseByZoom([
-            [4.0, 0.9],
-            [1.5, 0.45],
-            [0.35, 0.18],
-            [0.05, 0.06],
+            [4.0, 0],
+            [1.2, 0],
+            [0.8, 0.22],
+            [0.35, 0.1],
+            [0.1, 0.045],
+            [0.02, 0.015],
           ]);
         }}
         labelDotRadius={(l: any) => {
           if (l.kind === "country") return 0;
           return piecewiseByZoom([
-            [4.0, 0.22],
-            [1.5, 0.12],
-            [0.35, 0.05],
-            [0.05, 0.02],
+            [4.0, 0],
+            [1.2, 0],
+            [0.8, 0.07],
+            [0.35, 0.035],
+            [0.1, 0.015],
+            [0.02, 0.005],
           ]);
         }}
         labelAltitude={0.005}

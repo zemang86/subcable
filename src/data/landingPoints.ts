@@ -287,8 +287,8 @@ export const landingPoints: LandingPoint[] = [
   },
   {
     id: "sedili-1",
-    name: "Sedili 1, Malaysia",
-    city: "Sedili",
+    name: "Sedili CLS1, Malaysia",
+    city: "Sedili CLS1",
     country: "Malaysia",
     region: "Malaysia",
     lat: 1.93,
@@ -297,8 +297,8 @@ export const landingPoints: LandingPoint[] = [
   },
   {
     id: "sedili-2",
-    name: "Sedili 2, Malaysia",
-    city: "Sedili",
+    name: "Sedili CLS2, Malaysia",
+    city: "Sedili CLS2",
     country: "Malaysia",
     region: "Malaysia",
     lat: 1.95,
