@@ -11,16 +11,16 @@ import { cableRoutes } from "@/data/cableRoutes";
 import { CableSystem, LandingPoint } from "@/lib/types";
 import { TM_COLORS, CABLE_COLORS } from "@/lib/colors";
 
-// Globe textures (local high-res)
+// Globe textures (local high-res, WebP)
 const TEXTURES = {
   night: {
-    globe: "/textures/earth-night-hires.jpg",
-    bg: "/textures/night-sky.png",
+    globe: "/textures/earth-night-hires.webp",
+    bg: "/textures/night-sky.webp",
     atmosphere: "#2362DD",
   },
   day: {
-    globe: "/textures/earth-day-hires.jpg",
-    bg: "/textures/night-sky.png",
+    globe: "/textures/earth-day-hires.webp",
+    bg: "/textures/night-sky.webp",
     atmosphere: "#4da6ff",
   },
 } as const;
@@ -30,6 +30,13 @@ const SATELLITE_TILE_URL = (x: number, y: number, level: number) =>
   `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${level}/${y}/${x}`;
 
 const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables tiles
+
+const TOOLTIP_STYLE = "padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;";
+const renderPathLabel = (path: any) =>
+  `<div style="${TOOLTIP_STYLE}">${path.name}</div>`;
+const renderPointLabel = (p: any) =>
+  `<div style="${TOOLTIP_STYLE}">${p.city}, ${p.country}</div>`;
+const labelColorFn = () => "rgba(226, 232, 240, 0.8)";
 
 type GlobeMode = "night" | "day";
 
@@ -140,14 +147,20 @@ export default function GlobeScene() {
     };
   }, [isLoaded, autoRotate]);
 
-  // Track camera altitude for dynamic scaling
+  // Track camera altitude for dynamic scaling.
+  // Only update React state when altitude shifts meaningfully — otherwise this
+  // re-renders the whole scene at 60Hz and thrashes globe.gl's diffing.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     let rafId: number;
+    let lastReported = -1;
     const poll = () => {
       const pov = globeRef.current?.pointOfView?.();
       if (pov && typeof pov.altitude === "number") {
-        setZoomLevel(pov.altitude);
+        if (Math.abs(pov.altitude - lastReported) > 0.02) {
+          lastReported = pov.altitude;
+          setZoomLevel(pov.altitude);
+        }
       }
       rafId = requestAnimationFrame(poll);
     };
@@ -204,6 +217,13 @@ export default function GlobeScene() {
       );
     }
   }, []);
+
+  // Click on a globe point: pan to it and select its first associated cable.
+  const handleGlobePointClick = useCallback((point: any) => {
+    handlePointClick(point);
+    const cable = cables.find((c) => point.cableIds?.includes(c.id));
+    if (cable) setSelectedCable(cable);
+  }, [handlePointClick]);
 
   // Handle globe path click
   const handlePathClick = useCallback(
@@ -285,7 +305,7 @@ export default function GlobeScene() {
         pathDashLength={scaleByZoom(0.25, 0.03)}
         pathDashGap={scaleByZoom(0.08, 0.01)}
         pathDashAnimateTime={15000}
-        pathLabel={(path: any) => `<div style="padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;">${path.name}</div>`}
+        pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
         // Points (landing stations)
         pointsData={pointsData}
@@ -294,20 +314,15 @@ export default function GlobeScene() {
         pointColor={getPointColor as any}
         pointAltitude={getPointAltitude as any}
         pointRadius={scaleByZoom(0.55, 0.03)}
-        pointLabel={(p: any) => `<div style="padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;">${p.city}, ${p.country}</div>`}
-        onPointClick={(point: any) => {
-          handlePointClick(point);
-          // Also select the first cable connected to this point
-          const cable = cables.find((c) => point.cableIds?.includes(c.id));
-          if (cable) setSelectedCable(cable);
-        }}
+        pointLabel={renderPointLabel}
+        onPointClick={handleGlobePointClick}
         // Labels
         labelsData={pointsData}
         labelLat="lat"
         labelLng="lng"
         labelText="city"
         labelSize={scaleByZoom(1.0, 0.08)}
-        labelColor={() => "rgba(226, 232, 240, 0.8)"}
+        labelColor={labelColorFn}
         labelDotRadius={scaleByZoom(0.25, 0.015)}
         labelAltitude={0.015}
         labelResolution={2}
