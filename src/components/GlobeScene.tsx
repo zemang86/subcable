@@ -204,7 +204,7 @@ export default function GlobeScene() {
   const globeRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
   const [renderStyle, setRenderStyle] = useState<RenderStyle>("mono");
   const style = STYLES[styleKey(renderStyle, theme)];
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
