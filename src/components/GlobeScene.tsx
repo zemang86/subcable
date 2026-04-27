@@ -9,6 +9,7 @@ import { cables, cablesById } from "@/data/cables";
 import { landingPoints } from "@/data/landingPoints";
 import { cableRoutes } from "@/data/cableRoutes";
 import countries from "@/data/countries.json";
+import robotoMedium from "@/data/roboto-medium.typeface.json";
 import { CableSystem, LandingPoint } from "@/lib/types";
 import { TM_COLORS, CABLE_COLORS } from "@/lib/colors";
 
@@ -87,7 +88,7 @@ const CARTO_DARK_TILE_URL = (x: number, y: number, level: number) =>
 const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables satellite tiles
 
 const TOOLTIP_STYLE =
-  "padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;";
+  "padding:6px 10px;background:rgba(6,1,58,0.92);border:1px solid rgba(24,0,231,0.5);border-radius:4px;color:#FFFFFF;font-size:12px;font-family:'HK Grotesk Wide','Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:0.04em;";
 const renderPathLabel = (path: any) =>
   `<div style="${TOOLTIP_STYLE}">${path.name}</div>`;
 const renderPointLabel = (p: any) =>
@@ -700,10 +701,10 @@ export default function GlobeScene() {
         labelSize={(l: any) => {
           if (l.kind === "country") {
             return piecewiseByZoom([
-              [4.0, 0.7],
-              [1.5, 0.4],
-              [0.35, 0.18],
-              [0.05, 0.1],
+              [4.0, 0.85],
+              [1.5, 0.5],
+              [0.35, 0.22],
+              [0.05, 0.13],
             ]);
           }
           // City labels hidden at far zoom; fade in past alt 1.2. Sizes kept
@@ -713,10 +714,10 @@ export default function GlobeScene() {
           return piecewiseByZoom([
             [4.0, 0],
             [1.2, 0],
-            [0.8, 0.22],
-            [0.35, 0.1],
-            [0.1, 0.045],
-            [0.02, 0.015],
+            [0.8, 0.27],
+            [0.35, 0.13],
+            [0.1, 0.06],
+            [0.02, 0.02],
           ]);
         }}
         labelDotRadius={(l: any) => {
@@ -732,6 +733,7 @@ export default function GlobeScene() {
         }}
         labelAltitude={0.005}
         labelResolution={renderStyle === "mono" ? 1 : 2}
+        labelTypeFace={robotoMedium as any}
         labelIncludeDot={(l: any) => l.kind !== "country"}
         // Events
         onGlobeReady={handleGlobeReady}
@@ -739,6 +741,30 @@ export default function GlobeScene() {
       />
 
       <Header />
+
+      {/* Altitude readout — tucked under the header, off to the right of the
+          title block. Sidebar is 380px wide so we offset accordingly. */}
+      <div className="absolute top-[88px] right-[400px] z-10 pointer-events-none">
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-[#06013A]/85 backdrop-blur-md border border-[#1800E7]/40 rounded">
+          <span className="font-display text-[9px] font-bold tracking-[0.2em] text-[#A8B0D6] uppercase">
+            Altitude
+          </span>
+          <span className="font-display text-[11px] font-bold text-white tabular-nums">
+            {zoomLevel.toFixed(2)}
+          </span>
+          <div className="relative w-24 h-1 bg-white/10 rounded overflow-hidden">
+            <div
+              className="absolute top-0 left-0 h-full bg-[#FF5E00]"
+              style={{
+                // Visible camera range is roughly 0.02 (close) → 4.0 (far).
+                // Bar fills from left = far out, right = close in.
+                width: `${Math.max(2, Math.min(100, (1 - Math.log(Math.max(0.02, zoomLevel) / 0.02) / Math.log(4 / 0.02)) * 100))}%`,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
       <Sidebar
         selectedCable={selectedCable}
         onSelectCable={handleSelectCable}
