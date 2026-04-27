@@ -8,28 +8,81 @@ import LoadingScreen from "./LoadingScreen";
 import { cables, cablesById } from "@/data/cables";
 import { landingPoints } from "@/data/landingPoints";
 import { cableRoutes } from "@/data/cableRoutes";
+import countries from "@/data/countries.json";
 import { CableSystem, LandingPoint } from "@/lib/types";
 import { TM_COLORS, CABLE_COLORS } from "@/lib/colors";
 
-// Globe textures (local high-res, WebP)
-const TEXTURES = {
-  night: {
+// 1x1 transparent PNG — fed to globeImageUrl in outline mode so three.js
+// loads a clean (color-keyed) texture instead of holding onto the earth bitmap.
+const BLANK_PIXEL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+
+// Globe styles (textured = full earth bitmap; outline = country borders only)
+const STYLES = {
+  "texture-dark": {
     globe: "/textures/earth-night-hires.webp",
     bg: "/textures/night-sky.webp",
     atmosphere: "#2362DD",
+    globeColor: undefined,
+    countryStroke: undefined,
+    countryFill: undefined,
   },
-  day: {
+  "texture-light": {
     globe: "/textures/earth-day-hires.webp",
     bg: "/textures/night-sky.webp",
     atmosphere: "#4da6ff",
+    globeColor: undefined,
+    countryStroke: undefined,
+    countryFill: undefined,
+  },
+  "outline-dark": {
+    globe: BLANK_PIXEL,
+    bg: "/textures/night-sky.webp",
+    atmosphere: "#2362DD",
+    globeColor: "#0B1A3A", // deep navy "sea"
+    countryStroke: "rgba(180, 220, 255, 0.9)",
+    countryFill: "rgba(34, 70, 50, 0.85)", // muted green "land"
+  },
+  "outline-light": {
+    globe: BLANK_PIXEL,
+    bg: "/textures/night-sky.webp",
+    atmosphere: "#cfe6ff",
+    globeColor: "#7EC0EE", // clear blue sea
+    countryStroke: "#000000",
+    countryFill: "#7BC47F", // green land
+  },
+  "mono-dark": {
+    globe: BLANK_PIXEL,
+    bg: "/textures/night-sky.webp",
+    atmosphere: "#2362DD",
+    globeColor: "#1a1a1a",
+    countryStroke: undefined,
+    countryFill: undefined,
+  },
+  "mono-light": {
+    globe: BLANK_PIXEL,
+    bg: "/textures/night-sky.webp",
+    atmosphere: "#cfe6ff",
+    globeColor: "#fafaf8",
+    countryStroke: undefined,
+    countryFill: undefined,
   },
 } as const;
 const BUMP_IMAGE = "/textures/earth-topology.png";
 
+// XYZ tile servers
 const SATELLITE_TILE_URL = (x: number, y: number, level: number) =>
   `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${level}/${y}/${x}`;
 
-const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables tiles
+// CARTO basemaps (monochrome, free for non-commercial w/ attribution).
+// Subdomain rotation a/b/c/d to spread requests across CDN edges.
+const cartoSub = (z: number) => "abcd"[(z * 7) % 4];
+const CARTO_LIGHT_TILE_URL = (x: number, y: number, level: number) =>
+  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/light_all/${level}/${x}/${y}.png`;
+const CARTO_DARK_TILE_URL = (x: number, y: number, level: number) =>
+  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/dark_all/${level}/${x}/${y}.png`;
+
+const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables satellite tiles
 
 const TOOLTIP_STYLE =
   "padding:6px 10px;background:rgba(10,14,26,0.9);border:1px solid rgba(35,98,221,0.4);border-radius:4px;color:#E2E8F0;font-size:12px;font-family:monospace;";
@@ -39,7 +92,23 @@ const renderPointLabel = (p: any) =>
   `<div style="${TOOLTIP_STYLE}">${p.city}, ${p.country}</div>`;
 const labelColorFn = () => "rgba(226, 232, 240, 0.8)";
 
-type GlobeMode = "night" | "day";
+type GlobeStyle = keyof typeof STYLES;
+type Theme = "dark" | "light";
+type RenderStyle = "texture" | "outline" | "mono";
+
+const RENDER_STYLE_LABEL: Record<RenderStyle, string> = {
+  texture: "TEXTURE",
+  outline: "OUTLINE",
+  mono: "MONO",
+};
+
+function nextStyle(s: RenderStyle): RenderStyle {
+  return s === "texture" ? "outline" : s === "outline" ? "mono" : "texture";
+}
+
+function styleKey(render: RenderStyle, theme: Theme): GlobeStyle {
+  return `${render}-${theme}` as GlobeStyle;
+}
 
 interface PathData {
   coords: [number, number][];
@@ -55,7 +124,9 @@ export default function GlobeScene() {
   const globeRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
-  const [globeMode, setGlobeMode] = useState<GlobeMode>("night");
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [renderStyle, setRenderStyle] = useState<RenderStyle>("texture");
+  const style = STYLES[styleKey(renderStyle, theme)];
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [zoomLevel, setZoomLevel] = useState(2.2);
   const [autoRotate, setAutoRotate] = useState(false);
@@ -351,12 +422,64 @@ export default function GlobeScene() {
 
   const [useTiles, setUseTiles] = useState(false);
   useEffect(() => {
+    // Outline mode = vector polygons only, no raster tiles.
+    if (renderStyle === "outline") {
+      if (useTiles) setUseTiles(false);
+      return;
+    }
+    // Mono mode renders Carto tiles at all zooms.
+    if (renderStyle === "mono") {
+      if (!useTiles) setUseTiles(true);
+      return;
+    }
     if (!useTiles && zoomLevel < TILE_ZOOM_THRESHOLD) {
       setUseTiles(true);
     } else if (useTiles && zoomLevel > TILE_ZOOM_THRESHOLD + 0.15) {
       setUseTiles(false);
     }
-  }, [zoomLevel, useTiles]);
+  }, [zoomLevel, useTiles, renderStyle]);
+
+  // Tile URL provider switches with render style.
+  const tileUrl = useMemo(() => {
+    if (renderStyle === "mono") {
+      return theme === "dark" ? CARTO_DARK_TILE_URL : CARTO_LIGHT_TILE_URL;
+    }
+    return SATELLITE_TILE_URL;
+  }, [renderStyle, theme]);
+
+  // Override the globe sphere's material in outline mode. We have to wait one
+  // tick after the new globeImageUrl propagates so we can dispose the texture
+  // three.js just loaded — otherwise the earth bitmap keeps showing through.
+  // Outline mode also needs an emissive override so the night side of the
+  // sphere doesn't render dark (MeshPhongMaterial without a texture only shows
+  // diffuse where the directional light hits it).
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const id = setTimeout(() => {
+      const mat = globeRef.current?.globeMaterial?.();
+      if (!mat) return;
+      if (style.globeColor) {
+        if (mat.map) {
+          mat.map.dispose?.();
+          mat.map = null;
+        }
+        mat.color?.set?.(style.globeColor);
+        mat.emissive?.set?.(style.globeColor);
+        if ("emissiveIntensity" in mat) mat.emissiveIntensity = 1;
+      } else {
+        mat.color?.set?.("#ffffff");
+        mat.emissive?.set?.("#000000");
+        if ("emissiveIntensity" in mat) mat.emissiveIntensity = 0;
+      }
+      mat.needsUpdate = true;
+    }, 60);
+    return () => clearTimeout(id);
+  }, [isLoaded, style.globeColor, style.globe]);
+
+  const polygonsData = useMemo(
+    () => (renderStyle === "outline" ? (countries as any).features : []),
+    [renderStyle]
+  );
 
   return (
     <div
@@ -369,18 +492,27 @@ export default function GlobeScene() {
         ref={globeRef}
         width={Math.max(dimensions.width - 380, 400)}
         height={dimensions.height}
-        globeImageUrl={TEXTURES[globeMode].globe}
-        globeTileEngineUrl={useTiles ? SATELLITE_TILE_URL : undefined}
-        bumpImageUrl={BUMP_IMAGE}
-        backgroundImageUrl={TEXTURES[globeMode].bg}
+        globeImageUrl={style.globe}
+        globeTileEngineUrl={useTiles ? tileUrl : undefined}
+        bumpImageUrl={renderStyle === "texture" ? BUMP_IMAGE : undefined}
+        backgroundImageUrl={style.bg}
         showAtmosphere={true}
-        atmosphereColor={TEXTURES[globeMode].atmosphere}
+        atmosphereColor={style.atmosphere}
         atmosphereAltitude={0.18}
+        // Country outlines (only populated in outline mode)
+        polygonsData={polygonsData}
+        polygonGeoJsonGeometry={(d: any) => d.geometry}
+        polygonAltitude={0.001}
+        polygonCapColor={() => style.countryFill || "rgba(0,0,0,0)"}
+        polygonSideColor={() => "rgba(0,0,0,0)"}
+        polygonStrokeColor={() => style.countryStroke || "rgba(0,0,0,0)"}
+        polygonsTransitionDuration={0}
         // Paths (cable routes)
         pathsData={pathsData}
         pathPoints="coords"
         pathPointLat={(p: any) => p[0]}
         pathPointLng={(p: any) => p[1]}
+        pathPointAlt={() => 0.003}
         pathColor={getPathColor as any}
         pathStroke={getPathStroke as any}
         pathDashLength={getDashLength as any}
@@ -415,7 +547,7 @@ export default function GlobeScene() {
           [0.35, 0.05],
           [0.05, 0.02],
         ])}
-        labelAltitude={0.001}
+        labelAltitude={0.005}
         labelResolution={2}
         labelIncludeDot={true}
         // Events
@@ -449,20 +581,33 @@ export default function GlobeScene() {
           </span>
         </button>
 
-        {/* Day/Night toggle */}
+        {/* Style cycle: TEXTURE -> OUTLINE -> MONO */}
         <button
-          onClick={() => setGlobeMode(globeMode === "night" ? "day" : "night")}
+          onClick={() => setRenderStyle(nextStyle(renderStyle))}
+          className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
+        >
+          <span className="text-[11px] font-semibold tracking-wider text-[#60A5FA]">
+            STYLE
+          </span>
+          <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
+            {RENDER_STYLE_LABEL[renderStyle]}
+          </span>
+        </button>
+
+        {/* Theme toggle (dark vs light) */}
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           className="flex items-center gap-2 px-4 py-3 bg-[#0A0E1A]/90 backdrop-blur-xl border border-[#2362DD]/20 rounded-lg text-left active:bg-white/5 transition-colors min-h-[48px]"
         >
           <div
-            className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${globeMode === "night" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}
+            className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${theme === "dark" ? "bg-[#1A1F35]" : "bg-[#2362DD]/40"}`}
           >
             <div
-              className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${globeMode === "night" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`}
+              className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${theme === "dark" ? "left-0.5 bg-[#60A5FA]" : "left-5 bg-[#FFD700]"}`}
             />
           </div>
           <span className="text-[11px] font-semibold tracking-wider text-[#94A3B8]">
-            {globeMode === "night" ? "NIGHT" : "DAY"}
+            {theme === "dark" ? "DARK" : "LIGHT"}
           </span>
         </button>
       </div>
