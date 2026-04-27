@@ -36,9 +36,38 @@ const bucketForAltitude = (alt: number): ZoomBucket => {
   return 5;
 };
 const POINT_RADIUS_BY_BUCKET = [0, 0, 0.06, 0.04, 0.025, 0.025] as const;
-const COUNTRY_LABEL_SIZE_BY_BUCKET = [0.85, 0.5, 0.5, 0.22, 0.18, 0.13] as const;
-const CITY_LABEL_SIZE_BY_BUCKET = [0, 0, 0.27, 0.13, 0.06, 0.02] as const;
-const CITY_DOT_RADIUS_BY_BUCKET = [0, 0, 0.07, 0.035, 0.015, 0.005] as const;
+
+// City labels: one threshold instead of buckets. Above the threshold
+// (alt 0.314 ≈ 2000 km) cities are invisible. Below, geometry is built once
+// at CITY_LABEL_BASE_SIZE; the per-frame scaler handles fade-in across a
+// narrow band and a sub-linear shrink with altitude. Sub-linear (sqrt) keeps
+// labels visible at very close zoom instead of vanishing.
+const CITY_LABEL_BASE_SIZE = 0.13;
+const CITY_VISIBLE_ALT = 0.314;
+const CITY_FADE_BAND = 0.05;
+const CITY_REF_ALT = CITY_VISIBLE_ALT - CITY_FADE_BAND;
+const CITY_MIN_SCALE = 0.18;
+const cityScaleAt = (alt: number): number => {
+  if (alt >= CITY_VISIBLE_ALT) return 0;
+  const fade = Math.min(1, (CITY_VISIBLE_ALT - alt) / CITY_FADE_BAND);
+  const shrink = Math.max(CITY_MIN_SCALE, Math.sqrt(Math.max(0, alt) / CITY_REF_ALT));
+  return fade * shrink;
+};
+
+// Country labels: mirror of the city pattern, but inverted. Fade OUT as you
+// zoom in past a threshold (you're focused on a region, country names become
+// noise). Always visible above the threshold, sub-linear shrink with altitude
+// so big country names don't dominate at mid-zoom.
+const COUNTRY_LABEL_BASE_SIZE = 0.85;
+const COUNTRY_HIDDEN_ALT = 0.2;            // alt 0.20 ≈ 1270 km — hidden below
+const COUNTRY_FADE_BAND = 0.1;             // 640 km fade-out band
+const COUNTRY_REF_ALT = 1.5;               // alt at which base size applies fully
+const countryScaleAt = (alt: number): number => {
+  if (alt <= COUNTRY_HIDDEN_ALT) return 0;
+  const fade = Math.min(1, (alt - COUNTRY_HIDDEN_ALT) / COUNTRY_FADE_BAND);
+  const shrink = Math.min(1, Math.sqrt(alt / COUNTRY_REF_ALT));
+  return fade * shrink;
+};
 
 // 1x1 transparent PNG — fed to globeImageUrl in outline mode so three.js
 // loads a clean (color-keyed) texture instead of holding onto the earth bitmap.
@@ -367,16 +396,37 @@ export default function GlobeScene() {
     return out;
   }, []);
 
-  // Combined labels feed: cities (landing points) + country names. We branch
-  // accessors on the `kind` field so each type gets its own size/color/dot.
+  // City labels are built from pointClusters directly (NOT from pointsData),
+  // so their identity stays stable across the dot-cluster flip at alt 0.18.
+  // Sharing pointsData previously caused every label's TextGeometry to be
+  // disposed + rebuilt the moment the user zoomed past 1147 km.
+  const cityLabelsData = useMemo(
+    () =>
+      pointClusters.map((c) => {
+        const ids = c.members.map((m) => m.id);
+        const cities = Array.from(new Set(c.members.map((m) => m.city)));
+        return {
+          id: ids.join("+"),
+          city: cities.join(" / "),
+          country: c.members[0].country,
+          lat: c.lat,
+          lng: c.lng,
+        };
+      }),
+    [pointClusters]
+  );
+
+  // Combined labels feed: cities + country names. We branch accessors on the
+  // `kind` field so each type gets its own size/color. Stable identity since
+  // both inputs are stable — no unnecessary labels-layer rebuilds.
   const allLabels = useMemo(() => {
-    const cities = pointsData.map((p) => ({ ...p, kind: "city" as const }));
+    const cities = cityLabelsData.map((p) => ({ ...p, kind: "city" as const }));
     const countriesL = countryLabels.map((c) => ({
       ...c,
       kind: "country" as const,
     }));
     return [...countriesL, ...cities];
-  }, [pointsData, countryLabels]);
+  }, [cityLabelsData, countryLabels]);
 
   // Initialize globe view centered on SEA
   const handleGlobeReady = useCallback(() => {
@@ -614,19 +664,18 @@ export default function GlobeScene() {
     },
     [isLightCanvas]
   );
+  // Both label kinds now use a fixed base size + per-frame mesh.scale (see
+  // the label scaler effect). TextGeometry is built once and never rebuilt.
   const labelSize = useCallback(
     (l: any) =>
-      l.kind === "country"
-        ? COUNTRY_LABEL_SIZE_BY_BUCKET[zoomBucket]
-        : CITY_LABEL_SIZE_BY_BUCKET[zoomBucket],
-    [zoomBucket]
+      l.kind === "country" ? COUNTRY_LABEL_BASE_SIZE : CITY_LABEL_BASE_SIZE,
+    []
   );
-  const labelDotRadius = useCallback(
-    (l: any) =>
-      l.kind === "country" ? 0 : CITY_DOT_RADIUS_BY_BUCKET[zoomBucket],
-    [zoomBucket]
-  );
-  const labelIncludeDot = useCallback((l: any) => l.kind !== "country", []);
+  // labels never carry a dot — landing-station markers are the points layer's
+  // job (with selection-aware colour); a dot baked into the label was just a
+  // visual duplicate of the same coordinate.
+  const labelDotRadius = useCallback(() => 0, []);
+  const labelIncludeDot = useCallback(() => false, []);
   const pointRadius = POINT_RADIUS_BY_BUCKET[zoomBucket];
 
   // Both mono modes use a pre-baked offline texture — no tile streaming.
@@ -761,6 +810,34 @@ export default function GlobeScene() {
       mat.dispose();
     };
   }, [isLoaded, dotSegments, dotColor]);
+
+  // Per-frame label scaler — both kinds drive visibility + size via
+  // mesh.scale on the label Group; TextGeometry is built once at a fixed
+  // base size and never rebuilt. Group refs attached by three-globe's
+  // ThreeDigest as `__threeObjLabel` on each labelsData entry.
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+
+    let raf = 0;
+    const tick = () => {
+      const pov = globeRef.current?.pointOfView?.();
+      const alt = pov?.altitude ?? 1;
+      const cityScale = cityScaleAt(alt);
+      const countryScale = countryScaleAt(alt);
+      for (const label of allLabels) {
+        const group = (label as any).__threeObjLabel as
+          | { scale: { setScalar: (n: number) => void } }
+          | undefined;
+        if (!group) continue;
+        group.scale.setScalar(
+          label.kind === "country" ? countryScale : cityScale
+        );
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isLoaded, allLabels]);
 
   // Country polygons render as a vector overlay in outline mode (fill+stroke)
   // and on mono-dark (stroke-only on top of CARTO tiles). mono-light skips
