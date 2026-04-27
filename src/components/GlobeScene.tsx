@@ -630,6 +630,10 @@ export default function GlobeScene() {
   // pinned markers, not floating poles.
   const getPointAltitude = useCallback(() => 0.001, []);
 
+  // Both mono modes use a pre-baked offline texture — no tile streaming.
+  // Hoisted before the accessor refs so polygonStrokeColor can read it.
+  const usesBakedMap = renderStyle === "mono";
+
   // Stable accessor refs. Three-globe is reference-equality based — every new
   // closure looks like a "changed prop" and re-runs the layer's full update().
   // For labels that means TextGeometry rebuild × every label, which is the
@@ -677,9 +681,6 @@ export default function GlobeScene() {
   const labelDotRadius = useCallback(() => 0, []);
   const labelIncludeDot = useCallback(() => false, []);
   const pointRadius = POINT_RADIUS_BY_BUCKET[zoomBucket];
-
-  // Both mono modes use a pre-baked offline texture — no tile streaming.
-  const usesBakedMap = renderStyle === "mono";
 
   const [useTiles, setUseTiles] = useState(false);
   useEffect(() => {
@@ -740,6 +741,17 @@ export default function GlobeScene() {
         mat.color?.set?.("#ffffff");
         mat.emissive?.set?.("#000000");
         if ("emissiveIntensity" in mat) mat.emissiveIntensity = 0;
+      }
+      // Anisotropic filtering — dramatically sharpens textures viewed at
+      // oblique angles (i.e., everywhere except the dead-centre of the globe).
+      // Free GPU feature; default 1, max is hardware-dependent (commonly 16).
+      const renderer = globeRef.current?.renderer?.();
+      if (renderer && mat.map) {
+        const maxAniso = renderer.capabilities?.getMaxAnisotropy?.() ?? 1;
+        if (mat.map.anisotropy !== maxAniso) {
+          mat.map.anisotropy = maxAniso;
+          mat.map.needsUpdate = true;
+        }
       }
       mat.needsUpdate = true;
     }, 60);
@@ -811,6 +823,18 @@ export default function GlobeScene() {
     };
   }, [isLoaded, dotSegments, dotColor]);
 
+  // Country polygons only render in outline mode. Tried using them as a
+  // close-zoom "sharpening" overlay on the baked texture, but 242 extruded
+  // meshes (some with thousands of vertices) crushed the framerate even when
+  // faded out. The 1-draw-call texture is unbeatable here; if you ever need
+  // crisper strokes, do a higher-density bake of just the relevant region
+  // and overlay that as a second sphere texture, NOT a polygon mesh.
+  const polygonsData = useMemo(
+    () =>
+      renderStyle === "outline" ? (countries as any).features : [],
+    [renderStyle]
+  );
+
   // Per-frame label scaler — both kinds drive visibility + size via
   // mesh.scale on the label Group; TextGeometry is built once at a fixed
   // base size and never rebuilt. Group refs attached by three-globe's
@@ -838,17 +862,6 @@ export default function GlobeScene() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [isLoaded, allLabels]);
-
-  // Country polygons render as a vector overlay in outline mode (fill+stroke)
-  // and on mono-dark (stroke-only on top of CARTO tiles). mono-light skips
-  // the overlay entirely — strokes are baked into the WebP basemap.
-  const polygonsData = useMemo(
-    () =>
-      renderStyle === "outline" || (renderStyle === "mono" && !usesBakedMap)
-        ? (countries as any).features
-        : [],
-    [renderStyle, usesBakedMap]
-  );
 
   return (
     <div
