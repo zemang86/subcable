@@ -80,6 +80,21 @@ const BLANK_PIXEL =
 const WORLD_MAP_LIGHT_URL = "/textures/world-mono-light.webp";
 const WORLD_MAP_DARK_URL = "/textures/world-mono-dark.webp";
 
+// Regional high-density bake (4096² over a 40°×40° SEA window — ~1.2 km/texel
+// vs ~5 km for the global). Drawn as a single grid-mesh overlay that fades in
+// at close zoom; one extra draw call, no polygon overhead. See
+// scripts/generate-regional-map.mjs.
+const SEA_OVERLAY_LIGHT_URL = "/textures/world-mono-light-sea.webp";
+const SEA_OVERLAY_DARK_URL = "/textures/world-mono-dark-sea.webp";
+const SEA_LAT_MIN = -15;
+const SEA_LAT_MAX = 25;
+const SEA_LNG_MIN = 90;
+const SEA_LNG_MAX = 130;
+const SEA_GRID = 32;             // 33×33 vertices, 2048 triangles
+const SEA_OVERLAY_ALT = 0.0008;  // sit just above the globe surface
+const SEA_FADE_IN_ALT = 0.6;     // start fading in below ~3800 km
+const SEA_FADE_OUT_ALT = 0.3;    // fully opaque below ~1900 km
+
 // Globe styles (textured = full earth bitmap; outline = country borders only)
 const STYLES = {
   "texture-dark": {
@@ -822,6 +837,115 @@ export default function GlobeScene() {
       mat.dispose();
     };
   }, [isLoaded, dotSegments, dotColor]);
+
+  // Regional sharpness overlay — a single grid mesh covering the SEA window,
+  // textured with a 4K bake of just that region. Built from getCoords samples
+  // so it lives in the same coord frame as everything else; OrbitControls
+  // orbits the camera (not the globe), so a fixed-position mesh tracks
+  // visually. Material starts at opacity 0 and fades in as we zoom past the
+  // SEA_FADE_IN_ALT threshold — at far zoom the overlay would just be a
+  // visible "patch", and at close zoom it covers most of the visible region.
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    if (!usesBakedMap) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+
+    const url = theme === "dark" ? SEA_OVERLAY_DARK_URL : SEA_OVERLAY_LIGHT_URL;
+    const loader = new THREE.TextureLoader();
+    let mesh: THREE.Mesh | null = null;
+    let raf = 0;
+    let cancelled = false;
+
+    loader.load(url, (texture) => {
+      if (cancelled) {
+        texture.dispose();
+        return;
+      }
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const renderer = globeRef.current?.renderer?.();
+      if (renderer) {
+        texture.anisotropy = renderer.capabilities?.getMaxAnisotropy?.() ?? 1;
+      }
+
+      const N = SEA_GRID;
+      const verts = (N + 1) * (N + 1);
+      const positions = new Float32Array(verts * 3);
+      const uvs = new Float32Array(verts * 2);
+      const indices: number[] = [];
+
+      for (let r = 0; r <= N; r++) {
+        const t = r / N;
+        const lat = SEA_LAT_MAX + (SEA_LAT_MIN - SEA_LAT_MAX) * t;
+        for (let c = 0; c <= N; c++) {
+          const u = c / N;
+          const lng = SEA_LNG_MIN + (SEA_LNG_MAX - SEA_LNG_MIN) * u;
+          const xyz = globeRef.current.getCoords(lat, lng, SEA_OVERLAY_ALT);
+          const i = r * (N + 1) + c;
+          positions[i * 3] = xyz.x;
+          positions[i * 3 + 1] = xyz.y;
+          positions[i * 3 + 2] = xyz.z;
+          uvs[i * 2] = u;
+          uvs[i * 2 + 1] = 1 - t;
+        }
+      }
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+          const a = r * (N + 1) + c;
+          const b = a + 1;
+          const cIdx = a + (N + 1);
+          const d = cIdx + 1;
+          indices.push(a, cIdx, b, b, cIdx, d);
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+
+      const mat = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 1;
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+
+      const tick = () => {
+        const pov = globeRef.current?.pointOfView?.();
+        const alt = pov?.altitude ?? 1;
+        const opacity =
+          alt >= SEA_FADE_IN_ALT
+            ? 0
+            : Math.min(
+                1,
+                (SEA_FADE_IN_ALT - alt) /
+                  (SEA_FADE_IN_ALT - SEA_FADE_OUT_ALT)
+              );
+        mat.opacity = opacity;
+        mat.visible = opacity > 0.001;
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      if (mesh) {
+        scene.remove(mesh);
+        const m = mesh.material as THREE.MeshBasicMaterial;
+        m.map?.dispose();
+        m.dispose();
+        (mesh.geometry as THREE.BufferGeometry).dispose();
+      }
+    };
+  }, [isLoaded, usesBakedMap, theme]);
 
   // Country polygons only render in outline mode. Tried using them as a
   // close-zoom "sharpening" overlay on the baked texture, but 242 extruded
