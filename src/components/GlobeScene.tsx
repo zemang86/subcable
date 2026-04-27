@@ -743,20 +743,22 @@ export default function GlobeScene() {
       <Header />
 
       {/* Altitude readout — tucked under the header, off to the right of the
-          title block. Sidebar is 380px wide so we offset accordingly. */}
+          title block. react-globe.gl reports altitude in Earth-radius units;
+          we convert to km (× 6371) for human-readable display. Sidebar is
+          380px wide so we offset accordingly. */}
       <div className="absolute top-[88px] right-[400px] z-10 pointer-events-none">
         <div className="flex items-center gap-3 px-3 py-1.5 bg-[#06013A]/85 backdrop-blur-md border border-[#1800E7]/40 rounded">
           <span className="font-display text-[9px] font-bold tracking-[0.2em] text-[#A8B0D6] uppercase">
             Altitude
           </span>
           <span className="font-display text-[11px] font-bold text-white tabular-nums">
-            {zoomLevel.toFixed(2)}
+            {Math.round(zoomLevel * 6371).toLocaleString()} km
           </span>
           <div className="relative w-24 h-1 bg-white/10 rounded overflow-hidden">
             <div
               className="absolute top-0 left-0 h-full bg-[#FF5E00]"
               style={{
-                // Visible camera range is roughly 0.02 (close) → 4.0 (far).
+                // Camera range ~127 km (alt 0.02) → ~25,500 km (alt 4.0).
                 // Bar fills from left = far out, right = close in.
                 width: `${Math.max(2, Math.min(100, (1 - Math.log(Math.max(0.02, zoomLevel) / 0.02) / Math.log(4 / 0.02)) * 100))}%`,
               }}
