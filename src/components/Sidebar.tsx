@@ -67,42 +67,21 @@ export default function Sidebar({
   }, []);
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 z-20 w-[380px] flex flex-col bg-[#06013A]/95 backdrop-blur-xl border-l border-[#1800E7]/30 shadow-[0_0_40px_rgba(24,0,231,0.18)]">
-      {/* Header */}
-      <div className="px-5 pt-20 pb-3 border-b border-[#1800E7]/20">
-        <h2 className="font-display font-bold text-xs tracking-[0.2em] text-white mb-3 uppercase">
+    <div className="fixed bottom-6 right-6 z-20 w-[380px] h-[66vh] flex flex-col rounded-2xl bg-[#06013A]/95 backdrop-blur-xl border border-[#1800E7]/40 shadow-[0_8px_40px_rgba(0,0,0,0.5)] overflow-hidden">
+      {/* Top header strip — title + active count summary */}
+      <div className="px-5 py-3 border-b border-[#1800E7]/20 flex items-center justify-between">
+        <h2 className="font-display font-bold text-xs tracking-[0.2em] text-white uppercase">
           Cable Systems
         </h2>
-        <input
-          type="text"
-          placeholder="Search cables, routes, regions…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2.5 bg-[#06013A]/80 border border-[#1800E7]/30 rounded-lg text-xs text-white placeholder-[#A8B0D6]/50 outline-none focus:border-[#1800E7] transition-colors min-h-[44px]"
-        />
-
-        {/* Classification tabs */}
-        <div className="flex gap-1 mt-3">
-          {FILTERS.map((f) => {
-            const active = filter === f.id;
-            return (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`flex-1 px-2 py-2 rounded font-display text-[10px] font-bold tracking-wider transition-colors min-h-[36px] ${
-                  active
-                    ? "bg-[#1800E7] text-white border border-[#1800E7]"
-                    : "bg-white/5 text-[#A8B0D6] border border-transparent active:bg-white/10"
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#FF5E00] animate-pulse" />
+          <span className="text-[10px] text-[#A8B0D6] tracking-wider font-medium">
+            {counts.active} ACTIVE · {counts.planned} PLANNED · {counts.total} TOTAL
+          </span>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content — cable list / detail panel (top-most major area) */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2 touch-pan-y">
         {selectedCable ? (
           <CableDetailPanel
@@ -166,18 +145,34 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Footer */}
-      <div className="px-5 py-3 border-t border-[#1800E7]/20">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#FF5E00] animate-pulse" />
-            <span className="text-[10px] text-[#A8B0D6] tracking-wider font-medium">
-              {counts.active} ACTIVE
-            </span>
-          </div>
-          <span className="text-[10px] text-[#A8B0D6] tracking-wider font-medium">
-            {counts.planned} PLANNED · {counts.total} TOTAL
-          </span>
+      {/* Footer — search + filter tabs at the BOTTOM (kiosk reach) */}
+      <div className="px-5 pt-3 pb-4 border-t border-[#1800E7]/20 bg-[#06013A]/40">
+        <input
+          type="text"
+          placeholder="Search cables, routes, regions…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full px-3 py-2.5 bg-[#06013A]/80 border border-[#1800E7]/30 rounded-lg text-xs text-white placeholder-[#A8B0D6]/50 outline-none focus:border-[#1800E7] transition-colors min-h-[44px]"
+        />
+
+        {/* Classification tabs */}
+        <div className="flex gap-1 mt-3">
+          {FILTERS.map((f) => {
+            const active = filter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`flex-1 px-2 py-2 rounded font-display text-[10px] font-bold tracking-wider transition-colors min-h-[36px] ${
+                  active
+                    ? "bg-[#1800E7] text-white border border-[#1800E7]"
+                    : "bg-white/5 text-[#A8B0D6] border border-transparent active:bg-white/10"
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

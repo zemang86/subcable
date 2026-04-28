@@ -13,6 +13,10 @@ import countries from "@/data/countries.json";
 import robotoMedium from "@/data/roboto-medium.typeface.json";
 import { CableSystem, LandingPoint } from "@/lib/types";
 import { TM_COLORS, CABLE_COLORS } from "@/lib/colors";
+import CallDialog from "./CallDialog";
+import InfoModal from "./InfoModal";
+import { resolveCallRoute } from "@/lib/callRoutes";
+import { playConnect, playDialing, playMessage } from "@/lib/morseAudio";
 
 // Travelling-dot tuning. Replaced the path-dash trick (dot length scaled with
 // segment length → wildly variable visual size). These spheres are constant
@@ -211,6 +215,12 @@ export default function GlobeScene() {
   const [zoomLevel, setZoomLevel] = useState(2.2);
   const [autoRotate, setAutoRotate] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
+  const [activeCall, setActiveCall] = useState<{
+    message: string;
+    startedAt: number;
+  } | null>(null);
 
   // Resize handler
   useEffect(() => {
@@ -996,7 +1006,7 @@ export default function GlobeScene() {
 
       <Globe
         ref={globeRef}
-        width={Math.max(dimensions.width - 380, 400)}
+        width={dimensions.width}
         height={dimensions.height}
         globeImageUrl={style.globe}
         globeTileEngineUrl={useTiles ? tileUrl : undefined}
@@ -1050,11 +1060,10 @@ export default function GlobeScene() {
 
       <Header />
 
-      {/* Altitude readout — tucked under the header, off to the right of the
-          title block. react-globe.gl reports altitude in Earth-radius units;
-          we convert to km (× 6371) for human-readable display. Sidebar is
-          380px wide so we offset accordingly. */}
-      <div className="absolute top-[88px] right-[400px] z-10 pointer-events-none">
+      {/* Altitude readout — tucked under the header. react-globe.gl reports
+          altitude in Earth-radius units; we convert to km (× 6371) for
+          human-readable display. */}
+      <div className="absolute top-[88px] right-6 z-10 pointer-events-none">
         <div className="flex items-center gap-3 px-3 py-1.5 bg-[#06013A]/85 backdrop-blur-md border border-[#1800E7]/40 rounded">
           <span className="font-display text-[9px] font-bold tracking-[0.2em] text-[#A8B0D6] uppercase">
             Altitude
@@ -1081,8 +1090,32 @@ export default function GlobeScene() {
         onPointClick={handlePointClick}
       />
 
-      {/* Bottom-right settings toggle */}
-      <div className="absolute bottom-6 right-[400px] z-10">
+      {/* Bottom-right control cluster — INFO + settings buttons.
+          Sits to the LEFT of the floating sidebar modal (which is at right-6
+          and 380px wide → so this cluster anchors at right-[420px]). */}
+      <div className="absolute bottom-6 right-[420px] z-10 flex items-end gap-2">
+        <button
+          onClick={() => setInfoOpen(true)}
+          aria-label="How to use"
+          className="flex items-center justify-center w-12 h-12 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg text-[#A8B0D6] active:bg-white/5 transition-colors"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-5 h-5"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7v.5" />
+            <circle cx="12" cy="17" r="0.6" fill="currentColor" />
+          </svg>
+        </button>
+
+        <div className="relative">
         <button
           onClick={() => setSettingsOpen((v) => !v)}
           aria-label="Display settings"
@@ -1154,19 +1187,363 @@ export default function GlobeScene() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
-      {/* Controls overlay */}
-      <div className="absolute bottom-6 left-6 z-10 px-4 py-3 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg pointer-events-none">
-        <div className="font-display text-[10px] text-white font-bold tracking-[0.2em] mb-2 uppercase">
-          Controls
-        </div>
-        <div className="space-y-1 text-[11px] text-[#A8B0D6] font-medium">
-          <div>DRAG &mdash; Rotate globe</div>
-          <div>PINCH &mdash; Zoom in/out</div>
-          <div>TAP &mdash; Select cable/point</div>
-        </div>
+      {/* Bottom-left: MAKE A CALL primary action */}
+      <div className="absolute bottom-6 left-6 z-10">
+        <button
+          onClick={() => !activeCall && setCallOpen(true)}
+          disabled={!!activeCall}
+          aria-label="Make a call"
+          className="group flex items-center gap-3 pl-4 pr-5 py-3 rounded-xl bg-[#FF5E00] border border-[#FF5E00] shadow-[0_4px_24px_rgba(255,94,0,0.35)] active:bg-[#E65500] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-4 h-4"
+            >
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
+          </span>
+          <span className="text-left">
+            <span className="block font-display font-bold text-[9px] tracking-[0.25em] text-white/80 uppercase leading-none">
+              {activeCall ? "Calling…" : "Demo"}
+            </span>
+            <span className="block font-display font-bold text-sm tracking-[0.15em] text-white uppercase leading-tight mt-0.5">
+              Make a Call
+            </span>
+          </span>
+        </button>
       </div>
+
+      {infoOpen && <InfoModal onClose={() => setInfoOpen(false)} />}
+      {callOpen && (
+        <CallDialog
+          onClose={() => setCallOpen(false)}
+          onSend={(message) => {
+            setCallOpen(false);
+            setActiveCall({ message, startedAt: performance.now() });
+          }}
+        />
+      )}
+
+      {activeCall && (
+        <CallAnimationOverlay
+          message={activeCall.message}
+          onDone={() => setActiveCall(null)}
+          globeRef={globeRef}
+        />
+      )}
     </div>
+  );
+}
+
+// Drives the call animation: stitched cable polyline → bright orange pulse
+// mesh that traverses source → destination, camera lerps to follow, decoded
+// message floats above the pulse, then camera returns to world view on
+// arrival. Self-cleaning on unmount; runs once per activeCall instance.
+const CALL_PULSE_RADIUS = 0.22;
+const CALL_PULSE_SPEED_KM_PER_SEC = 550;
+const CALL_FOLLOW_ALT = 0.45;
+const CALL_INTRO_ALT = 0.9;
+const CALL_RETURN_LAT = 5;
+const CALL_RETURN_LNG = 108;
+const CALL_RETURN_ALT = 2.2;
+
+function CallAnimationOverlay({
+  message,
+  onDone,
+  globeRef,
+}: {
+  message: string;
+  onDone: () => void;
+  globeRef: React.MutableRefObject<any>;
+}) {
+  const [labelPos, setLabelPos] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [phase, setPhase] = useState<
+    "dial" | "connect" | "intro" | "travel" | "arrive" | "return"
+  >("dial");
+  const returnTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    if (!globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    const renderer = globeRef.current.renderer?.();
+    if (!scene || !renderer) return;
+
+    const route = resolveCallRoute();
+    if (route.totalKm <= 0) {
+      onDone();
+      return;
+    }
+
+    // Dramatic dialing build-up before the pulse launches:
+    //   dial    (1300ms) — DTMF-style descending pips
+    //   connect (1100ms) — rising tone + camera glides to the start
+    //   intro   ( 800ms) — pause at the start coord, then launch
+    //   travel  (varies) — pulse traverses + morse audio plays
+    //   arrive  (1500ms) — flash at destination
+    //   return  (1800ms) — camera back to world view
+    const dialMs = 1300;
+    const connectMs = 1100;
+    const introMs = 800;
+    const travelMsLocal =
+      (route.totalKm / CALL_PULSE_SPEED_KM_PER_SEC) * 1000;
+
+    // Phase 1: dialing tones immediately. Camera holds on whatever it was
+    // showing — gives the pre-launch suspense.
+    playDialing();
+
+    // Phase 2: at end of dial, play connect tone + start camera glide to
+    // the start of the cable (not midpoint — we want to see the launch).
+    const start = route.coords[0];
+    setTimeout(() => {
+      playConnect();
+      globeRef.current?.pointOfView(
+        { lat: start[0], lng: start[1], altitude: CALL_INTRO_ALT },
+        connectMs + introMs
+      );
+    }, dialMs);
+
+    // Phase 3: morse audio fires when the pulse actually launches.
+    setTimeout(
+      () => playMessage(message, travelMsLocal),
+      dialMs + connectMs + introMs
+    );
+
+    // Pulse mesh — bigger + brighter than the perpetual dots.
+    const geo = new THREE.SphereGeometry(CALL_PULSE_RADIUS, 16, 12);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color("#FF5E00"),
+      depthTest: false,
+      transparent: true,
+    });
+    const pulse = new THREE.Mesh(geo, mat);
+    pulse.renderOrder = 1000;
+    pulse.frustumCulled = false;
+    scene.add(pulse);
+
+    // Soft halo — additive sprite-ish shell that scales with the pulse.
+    const haloGeo = new THREE.SphereGeometry(CALL_PULSE_RADIUS * 2.4, 16, 12);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color("#FF8A3D"),
+      transparent: true,
+      opacity: 0.35,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.renderOrder = 999;
+    halo.frustumCulled = false;
+    scene.add(halo);
+
+    let raf = 0;
+    let cancelled = false;
+    // The phase budgets above (dialMs/connectMs/introMs/travelMsLocal) are
+    // the source of truth for timing — alias them here under the names the
+    // RAF below already uses.
+    const preLaunchMs = dialMs + connectMs + introMs;
+    const travelMs = travelMsLocal;
+    const arriveMs = 1500;
+    const returnMs = 1800;
+    const startTs = performance.now();
+
+    // react-globe.gl exposes the active perspective camera via .camera().
+    const camera: THREE.Camera | null = globeRef.current?.camera?.() ?? null;
+
+    const projectToScreen = (xyz: { x: number; y: number; z: number }) => {
+      if (!camera) return null;
+      const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
+      const dom = renderer.domElement as HTMLCanvasElement;
+      const w = dom.clientWidth;
+      const h = dom.clientHeight;
+      return {
+        x: ((v.x + 1) / 2) * w,
+        y: ((1 - v.y) / 2) * h,
+      };
+    };
+
+    const sampleRoute = (dist: number) => {
+      let j = 1;
+      while (j < route.cumKm.length && route.cumKm[j] < dist) j++;
+      if (j >= route.cumKm.length) j = route.cumKm.length - 1;
+      const a = route.coords[j - 1];
+      const b = route.coords[j];
+      const legKm = route.cumKm[j] - route.cumKm[j - 1];
+      const t = legKm > 0 ? (dist - route.cumKm[j - 1]) / legKm : 0;
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as [
+        number,
+        number,
+      ];
+    };
+
+    // Hide the pulse + halo until launch; otherwise they sit at (0,0,0)
+    // (= globe centre) during the dial/connect build-up, peeking through.
+    pulse.visible = false;
+    halo.visible = false;
+
+    const tick = () => {
+      if (cancelled) return;
+      const elapsed = performance.now() - startTs;
+
+      // Phases: dial → connect → intro → travel → arrive → return
+      if (elapsed < dialMs) {
+        setPhase("dial");
+      } else if (elapsed < dialMs + connectMs) {
+        setPhase("connect");
+      } else if (elapsed < preLaunchMs) {
+        setPhase("intro");
+      } else if (elapsed < preLaunchMs + travelMs) {
+        setPhase("travel");
+        if (!pulse.visible) { pulse.visible = true; halo.visible = true; }
+        const tt = (elapsed - preLaunchMs) / travelMs;
+        const dist = tt * route.totalKm;
+        const [lat, lng] = sampleRoute(dist);
+        const xyz = globeRef.current.getCoords(lat, lng, 0.012);
+        pulse.position.set(xyz.x, xyz.y, xyz.z);
+        halo.position.set(xyz.x, xyz.y, xyz.z);
+        // Pulse the halo opacity for visual life.
+        haloMat.opacity = 0.25 + 0.2 * Math.sin(elapsed / 120);
+
+        // Camera follow — smooth lerp toward the pulse.
+        const pov = globeRef.current.pointOfView?.();
+        if (pov) {
+          const alpha = 0.06;
+          const nextLat = pov.lat + (lat - pov.lat) * alpha;
+          const nextLng = pov.lng + (lng - pov.lng) * alpha;
+          const nextAlt =
+            pov.altitude + (CALL_FOLLOW_ALT - pov.altitude) * alpha;
+          globeRef.current.pointOfView(
+            { lat: nextLat, lng: nextLng, altitude: nextAlt },
+            0
+          );
+        }
+
+        // Project to screen for the floating message label.
+        const screen = projectToScreen(xyz);
+        if (screen) setLabelPos(screen);
+      } else if (elapsed < preLaunchMs + travelMs + arriveMs) {
+        setPhase("arrive");
+        // Park pulse at destination, scale flash-up.
+        const last = route.coords[route.coords.length - 1];
+        const xyz = globeRef.current.getCoords(last[0], last[1], 0.012);
+        pulse.position.set(xyz.x, xyz.y, xyz.z);
+        halo.position.set(xyz.x, xyz.y, xyz.z);
+        const arriveT =
+          (elapsed - preLaunchMs - travelMs) / arriveMs;
+        const flash = 1 + Math.sin(arriveT * Math.PI) * 1.4;
+        pulse.scale.setScalar(flash);
+        halo.scale.setScalar(flash);
+        haloMat.opacity = 0.5 * (1 - arriveT) + 0.2;
+        const screen = projectToScreen(xyz);
+        if (screen) setLabelPos(screen);
+      } else if (elapsed < preLaunchMs + travelMs + arriveMs + returnMs) {
+        if (!returnTriggeredRef.current) {
+          returnTriggeredRef.current = true;
+          setPhase("return");
+          globeRef.current.pointOfView(
+            {
+              lat: CALL_RETURN_LAT,
+              lng: CALL_RETURN_LNG,
+              altitude: CALL_RETURN_ALT,
+            },
+            returnMs
+          );
+        }
+        // Fade the pulse out during return.
+        const rt =
+          (elapsed - preLaunchMs - travelMs - arriveMs) / returnMs;
+        mat.opacity = Math.max(0, 1 - rt);
+        haloMat.opacity = Math.max(0, 0.4 * (1 - rt));
+        setLabelPos(null);
+      } else {
+        cancelled = true;
+        cancelAnimationFrame(raf);
+        scene.remove(pulse);
+        scene.remove(halo);
+        geo.dispose();
+        mat.dispose();
+        haloGeo.dispose();
+        haloMat.dispose();
+        onDone();
+        return;
+      }
+
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      scene.remove(pulse);
+      scene.remove(halo);
+      geo.dispose();
+      mat.dispose();
+      haloGeo.dispose();
+      haloMat.dispose();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      {labelPos && (
+        <div
+          className="fixed z-30 pointer-events-none"
+          style={{
+            left: labelPos.x,
+            top: labelPos.y - 60,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <div className="px-4 py-2 rounded-lg bg-[#FF5E00] border border-white/20 shadow-[0_4px_24px_rgba(255,94,0,0.6)]">
+            <span className="font-display font-bold text-base tracking-[0.2em] text-white uppercase whitespace-nowrap">
+              {message}
+            </span>
+          </div>
+          <div className="w-px h-12 bg-gradient-to-b from-[#FF5E00] to-transparent mx-auto" />
+        </div>
+      )}
+      <div className="fixed top-[40%] left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+        {phase === "dial" && (
+          <div className="px-6 py-3 rounded-full bg-[#06013A]/90 backdrop-blur-xl border border-[#FF5E00]/60 shadow-[0_4px_24px_rgba(255,94,0,0.3)] animate-pulse">
+            <span className="font-display font-bold text-xs tracking-[0.4em] text-[#FF5E00] uppercase">
+              Dialing…
+            </span>
+          </div>
+        )}
+        {phase === "connect" && (
+          <div className="px-6 py-3 rounded-full bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/60">
+            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
+              Establishing Link…
+            </span>
+          </div>
+        )}
+        {phase === "intro" && (
+          <div className="px-6 py-3 rounded-full bg-[#1800E7]/80 backdrop-blur-xl border border-white/30">
+            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
+              Transmitting
+            </span>
+          </div>
+        )}
+        {phase === "arrive" && (
+          <div className="px-6 py-3 rounded-full bg-[#FF5E00]/90 backdrop-blur-xl border border-white/30 shadow-[0_4px_24px_rgba(255,94,0,0.5)]">
+            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
+              Delivered
+            </span>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
