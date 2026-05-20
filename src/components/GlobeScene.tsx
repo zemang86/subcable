@@ -160,6 +160,7 @@ export default function GlobeScene() {
     Record<string, { x: number; y: number; visible: boolean }>
   >({});
   const [openDialog, setOpenDialog] = useState<DialogId>(null);
+  const [expandedPointId, setExpandedPointId] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>("en");
   const [muted, setMuted] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -188,6 +189,7 @@ export default function GlobeScene() {
       setOpenDialog(null);
       setSelectedCable(null);
       setSelectedLandingPoint(null);
+      setExpandedPointId(null);
     } else {
       setAutoRotate(false);
     }
@@ -474,6 +476,7 @@ export default function GlobeScene() {
   const handleSelectCable = useCallback((cable: CableSystem | null) => {
     setSelectedCable(cable);
     setSelectedLandingPoint(null);
+    setExpandedPointId(null);
     if (cable && globeRef.current) {
       const points = landingPoints.filter((p) =>
         cable.landingPointIds.includes(p.id),
@@ -540,6 +543,7 @@ export default function GlobeScene() {
     setSelectedCable(null);
     setSelectedLandingPoint(null);
     setOpenDialog(null);
+    setExpandedPointId(null);
     setAutoRotate(false);
     recenterMalaysia();
   }, [recenterMalaysia]);
@@ -982,16 +986,24 @@ export default function GlobeScene() {
       {/* Bottom: titlebar */}
       <Header selectedCable={selectedCable} language={language} />
 
-      {/* Map overlay: one callout per landing point on the selected cable */}
+      {/* Map overlay: one callout per landing point on the selected cable.
+          Tapping a callout expands it; siblings dim while expanded. */}
       {selectedCable &&
         cableLandingPoints.map((p) => {
           const pos = calloutScreens[p.id];
           if (!pos || !pos.visible) return null;
+          const isExpanded = expandedPointId === p.id;
+          const someoneExpanded = expandedPointId !== null;
           return (
             <LandingPointCallout
               key={p.id}
               point={p}
               screenPos={{ x: pos.x, y: pos.y }}
+              expanded={isExpanded}
+              dimmed={someoneExpanded && !isExpanded}
+              onToggleExpand={() =>
+                setExpandedPointId((cur) => (cur === p.id ? null : p.id))
+              }
             />
           );
         })}
