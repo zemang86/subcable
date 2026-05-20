@@ -7,7 +7,7 @@ Tracks every component / spec in `tm-submarine-cable-map-design-system/` against
 - 🔍 verify — likely already matches but worth a spot-check
 - 🧊 deferred — tech-debt, parked
 
-Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a` · M4 `c281c08` · M5 `4b4bc28` · M5b `f7d75b1` · M6 `0a67bb0` · M7 `4cd8286` · M7b `babc1fa` · M8 `3718502` · M9 `6349827` · M10 `9925b41` · M11 `f1510d0` · M12 `3e5f330` · M13 `38bff1f` · M14 `0c35f64` · M15 `b3d9acc` · M16 `fd1a8df` · M17 `3721986` · M18 `79b4ee2` · M19 `45a0e0d` · M20 `af816a3` (+ pre-M1 history).
+Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a` · M4 `c281c08` · M5 `4b4bc28` · M5b `f7d75b1` · M6 `0a67bb0` · M7 `4cd8286` · M7b `babc1fa` · M8 `3718502` · M9 `6349827` · M10 `9925b41` · M11 `f1510d0` · M12 `3e5f330` · M13 `38bff1f` · M14 `0c35f64` · M15 `b3d9acc` · M16 `fd1a8df` · M17 `3721986` · M18 `79b4ee2` · M19 `45a0e0d` · M20 `af816a3` · M21 (Header) `041ccfb` · M22 (RightCluster) `801f362` · M23 (FunFact title+bg) `c5a14bb` · M24 (FunFact bracket frame) `86f89cd` · M25 (HowToGuide) `c8f710c` (+ pre-M1 history).
 
 ---
 
@@ -19,6 +19,7 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 - ✅ **Cable System panel position** — bottom-right with fixed 3-row scrollable grid (M6 / `0a67bb0`)
 - ✅ **Language pill + Re-center button position** — moved to bottom-center; `CompassButton` renamed to `RecenterButton` (Figma label), rotated 180deg (M7)
 - ✅ **Header strip** — rebuilt to match Figma `Header` layer: inset frame 2008×120 at (18,12), translucent white-gradient fill (Rectangle 50), 4 white L-bracket corners, 52px Chakra Petch Bold title, 64px Regular cable code, and the new DOM/INT film-strip chip (translucent rect + 2 tactical lines + 4 corner dots). File renamed `BottomTitlebar.tsx` → `Header.tsx` (M8).
+- ✅ **Header compaction pass (M21)** — height 120 → 80, title 52 → 40 (Bahasa fits one line via `whiteSpace: nowrap`), cable code at `right:87`, DOM/INT chip at `right:24` in a 3-column layout to stop the chip overlapping the cable code, and L-bracket corners swapped for the 8×8 **crosshair `+`** convention nested inside the visible Rectangle 50 border so the markers sit on the real corner.
 - ✅ **KeyStatistic strip** — hidden for now (mount + import + stats useMemo removed from `GlobeScene.tsx`). `KeyStatistic.tsx` component file kept around in case we re-add it later (M9).
 - ✅ RightCluster on left edge (mirror of kit, swap preserved per your call)
 - ✅ AudioMute top-right (paired with our right-side Sidebar)
@@ -40,6 +41,7 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 ## 3. Buttons / circle buttons
 
 - ✅ Help / Info / Morse circle cluster (76×76, lime-active)
+- ✅ **RightCluster final pass (M22)** — order top→bottom Morse / Fact / Help with **31px** gap per Figma spec; per-glyph SVGs replaced with the 3 **full-button SVGs** from `temp/button_svg/` (radar dots, info-i, ?-mark); selected state is the 116×116 **lime ring overlay** (`selected-button.svg`) rendered at `top:-20, left:-20` over the 76×76 button; **Morse no longer gated by selected cable** (button always enabled, MorseCodePop accepts `cable: CableSystem | null` with a null-guard on `cablePoints`, SEND stays disabled until From/To pickers populate).
 - ✅ Compass = full reset
 - 🔍 **Circle button radial-gradient bg** — kit value matches; eyeball under the lime-glow active state
 - 🔍 **Morse-key buttons** (DOT / DASH / ENTER LETTER / SPACE / BACKSPACE / CLEAR / SEND) currently inline their styles inside `MorseCodePop.tsx`. Refactor to use `.v1-btn-*` classes for consistency? Cosmetic refactor; no visual change.
@@ -77,12 +79,12 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 
 ## 5. Dialogs
 
-- ✅ HowTo (3 bracket-tile layout, kit-sized typography)
-- ✅ FunFact (4 fixed thumbs I/II, 16:9, orange-active border)
+- ✅ **HowTo (M25)** — title moved into a 47px TitleStrip header card with crosshair `+` corners (matches CableInformation / CableSystem pattern); bottom title strip removed; panel body now uses the **bevelled SVG card** from `temp/card-help.svg` (orange→blue gradient + white stroke + cut corners, `preserveAspectRatio="none"`) as its background, replacing the prior CSS gradient + U-bracket frame approach; 3 tiles render the `tap.png`/`pinch.png`/`swipe.png` illustrations at 100% (assets shipped to `public/textures/howto/`), with the prior CSS frame + corner markers + inline SVG icons dropped since the frame is baked into the PNGs.
+- ✅ **FunFact (M23 + M24)** — title moved into a TitleStrip header card matching CableSystem/CableInformation (47px, white-translucent gradient, 4 crosshair `+` corners, 28px Chakra Petch 500, ✕ close on right); panel body now uses the orange→blue gradient from `temp/facts_bg_gradient.css`; player and thumbnail strip **swapped** (player on top, thumbs at the bottom for touch reach); 4 fixed thumbs I/II at 16:9 with orange-active border; placeholder images temporarily use `picsum.photos` seeded URLs so the layout feels populated. Panel frame is a **CSS-bordered HUD bracket frame** (top + bottom U brackets @ 50px + left/right vertical rails inset 60px), chosen over an SVG stretch so brackets stay fixed at any panel size.
 - ✅ MorseCodePop (light-fill message area, 2-col A–Z reference, brown backspace)
 - 🔍 **MorseCodePop key buttons** — currently inline; can adopt `.v1-btn-*` (see §3)
-- 🔍 **Dialog frames** all consistent? (`var(--v1-bg-deep)` bg, 18px footer title, 36×36 ✕). If we want a shared `DialogShell` wrapper, that's a small refactor.
-- ⚠️ **FunFact placeholder assets** — `public/textures/funfact/placeholder-{1..4}.webp` currently 404. Either ship neutral SVG placeholders or wait for real assets.
+- 🔍 **Dialog frames** all consistent? FunFact + HowTo now share a TitleStrip-on-top + bevelled/framed panel-body pattern; MorseCodePop still uses the old `var(--v1-bg-deep)` shell. Consider lifting a shared `DialogShell` (TitleStrip + body slot) so MorseCodePop matches the other two.
+- ⚠️ **FunFact placeholder assets** — `public/textures/funfact/` placeholder-* still pending; current build uses `picsum.photos/seed/...` URLs which require network access and aren't kiosk-safe. Either swap real cable cross-section / repeater / ship images into `public/textures/funfact/` before kiosk deploy, or ship neutral SVG placeholders.
 
 ## 6. Globe rendering
 
@@ -125,12 +127,15 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 
 ## Suggested order to chew through
 
-1. ✅ ~~§1 Layout~~ — closed
+1. ✅ ~~§1 Layout~~ — closed (+ M21 Header compaction)
 2. ✅ ~~§4 Sidebar / Cable System~~ — closed M11 → M18
-3. ✅ ~~§4 Cable Information~~ — closed M19
-4. **§5 FunFact assets** ← **NEXT** (easy win, swap in the real cable-cross-section image)
-5. **§6 Cable line dash pattern** — visual feature most visible on the screenshot
-6. **§2/3/8 verify-rounds** — quick spot-checks, mostly already aligned
-7. **§7 Brand assets** — logo / icons / splash decisions
-8. **§9 LoadingScreen + idle** — small polish
-9. **§10 tech-debt** — when product alignment is done
+3. ✅ ~~§4 Cable Information~~ — closed M19 → M20
+4. ✅ ~~§3 RightCluster~~ — closed M22 (full-SVG buttons + lime-ring overlay + Morse always-on)
+5. ✅ ~~§5 FunFact + HowTo dialog shells~~ — closed M23 → M25 (TitleStrip-on-top + framed body)
+6. **§5 MorseCodePop polish** ← **NEXT** (light-fill area already done; align panel chrome with the TitleStrip pattern + lift key buttons to `.v1-btn-*` classes)
+7. **§5 FunFact assets** — swap `picsum.photos` URLs for real cable cross-section / repeater / ship images in `public/textures/funfact/` before kiosk deploy
+8. **§6 Cable line dash pattern** — visual feature most visible on the screenshot
+9. **§2/3/8 verify-rounds** — quick spot-checks, mostly already aligned
+10. **§7 Brand assets** — logo / icons / splash decisions
+11. **§9 LoadingScreen + idle** — small polish
+12. **§10 tech-debt** — when product alignment is done
