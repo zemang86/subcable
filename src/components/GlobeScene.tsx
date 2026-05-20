@@ -961,7 +961,7 @@ export default function GlobeScene() {
         }}
       >
         <LanguageToggle value={language} onChange={setLanguage} />
-        <CompassButton onRecenter={recenterMalaysia} />
+        <CompassButton onRecenter={resetView} ariaLabel="Reset view" />
       </div>
 
       {/* Top-left: key statistics — horizontal strip of 3 (mirror of kit's top-right) */}
@@ -997,7 +997,6 @@ export default function GlobeScene() {
           onOpen={(id) =>
             setOpenDialog((current) => (current === id ? null : id))
           }
-          onResetView={resetView}
           cableSelected={Boolean(selectedCable)}
         />
       </div>

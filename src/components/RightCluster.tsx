@@ -3,7 +3,6 @@ import type { DialogId } from "@/lib/types";
 type RightClusterProps = {
   openDialog: DialogId;
   onOpen: (id: Exclude<DialogId, null>) => void;
-  onResetView: () => void;
   /** When false, dialogs that require a selected cable render disabled. */
   cableSelected?: boolean;
 };
@@ -11,7 +10,6 @@ type RightClusterProps = {
 export function RightCluster({
   openDialog,
   onOpen,
-  onResetView,
   cableSelected = true,
 }: RightClusterProps) {
   return (
@@ -35,17 +33,33 @@ export function RightCluster({
       <ClusterButton
         active={openDialog === "funfact"}
         onClick={() => onOpen("funfact")}
-        ariaLabel="Fun fact"
+        ariaLabel="Information"
         disabled={!cableSelected}
       >
         <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="6.5" />
         <path d="M12 8h.01M11 12h1v4h1" />
       </ClusterButton>
 
-      <ClusterButton active={false} onClick={onResetView} ariaLabel="Reset view">
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="12" r="5" />
-        <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+      <ClusterButton
+        active={openDialog === "morse"}
+        onClick={() => onOpen("morse")}
+        ariaLabel="Morse Code"
+        disabled={!cableSelected}
+      >
+        {/* 5 dots + 5 dashes per Figma V1.3 (kit Chrome.jsx lines 78–89) */}
+        <g fill="currentColor" stroke="none">
+          <circle cx="7" cy="4.5" r="1.2" />
+          <circle cx="7" cy="8" r="1.2" />
+          <circle cx="7" cy="11.5" r="1.2" />
+          <circle cx="7" cy="15" r="1.2" />
+          <circle cx="7" cy="18.5" r="1.2" />
+          <rect x="11" y="3.4" width="7" height="1.7" rx="0.6" />
+          <rect x="11" y="6.9" width="7" height="1.7" rx="0.6" />
+          <rect x="11" y="10.4" width="7" height="1.7" rx="0.6" />
+          <rect x="11" y="13.9" width="7" height="1.7" rx="0.6" />
+          <rect x="11" y="17.4" width="7" height="1.7" rx="0.6" />
+        </g>
       </ClusterButton>
     </div>
   );
@@ -72,12 +86,13 @@ function ClusterButton({
       aria-label={ariaLabel}
       aria-pressed={active}
       style={{
-        width: 64,
-        height: 64,
+        width: 76,
+        height: 76,
         borderRadius: "50%",
         cursor: disabled ? "not-allowed" : "pointer",
-        background: "rgba(255, 255, 255, 0.04)",
-        border: `2px solid ${active ? "var(--v1-active)" : "rgba(255, 255, 255, 0.7)"}`,
+        background:
+          "radial-gradient(ellipse at 50% 110%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0) 80%), rgba(255,255,255,0.03)",
+        border: `1.5px solid ${active ? "var(--v1-active)" : "rgba(255, 255, 255, 0.85)"}`,
         boxShadow: active ? "0 0 24px rgba(143, 255, 63, 0.5)" : "none",
         color: active ? "var(--v1-active)" : "var(--v1-fg)",
         opacity: disabled ? 0.35 : 1,
