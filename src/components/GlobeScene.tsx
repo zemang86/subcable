@@ -119,6 +119,28 @@ const SEA_FADE_OUT_ALT = 0.3;
 const ATMOSPHERE_COLOR = V1_COLORS.atmosphere;          // #034DA1 v1-blue
 const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
 const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
+// Outer-glow halo rings around the selected cable (kit spec: stacked
+// Gaussian blurs stdDev 3.5 + 8 — emulated in WebGL by widening
+// translucent siblings beneath the 3px hot-red core).
+const CABLE_HALO_INNER = "rgba(237, 27, 46, 0.35)"; // stroke 5px
+const CABLE_HALO_OUTER = "rgba(237, 27, 46, 0.18)"; // stroke 7px
+
+// Unselected cables get a subtler per-cable halo so the line "lights up"
+// in its identity colour without competing with the selected red.
+const CABLE_HALO_DEFAULT_INNER_ALPHA = 0.28; // stroke 3px
+const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.14; // stroke 5px
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const h = hex.replace("#", "");
+  const full =
+    h.length === 3
+      ? h.split("").map((c) => c + c).join("")
+      : h;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 const LANDING_POINT_DEFAULT = V1_COLORS.fg;             // white
 const LANDING_POINT_ACTIVE = V1_COLORS.active;          // #8FFF3F lime
 const LANDING_POINT_MUTED = "rgba(120, 120, 120, 0.30)";
@@ -146,6 +168,10 @@ interface PathData {
   name: string;
   color: string;
   status: CableSystem["status"];
+  // Glow ring index for the selected cable: undefined = core line,
+  // 1 = inner halo (5px / α 0.35), 2 = outer halo (7px / α 0.18).
+  // Mirrors the stacked-Gaussian effect from brand-globe-line.html.
+  _halo?: 1 | 2;
 }
 
 export default function GlobeScene() {
@@ -548,23 +574,68 @@ export default function GlobeScene() {
     recenterMalaysia();
   }, [recenterMalaysia]);
 
-  // Path color: selected → red 3px; muted (non-selected when a cable is
-  // selected) → white 30%; otherwise per-cable identity color.
+  // Render order: muted siblings first → halo rings → cores.
+  // Later entries in pathsData paint over earlier ones in three-globe, so
+  // each core sits on top of its own translucent halo.
+  const renderedPaths = useMemo(() => {
+    if (!selectedCable) {
+      // Nothing selected — active cables get a subtle identity-colour halo
+      // so the network reads as "lit up" rather than flat lines. Retired /
+      // inactive cables stay 1px white-18 (no halo — they should feel dim).
+      const out: PathData[] = [];
+      for (const p of pathsData) {
+        if (p.status === "active" && p.color.startsWith("#")) {
+          out.push({ ...p, _halo: 2 }, { ...p, _halo: 1 }, p);
+        } else {
+          out.push(p);
+        }
+      }
+      return out;
+    }
+    const others: PathData[] = [];
+    const core: PathData[] = [];
+    for (const p of pathsData) {
+      if (p.cableId === selectedCable.id) core.push(p);
+      else others.push(p);
+    }
+    const halos: PathData[] = [];
+    for (const p of core) {
+      halos.push({ ...p, _halo: 2 }, { ...p, _halo: 1 });
+    }
+    return [...others, ...halos, ...core];
+  }, [pathsData, selectedCable]);
+
+  // Path color: selected core → red 3px; selected halos → translucent red;
+  // muted siblings (non-selected when a cable is selected) → white 30%, flat;
+  // nothing selected → identity colour core + identity-colour translucent halo.
   const getPathColor = useCallback(
     (path: PathData) => {
       if (selectedCable) {
-        return path.cableId === selectedCable.id
-          ? CABLE_SELECTED_COLOR
-          : CABLE_MUTED_COLOR;
+        if (path.cableId !== selectedCable.id) return CABLE_MUTED_COLOR;
+        if (path._halo === 2) return CABLE_HALO_OUTER;
+        if (path._halo === 1) return CABLE_HALO_INNER;
+        return CABLE_SELECTED_COLOR;
       }
+      if (path._halo === 2)
+        return hexToRgba(path.color, CABLE_HALO_DEFAULT_OUTER_ALPHA);
+      if (path._halo === 1)
+        return hexToRgba(path.color, CABLE_HALO_DEFAULT_INNER_ALPHA);
       return path.color;
     },
     [selectedCable],
   );
   const getPathStroke = useCallback(
     (path: PathData) => {
-      const isSel = selectedCable && path.cableId === selectedCable.id;
-      return isSel ? 3 : 1;
+      if (selectedCable) {
+        const isSel = path.cableId === selectedCable.id;
+        if (!isSel) return 1;
+        if (path._halo === 2) return 7;
+        if (path._halo === 1) return 5;
+        return 3;
+      }
+      if (path._halo === 2) return 5;
+      if (path._halo === 1) return 3;
+      return 1;
     },
     [selectedCable],
   );
@@ -902,7 +973,7 @@ export default function GlobeScene() {
         showAtmosphere={true}
         atmosphereColor={ATMOSPHERE_COLOR}
         atmosphereAltitude={0.18}
-        pathsData={pathsData}
+        pathsData={renderedPaths}
         pathPoints="coords"
         pathPointLat={pathPointLat}
         pathPointLng={pathPointLng}
