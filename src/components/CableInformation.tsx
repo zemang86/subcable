@@ -50,7 +50,7 @@ export default function CableInformation({
         width: PANEL_WIDTH,
         display: "flex",
         flexDirection: "column",
-        gap: 24,
+        gap: 6,
       }}
     >
       <TitleStrip title={t("cableInformation")} />
@@ -464,112 +464,164 @@ function FieldChip({
 
 /* ───────────────────────── FILM-STRIP OWNER CHIP ───────────────────────── */
 
-// Owner pill: light-gray fill, white border, orange text — with a small
-// protruding square at top-left mimicking the Figma "film-strip" leader.
+// Owner chip — single continuous L-shape outline (tab + main body) lifted
+// directly from temp/owner-cableinfocard.svg. The tab area at top-left is
+// outline-only (panel gradient shows through); only the main 75×12 inner
+// rectangle is filled #D9D9D9.
 function FilmStripChip({ label }: { label: string }) {
   return (
     <span
       style={{
         position: "relative",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#D9D9D9",
-        border: "0.37px solid #FFFFFF",
-        padding: "0 14px 0 18px",
-        height: 22,
-        minWidth: 100,
-        fontFamily: "var(--v1-heading)",
-        fontWeight: 700,
-        fontSize: 9,
-        letterSpacing: "0.06em",
-        color: "#F05A22",
-        boxSizing: "border-box",
-        whiteSpace: "nowrap",
+        display: "inline-block",
+        width: 130,
+        height: 35,
+        flexShrink: 0,
       }}
     >
-      {/* protruding square at top-left — the "film-strip" leader */}
-      <span
-        aria-hidden
+      <svg
+        viewBox="0 0 86 23"
+        preserveAspectRatio="none"
         style={{
           position: "absolute",
-          top: -5,
-          left: -1,
-          width: 10.5,
-          height: 10.5,
-          background: "#D9D9D9",
-          border: "0.37px solid #FFFFFF",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
         }}
-      />
-      {label}
+      >
+        {/* Inner gray fill — main body only; the tab area stays transparent
+            so the panel gradient shows through it. */}
+        <rect x="6.6" y="7.6" width="75.4" height="12.6" fill="#D9D9D9" />
+        {/* L-shaped outer outline — exact path from Figma export. */}
+        <path
+          d="M10.7158 5.33203 H85.1221 V22.5771 H4.81934 V10.7168 H0.183594 V0.18457 H10.7158 Z"
+          stroke="#FFFFFF"
+          strokeWidth="1"
+          fill="none"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      {/* Text overlay — positioned inside the main body region only, skipping
+          the tab area (≈13% from left). */}
+      <span
+        style={{
+          position: "absolute",
+          top: "33%",
+          bottom: "12.2%",
+          left: "13%",
+          right: "5%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--v1-heading)",
+          fontWeight: 700,
+          fontSize: 10,
+          color: "#F05A22",
+          letterSpacing: "0.06em",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+        }}
+      >
+        {label}
+      </span>
     </span>
   );
 }
 
 /* ───────────────────────── DESCRIPTION BLOCK ───────────────────────── */
 
-// White-bordered container with:
-//   - "Description" eyebrow chip overlapping the top border
-//   - inner L-bracket frame on the left (decoration / icon slot)
-//   - description body text on the right
+// Integrated frame from temp/description.svg — eyebrow chip is part of the
+// container's outer outline as one continuous stroke (no overlapping borders).
+// Includes a chamfered top-right corner, a bottom-left staircase, and an
+// open-ended inner L-bracket on the left. Text overlays are positioned
+// inside the corresponding viewBox regions.
 function DescriptionBlock({ label, text }: { label: string; text: string }) {
   return (
     <div
       style={{
         position: "relative",
-        marginTop: 14,
-        border: "0.63px solid #FFFFFF",
-        minHeight: 90,
-        padding: "16px 14px 14px 70px",
-        boxSizing: "border-box",
+        marginTop: 16,
+        width: "100%",
+        height: 104,
       }}
     >
-      {/* Eyebrow chip — sits on the top border with the chip's own border
-          continuing around it. The chip background is opaque enough to
-          visually break the container border line behind it. */}
+      <svg
+        viewBox="0 0 413 103"
+        preserveAspectRatio="none"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+        }}
+      >
+        {/* Outer frame — integrated eyebrow chip + container + bottom-left
+            staircase, all as one continuous path. */}
+        <path
+          d="M132.941 0.316406L6.24404 0.316763H0.316406V50.7876L30.0676 83.3441V91.6193L40.071 102.077H411.966V39.3451L392.274 19.6723L152.316 19.6719L132.941 0.316406Z"
+          stroke="#FFFFFF"
+          strokeWidth="1"
+          fill="none"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* Inner L-bracket — open at both ends with a chamfered diagonal. */}
+        <path
+          d="M61.9423 59.7585H46.5995L39.3812 51.2446H11.207V15.3145H28.8164"
+          stroke="#FFFFFF"
+          strokeWidth="1"
+          fill="none"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* Tight box around the "Description" eyebrow label inside the
+            integrated chip area at top-left. */}
+        <rect
+          x="33"
+          y="3"
+          width="64"
+          height="16"
+          stroke="#FFFFFF"
+          strokeWidth="1"
+          fill="none"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+
+      {/* Eyebrow label — inside the integrated chip area at top-left
+          (matches Figma "Description" glyph position at x≈37, y≈11). */}
       <span
         style={{
           position: "absolute",
-          top: -8,
-          left: 28,
-          border: "0.26px solid #FFFFFF",
-          padding: "2px 7px",
-          background:
-            "linear-gradient(303.52deg, #034DA1 -11.48%, rgba(3, 77, 161, 0.95) 82.93%), linear-gradient(123.48deg, rgba(240, 90, 34, 0.6) -7.19%, rgba(240, 90, 34, 0) 100%)",
+          top: 5,
+          left: "9%",
           fontFamily: "var(--v1-mono)",
           fontWeight: 400,
           fontSize: 8.5,
-          lineHeight: 1.3,
           color: "#FFF6F6",
+          lineHeight: 1.3,
           letterSpacing: "0.02em",
         }}
       >
         {label}
       </span>
 
-      {/* Inner L-bracket frame on the left — decorative icon slot.
-          Figma Vector 214: 50×44 white border. */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: 14,
-          left: 10,
-          width: 50,
-          height: 44,
-          border: "0.37px solid #FFFFFF",
-          pointerEvents: "none",
-        }}
-      />
-
+      {/* Body text — right of inner bracket, below the eyebrow chip,
+          above the bottom-left staircase. */}
       <p
         style={{
+          position: "absolute",
+          top: "26%",
+          left: "17%",
+          right: "3%",
+          bottom: "13%",
           margin: 0,
           fontFamily: "var(--v1-mono)",
           fontWeight: 300,
           fontSize: 10,
           lineHeight: "13px",
           color: "#FFFFFF",
+          overflow: "hidden",
         }}
       >
         {text}

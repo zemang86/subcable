@@ -7,7 +7,7 @@ Tracks every component / spec in `tm-submarine-cable-map-design-system/` against
 - 🔍 verify — likely already matches but worth a spot-check
 - 🧊 deferred — tech-debt, parked
 
-Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a` · M4 `c281c08` · M5 `4b4bc28` · M5b `f7d75b1` · M6 `0a67bb0` · M7 `4cd8286` · M7b `babc1fa` · M8 `3718502` · M9 `6349827` · M10 `9925b41` · M11 `f1510d0` · M12 `3e5f330` · M13 `38bff1f` · M14 `0c35f64` · M15 `b3d9acc` · M16 `fd1a8df` · M17 `3721986` · M18 `79b4ee2` (+ pre-M1 history).
+Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a` · M4 `c281c08` · M5 `4b4bc28` · M5b `f7d75b1` · M6 `0a67bb0` · M7 `4cd8286` · M7b `babc1fa` · M8 `3718502` · M9 `6349827` · M10 `9925b41` · M11 `f1510d0` · M12 `3e5f330` · M13 `38bff1f` · M14 `0c35f64` · M15 `b3d9acc` · M16 `fd1a8df` · M17 `3721986` · M18 `79b4ee2` · M19 `45a0e0d` (+ pre-M1 history).
 
 ---
 
@@ -55,13 +55,20 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 - ✅ CableCard subtitle divider — auto-sizes to text length (border-bottom on subtitle span, wider when subtitle is long) per Figma `cablecards-{active,notactive}.css` (M16)
 - ✅ CableCard selected state — explicit `background-image: none` to fully clear bevel gradient; translucent white `rgba(255,255,255,0.56)` + 2px orange border (M17)
 
-### Cable Information — ⚠️ NEXT UP
-- ✅ Inactive cables show DECOMMISSIONED chip
-- ✅ "Send Message →" orange CTA
-- ⚠️ **Audit against Figma export** — same treatment as Cable System: have user drop a `temp/cableinfo*.css` and align exactly (panel frame? title strip? field grid layout?)
-- 🔍 **4-col field grid** (LENGTH / BUILT / RFS / TYPE) — kit may have a different ordering or capacity field; check vs Figma
-- ⚠️ **CAPACITY field** — the user's screenshot shows a `CAPACITY 8,000 Gbps` field next to BUILT. We don't currently render capacity. Check whether `CableSystem` data model has it (probably not) and decide to add it.
-- ⚠️ **"Full name" label** in front of the cable name — the screenshot shows `Full name` as an eyebrow above the cable long-name. Add or skip?
+### Cable Information — ✅ FULLY DONE (M19)
+- ✅ TitleStrip "Cable Information" — 28px Chakra Petch 500, white-translucent gradient bg, 4 crosshair (+) corners (matches Cable System pattern)
+- ✅ Panel body — 454×362 with bevel gradient + SVG bracket frame (top + bottom + side rails)
+- ✅ Online indicator — 15px concentric-ring (lime when active, red when inactive) anchored top-right inside panel
+- ✅ "Full name" eyebrow chip — small white-bordered IBM Plex Mono label above the cable long-name
+- ✅ Cable long-name — Rajdhani 700, 15px, **lime `#00FF4D`** when active / **red `#FF3F3F`** when inactive
+- ✅ **2×2 field chip grid** (LENGTH/BUILT, CAPACITY/RFS) — label on the left + translucent-white value cell on the right, big IBM Plex Mono 17px value + small 8px unit suffix; vertically centered with baseline-aligned subscript and auto-scale via `transform: scaleX()` when content overflows the cell
+- ✅ CAPACITY field wired through — `CableSystem.capacity` already existed in the data model (10/14 cables have values, fallback `—`)
+- ✅ TYPE field removed from layout (was in 4-col grid, not in Figma)
+- ✅ Owners eyebrow chip + **film-strip owner chips** — gray `#D9D9D9` fill, white border, orange Rajdhani 700 text, 10×10 protruding leader square at top-left
+- ✅ Description container — white-bordered with eyebrow chip overlapping the top border + 50×44 inner L-bracket icon slot
+- ✅ Send Message CTA **removed**; `onOpenMorse` prop unwired from GlobeScene
+- ✅ i18n: `cableInformation` / `fullName` / `capacity` keys added (EN + BM)
+- ⚠️ **Inactive DECOMMISSIONED chip** — was inline next to short-code; now that the short-code is gone from inside the panel (it lives in the Header), the chip needs a new home or can be dropped. Defer until we hit an inactive-cable case in QA.
 
 ## 5. Dialogs
 
@@ -115,8 +122,8 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 
 1. ✅ ~~§1 Layout~~ — closed
 2. ✅ ~~§4 Sidebar / Cable System~~ — closed M11 → M18
-3. **§4 Cable Information** ← **NEXT** (audit-and-rebuild treatment same as Cable System; user will drop Figma CSS into `temp/`)
-4. **§5 FunFact assets** — easy win, swap in the real cable-cross-section image
+3. ✅ ~~§4 Cable Information~~ — closed M19
+4. **§5 FunFact assets** ← **NEXT** (easy win, swap in the real cable-cross-section image)
 5. **§6 Cable line dash pattern** — visual feature most visible on the screenshot
 6. **§2/3/8 verify-rounds** — quick spot-checks, mostly already aligned
 7. **§7 Brand assets** — logo / icons / splash decisions
