@@ -13,6 +13,7 @@ import type { CableSystem, Language, LandingPoint } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 
 const MAX_CHARS = 20;
+const TITLE_STRIP_HEIGHT = 47;
 
 interface MorseCodePopProps {
   cable: CableSystem | null;
@@ -131,43 +132,63 @@ export default function MorseCodePop({
         transform: "translate(-50%, -50%)",
         zIndex: 50,
         width: "min(1200px, 96vw)",
-        background: "var(--v1-bg-deep)",
-        border: "1px solid rgba(255, 255, 255, 0.40)",
         display: "flex",
         flexDirection: "column",
+        gap: 6,
       }}
     >
-      {/* Top — From/To pickers */}
+      <TitleStrip title={t("morseCodeMessage")} onClose={onClose} />
+
+      {/* Panel body — bevelled SVG card lifted verbatim from temp/morse-card.svg
+          (orange→blue gradient stack + irregular notches on left/right edges +
+          white hairline stroke). Replaces the previous deep-bg + flat border
+          wrapper; aspectRatio locks the bevel notches to render at their
+          intended proportions regardless of dialog width. */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-          padding: 20,
-          borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
+          position: "relative",
+          aspectRatio: "833 / 641",
         }}
       >
-        <CountryPicker
-          label={t("from")}
-          value={from}
-          onChange={setFrom}
-          points={cablePoints}
-        />
-        <CountryPicker
-          label={t("to")}
-          value={to}
-          onChange={setTo}
-          points={cablePoints}
-        />
-      </div>
+        <PanelBackground />
+
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            height: "100%",
+            padding: "20px 24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            boxSizing: "border-box",
+          }}
+        >
+          {/* From row — [label] [country picker] [location picker]. Demo: both
+              pickers bind to the same value; country vs location wiring lands
+              next session. */}
+          <PickerRow
+            label={t("from")}
+            value={from}
+            onChange={setFrom}
+            points={cablePoints}
+          />
+
+          {/* To row — same layout, separate state slot */}
+          <PickerRow
+            label={t("to")}
+            value={to}
+            onChange={setTo}
+            points={cablePoints}
+          />
 
       {/* Body: keyboard column + reference column */}
       <div
         style={{
+          flex: 1,
           display: "grid",
           gridTemplateColumns: "1fr 220px",
           gap: 16,
-          padding: 20,
         }}
       >
         {/* Left column: message + keys */}
@@ -398,45 +419,130 @@ export default function MorseCodePop({
         </div>
       </div>
 
-      {/* Title strip bottom */}
-      <div
-        style={{
-          borderTop: "1px solid rgba(255, 255, 255, 0.20)",
-          padding: "14px 24px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span
-          className="v1-h-display"
-          style={{ fontSize: 18, color: "var(--v1-fg)" }}
-        >
-          {t("morseCodeMessage")}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          style={{
-            width: 36,
-            height: 36,
-            background: "transparent",
-            border: "1px solid rgba(255, 255, 255, 0.40)",
-            color: "var(--v1-fg)",
-            cursor: "pointer",
-            fontFamily: "var(--v1-mono)",
-            fontSize: 14,
-          }}
-        >
-          ✕
-        </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function CountryPicker({
+/* ───────────────────────── TITLE STRIP ───────────────────────── */
+// Shared title-strip pattern with FunFactDialog / HowToGuideDialog / CableInformation:
+// 47px tall, translucent-white gradient fill, hairline white border,
+// crosshair (+) at each of the 4 corners, title 28px Chakra Petch 500.
+
+function TitleStrip({
+  title,
+  onClose,
+}: {
+  title: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: TITLE_STRIP_HEIGHT,
+        background:
+          "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
+        border: "0.37px solid #FFFFFF",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 16px",
+        boxSizing: "border-box",
+      }}
+    >
+      <CrossMark position="tl" />
+      <CrossMark position="tr" />
+      <CrossMark position="bl" />
+      <CrossMark position="br" />
+      <span
+        style={{
+          fontFamily: "var(--v1-display)",
+          fontWeight: 500,
+          fontSize: 28,
+          lineHeight: "36px",
+          color: "#FFFFFF",
+        }}
+      >
+        {title}
+      </span>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          width: 28,
+          height: 28,
+          background: "transparent",
+          border: "1px solid rgba(255, 255, 255, 0.6)",
+          color: "#FFFFFF",
+          cursor: "pointer",
+          fontFamily: "var(--v1-mono)",
+          fontSize: 14,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const variants = {
+    tl: { top: -4, left: -4 },
+    tr: { top: -4, right: -4 },
+    bl: { bottom: -4, left: -4 },
+    br: { bottom: -4, right: -4 },
+  };
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        width: 8,
+        height: 8,
+        pointerEvents: "none",
+        ...variants[position],
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 0,
+          width: 8,
+          height: 0,
+          borderTop: "2px solid #FFFFFF",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 3,
+          width: 0,
+          height: 8,
+          borderLeft: "2px solid #FFFFFF",
+        }}
+      />
+    </span>
+  );
+}
+
+/* ───────────────────────── PICKER ROW ───────────────────────── */
+// Per temp/morse.png + temp/morse.css: one row = [Rajdhani 500 label]
+// [country picker] [location picker]. Both pickers visually identical;
+// for now both bind to the same id slot — country vs city wiring lands
+// in the next session per user instruction ("functionise we will work in
+// another session").
+
+function PickerRow({
   label,
   value,
   onChange,
@@ -448,70 +554,218 @@ function CountryPicker({
   points: LandingPoint[];
 }) {
   return (
-    <label
+    <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        fontFamily: "var(--v1-mono)",
-        color: "var(--v1-fg)",
+        display: "grid",
+        gridTemplateColumns: "60px 1fr 1fr",
+        gap: 16,
+        alignItems: "center",
       }}
     >
-      <span className="v1-h-eye" style={{ fontSize: 9 }}>
-        {label.toUpperCase()}
-      </span>
-      <div
+      <span
         style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          padding: "10px 14px",
-          background: "var(--v1-blue-fill)",
-          border: "1px solid rgba(255, 255, 255, 0.55)",
-          minHeight: 48,
+          fontFamily: "var(--v1-heading)",
+          fontWeight: 500,
+          fontSize: 19,
+          lineHeight: "25px",
+          color: "#FFFFFF",
         }}
       >
-        <PowerIcon />
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            flex: 1,
-            background: "transparent",
-            color: "var(--v1-fg)",
-            border: "none",
-            outline: "none",
-            fontFamily: "var(--v1-mono)",
-            fontSize: 12,
-            appearance: "none",
-          }}
-        >
-          {points.map((p) => (
-            <option key={p.id} value={p.id} style={{ color: "#000" }}>
-              {p.city}, {p.country}
-            </option>
-          ))}
-        </select>
-      </div>
-    </label>
+        {label}
+      </span>
+      {/* Country picker (demo: shows country half of the same selection) */}
+      <Picker
+        value={value}
+        onChange={onChange}
+        points={points}
+        renderLabel={(p) => p.country}
+        ariaLabel={`${label} country`}
+      />
+      {/* Location picker (demo: shows city half of the same selection) */}
+      <Picker
+        value={value}
+        onChange={onChange}
+        points={points}
+        renderLabel={(p) => p.city}
+        ariaLabel={`${label} location`}
+      />
+    </div>
   );
 }
 
-function PowerIcon() {
+/* ───────────────────────── PICKER ───────────────────────── */
+// Matches temp/morse.css "Drop Down Place" spec: blue-tint bg
+// (rgba(3,77,161,0.68)), hairline white border, centred IBM Plex Mono 14.5
+// white text, white downward caret on the right edge, and a tiny 2.9×2.9
+// white-grey square at each of the four corners.
+
+function Picker({
+  value,
+  onChange,
+  points,
+  renderLabel,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  points: LandingPoint[];
+  renderLabel: (p: LandingPoint) => string;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        height: 39,
+        background: "rgba(3, 77, 161, 0.68)",
+        border: "0.5px solid #FFFFFF",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxSizing: "border-box",
+      }}
+    >
+      <PickerCornerDot position="tl" />
+      <PickerCornerDot position="tr" />
+      <PickerCornerDot position="bl" />
+      <PickerCornerDot position="br" />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        style={{
+          width: "100%",
+          height: "100%",
+          padding: "0 32px",
+          background: "transparent",
+          color: "#FFFFFF",
+          border: "none",
+          outline: "none",
+          fontFamily: "var(--v1-mono)",
+          fontWeight: 500,
+          fontSize: 14.5,
+          textAlign: "center",
+          textAlignLast: "center",
+          appearance: "none",
+          cursor: "pointer",
+        }}
+      >
+        {points.length === 0 && (
+          <option value="" style={{ color: "#000", textAlign: "center" }}>
+            —
+          </option>
+        )}
+        {points.map((p) => (
+          <option key={p.id} value={p.id} style={{ color: "#000" }}>
+            {renderLabel(p)}
+          </option>
+        ))}
+      </select>
+      {/* Down caret */}
+      <svg
+        width="15"
+        height="10"
+        viewBox="0 0 15 10"
+        aria-hidden
+        style={{
+          position: "absolute",
+          right: 10,
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+        }}
+      >
+        <polygon points="0,0 15,0 7.5,10" fill="#FFFFFF" />
+      </svg>
+    </div>
+  );
+}
+
+function PickerCornerDot({
+  position,
+}: {
+  position: "tl" | "tr" | "bl" | "br";
+}) {
+  const variants = {
+    tl: { top: 1, left: 1 },
+    tr: { top: 1, right: 1 },
+    bl: { bottom: 1, left: 1 },
+    br: { bottom: 1, right: 1 },
+  };
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        width: 3,
+        height: 3,
+        background: "#D9D9D9",
+        pointerEvents: "none",
+        ...variants[position],
+      }}
+    />
+  );
+}
+
+/* ──────────────────── PANEL BACKGROUND ──────────────────── */
+// Bevelled morse card lifted verbatim from temp/morse-card.svg — irregular
+// silhouette with notches at the left edge (top + bottom) and right edge
+// (top, mid, bottom) plus a small inset cut at the bottom-left. Same
+// orange-down + blue-up gradient stack as the help card.
+
+function PanelBackground() {
   return (
     <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="var(--v1-fg)"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
       aria-hidden
+      viewBox="0 0 833 641"
+      preserveAspectRatio="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
     >
-      <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-      <line x1="12" y1="2" x2="12" y2="12" />
+      <defs>
+        <linearGradient
+          id="morse_card_orange"
+          x1="415.839"
+          y1="0"
+          x2="415.839"
+          y2="640.274"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0.275154" stopColor="#F05A22" />
+          <stop offset="1" stopColor="#F05A22" stopOpacity="0.4" />
+        </linearGradient>
+        <linearGradient
+          id="morse_card_blue"
+          x1="403.694"
+          y1="640.274"
+          x2="406.611"
+          y2="248.726"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#034DA1" />
+          <stop offset="1" stopColor="#034DA1" stopOpacity="0.3" />
+        </linearGradient>
+      </defs>
+      {/* Paint order from kit: orange → blue → white stroke */}
+      <path
+        d="M832.404 65.2549L819.419 72.7529V388.428L832.404 395.925V464.754L824.045 469.581V617.528L832.404 622.354V640.561H0V622.978L9.43945 617.528V469.581L0 464.131V406.388L15.1514 397.641V81.9668L0 73.2188V0H832.404V65.2549Z"
+        fill="url(#morse_card_orange)"
+      />
+      <path
+        d="M832.404 65.2549L819.419 72.7529V388.428L832.404 395.925V464.754L824.045 469.581V617.528L832.404 622.354V640.561H0V622.978L9.43945 617.528V469.581L0 464.131V406.388L15.1514 397.641V81.9668L0 73.2188V0H832.404V65.2549Z"
+        fill="url(#morse_card_blue)"
+      />
+      <path
+        d="M832.404 65.2549L819.419 72.7529V388.428L832.404 395.925V464.754L824.045 469.581V617.528L832.404 622.354V640.561H0V622.978L9.43945 617.528V469.581L0 464.131V406.388L15.1514 397.641V81.9668L0 73.2188V0H832.404V65.2549Z"
+        stroke="white"
+        fill="none"
+        vectorEffect="non-scaling-stroke"
+      />
     </svg>
   );
 }
