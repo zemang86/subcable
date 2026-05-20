@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Language toggle</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box;
+          display:flex; flex-direction:column; gap:14px; align-items:flex-start; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+<div class="card">
+  <!-- DEFAULT — English active -->
+  <div class="tm-pill" role="tablist">
+    <button class="tm-pill__opt is-active">English</button>
+    <button class="tm-pill__opt">Bahasa Malaysia</button>
+  </div>
+
+  <!-- ALT — Bahasa active -->
+  <div class="tm-pill" role="tablist">
+    <button class="tm-pill__opt">English</button>
+    <button class="tm-pill__opt is-active">Bahasa Malaysia</button>
+  </div>
+
+  <div class="meta">PILL 44px · active = blue→white gradient capsule + orange Rajdhani 700 · inactive = white Rajdhani 400. Sized to fit both labels — no trailing space.</div>
+</div>
+</body></html>

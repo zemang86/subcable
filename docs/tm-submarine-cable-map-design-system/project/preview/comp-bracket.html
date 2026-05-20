@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Bracket frame</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card row" style="gap:20px;">
+  <div class="tm-bracket" style="width:220px; padding:24px; text-align:center; display:flex; flex-direction:column; gap:10px; align-items:center;">
+    <span class="bracket-tl"></span><span class="bracket-br"></span>
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--tm-fg)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v6M8 11h6"/>
+    </svg>
+    <div class="tm-h-heading" style="font-size:13px; text-transform:uppercase; letter-spacing:0.12em;">Zoom In & Out</div>
+    <div style="font-family:var(--tm-mono); font-size:9.5px; color:var(--tm-mute); line-height:1.6;">Pinch with two fingers to explore the globe in detail.</div>
+  </div>
+  <div class="meta" style="align-self:flex-end;">12px L-corner ticks · used for "How To" tiles</div>
+</div></body></html>

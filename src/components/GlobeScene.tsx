@@ -9,7 +9,7 @@ import LoadingScreen from "./LoadingScreen";
 import CableInformation from "./CableInformation";
 import { BottomTitlebar } from "./BottomTitlebar";
 import { LanguageToggle } from "./LanguageToggle";
-import { CompassButton } from "./CompassButton";
+import { RecenterButton } from "./RecenterButton";
 import { AudioMute } from "./AudioMute";
 import { RightCluster } from "./RightCluster";
 import { KeyStatistic } from "./KeyStatistic";
@@ -956,11 +956,11 @@ export default function GlobeScene() {
         <AudioMute muted={muted} onToggle={() => setMuted((m) => !m)} />
       </div>
 
-      {/* Top-center: language toggle + compass — below the 110px titlebar */}
+      {/* Bottom-center: language toggle + re-center button (Figma V1.3) */}
       <div
         style={{
           position: "fixed",
-          top: 140,
+          bottom: 30,
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 25,
@@ -970,7 +970,7 @@ export default function GlobeScene() {
         }}
       >
         <LanguageToggle value={language} onChange={setLanguage} />
-        <CompassButton onRecenter={resetView} ariaLabel="Reset view" />
+        <RecenterButton onRecenter={resetView} />
       </div>
 
       {/* Top-left: key statistics — horizontal strip of 3 (mirror of kit's top-right) */}

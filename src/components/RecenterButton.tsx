@@ -1,9 +1,15 @@
-type CompassButtonProps = {
+type RecenterButtonProps = {
   onRecenter: () => void;
   ariaLabel?: string;
 };
 
-export function CompassButton({ onRecenter, ariaLabel = "Recenter on Malaysia" }: CompassButtonProps) {
+// Per Figma V1.3 — labelled "Re-center" (not "Compass"). Stage geometry from
+// the kit: 43.61×43.61, transform: rotate(180deg). Function unchanged — see
+// resetView in GlobeScene (deselect cable, clear callout, camera home).
+export function RecenterButton({
+  onRecenter,
+  ariaLabel = "Re-center",
+}: RecenterButtonProps) {
   return (
     <button
       type="button"
@@ -19,6 +25,8 @@ export function CompassButton({ onRecenter, ariaLabel = "Recenter on Malaysia" }
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
+        transform: "rotate(180deg)",
+        borderRadius: "50%",
       }}
     >
       <svg
