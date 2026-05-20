@@ -1,7 +1,7 @@
 "use client";
 
 import type { LandingPoint } from "@/lib/types";
-import { StatusIndicator } from "./StatusIndicator";
+import { PointHUD } from "./PointHUD";
 
 type LandingPointCalloutProps = {
   point: LandingPoint;
@@ -12,8 +12,11 @@ type LandingPointCalloutProps = {
   onClose?: () => void;
 };
 
-const CALLOUT_OFFSET_Y = 110;
-const CALLOUT_OFFSET_X = -120;
+const CALLOUT_WIDTH = 380;
+const CALLOUT_BOX_HEIGHT = 100; // padding 22+18 + title 32 + row 11 + gap 8 ≈ 91, round up
+const GAP_BOX_TO_HUD = 14;
+const HUD_CENTER_Y = 138; // y coord of dot inside the 64×170 PointHUD SVG
+const OFFSET_FROM_POINT = CALLOUT_BOX_HEIGHT + GAP_BOX_TO_HUD + HUD_CENTER_Y;
 
 export function LandingPointCallout({
   point,
@@ -25,67 +28,107 @@ export function LandingPointCallout({
     <div
       style={{
         position: "absolute",
-        left: screenPos.x + CALLOUT_OFFSET_X,
-        top: screenPos.y - CALLOUT_OFFSET_Y,
-        width: 240,
+        left: screenPos.x - CALLOUT_WIDTH / 2,
+        top: screenPos.y - OFFSET_FROM_POINT,
+        width: CALLOUT_WIDTH,
         pointerEvents: hidden ? "none" : "auto",
         opacity: hidden ? 0 : 1,
         transition: "opacity 200ms ease",
         zIndex: 15,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
       }}
     >
-      {/* Box */}
+      {/* Callout box — 4 L-corner orange brackets + translucent deep-orange fill */}
       <button
         type="button"
         onClick={onClose}
         aria-label={`Close callout for ${point.name}`}
         style={{
+          position: "relative",
           width: "100%",
-          padding: "10px 12px",
-          background: "rgba(240, 90, 34, 0.92)",
-          border: "1px solid rgba(255, 255, 255, 0.55)",
+          padding: "22px 26px 18px",
+          background: "rgba(188, 53, 20, 0.55)",
+          border: "1px solid rgba(0, 0, 0, 0)",
           color: "var(--v1-fg)",
           textAlign: "left",
           cursor: "pointer",
           display: "flex",
           flexDirection: "column",
-          gap: 4,
+          gap: 8,
         }}
       >
+        <CornerBracket position="tl" />
+        <CornerBracket position="tr" />
+        <CornerBracket position="bl" />
+        <CornerBracket position="br" />
+
         <span
-          className="v1-h-heading"
           style={{
-            fontSize: 16,
+            fontFamily: "var(--v1-heading)",
+            fontWeight: 700,
+            fontSize: 32,
             color: "var(--v1-fg)",
+            letterSpacing: "0.02em",
+            lineHeight: 1,
             textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            lineHeight: 1.1,
           }}
         >
           {point.name}
         </span>
-        <span className="v1-coords" style={{ color: "var(--v1-fg)" }}>
-          {point.region.toUpperCase()} · {point.lat.toFixed(4)}, {point.lng.toFixed(4)}
-        </span>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 14,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "var(--v1-mono)",
+              fontSize: 11,
+              color: "var(--v1-fg)",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {point.region}
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--v1-mono)",
+              fontSize: 11,
+              color: "var(--v1-fg)",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {point.lat.toFixed(2)}, {point.lng.toFixed(2)}
+          </span>
+        </div>
       </button>
 
-      {/* Connector line — straight 1px orange line from box bottom to the landing-point ring */}
-      <div
-        style={{
-          width: 1,
-          height: CALLOUT_OFFSET_Y - 24,
-          margin: `0 auto`,
-          background: "var(--v1-orange)",
-        }}
+      {/* Drop line + reticle, centered under the callout box */}
+      <PointHUD
+        status={point.kind === "pop" ? "inactive" : "active"}
+        pulse={point.kind !== "pop"}
       />
-
-      {/* Status indicator anchored on the landing point */}
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <StatusIndicator
-          status={point.kind === "pop" ? "inactive" : "active"}
-          pulse={point.kind !== "pop"}
-        />
-      </div>
     </div>
   );
+}
+
+function CornerBracket({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const base = {
+    position: "absolute" as const,
+    width: 22,
+    height: 22,
+    borderStyle: "solid" as const,
+    borderColor: "var(--v1-orange)",
+  };
+  const variants = {
+    tl: { top: -3, left: -3, borderWidth: "2.5px 0 0 2.5px" },
+    tr: { top: -3, right: -3, borderWidth: "2.5px 2.5px 0 0" },
+    bl: { bottom: -3, left: -3, borderWidth: "0 0 2.5px 2.5px" },
+    br: { bottom: -3, right: -3, borderWidth: "0 2.5px 2.5px 0" },
+  };
+  return <span aria-hidden style={{ ...base, ...variants[position] }} />;
 }
