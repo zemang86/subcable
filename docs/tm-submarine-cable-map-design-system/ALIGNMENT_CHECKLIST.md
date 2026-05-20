@@ -19,7 +19,7 @@ Recent commits ahead of origin/main: `2c74062` `26458da` `ad24e3a` `c281c08` `4b
 - ✅ **Cable System panel position** — bottom-right with fixed 3-row scrollable grid (M6 / `0a67bb0`)
 - ✅ **Language pill + Re-center button position** — moved to bottom-center; `CompassButton` renamed to `RecenterButton` (Figma label), rotated 180deg (M7)
 - ✅ **Header strip** — rebuilt to match Figma `Header` layer: inset frame 2008×120 at (18,12), translucent white-gradient fill (Rectangle 50), 4 white L-bracket corners, 52px Chakra Petch Bold title, 64px Regular cable code, and the new DOM/INT film-strip chip (translucent rect + 2 tactical lines + 4 corner dots). File renamed `BottomTitlebar.tsx` → `Header.tsx` (M8).
-- ⚠️ **KeyStatistic strip** — not visible in the kit screenshot; might be a hide-when-cable-selected behavior. Decide whether to keep them always-on (top-left, our current) or auto-hide on cable selection.
+- ✅ **KeyStatistic strip** — hidden for now (mount + import + stats useMemo removed from `GlobeScene.tsx`). `KeyStatistic.tsx` component file kept around in case we re-add it later (M9).
 - ✅ RightCluster on left edge (mirror of kit, swap preserved per your call)
 - ✅ AudioMute top-right (paired with our right-side Sidebar)
 

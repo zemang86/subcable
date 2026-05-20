@@ -12,7 +12,6 @@ import { LanguageToggle } from "./LanguageToggle";
 import { RecenterButton } from "./RecenterButton";
 import { AudioMute } from "./AudioMute";
 import { RightCluster } from "./RightCluster";
-import { KeyStatistic } from "./KeyStatistic";
 import { LandingPointCallout } from "./LandingPointCallout";
 import HowToGuideDialog from "./HowToGuideDialog";
 import FunFactDialog from "./FunFactDialog";
@@ -873,14 +872,6 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(raf);
   }, [isLoaded, selectedCable]);
 
-  // Derived stats for the top-right KeyStatistic stack.
-  const stats = useMemo(() => {
-    const total = cables.length;
-    const active = cables.filter((c) => c.status === "active").length;
-    const points = landingPoints.length;
-    return { total, active, points };
-  }, []);
-
   // Cable-scoped landing-point list passed to MorseCodePop.
   const cableLandingPoints = useMemo(() => {
     if (!selectedCable) return [];
@@ -971,24 +962,6 @@ export default function GlobeScene() {
       >
         <LanguageToggle value={language} onChange={setLanguage} />
         <RecenterButton onRecenter={resetView} />
-      </div>
-
-      {/* Top-left: key statistics — horizontal strip of 3 (mirror of kit's top-right) */}
-      <div
-        style={{
-          position: "fixed",
-          top: 140,
-          left: 110,
-          zIndex: 20,
-          display: "flex",
-          flexDirection: "row",
-          gap: 12,
-          alignItems: "flex-start",
-        }}
-      >
-        <KeyStatistic label="Total Cables" value={stats.total} />
-        <KeyStatistic label="Active" value={stats.active} />
-        <KeyStatistic label="Landing Points" value={stats.points} accent="mute" />
       </div>
 
       {/* Left edge centered: action cluster (Help / Fun Fact / Morse / Reset) */}
