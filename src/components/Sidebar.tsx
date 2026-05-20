@@ -6,7 +6,6 @@ import type { CableSystem, Filter, LandingPoint } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import type { Language } from "@/lib/types";
 import CableCard from "./CableCard";
-import { StatusIndicator } from "./StatusIndicator";
 
 interface SidebarProps {
   selectedCable: CableSystem | null;
@@ -22,8 +21,11 @@ const FILTERS: { id: Filter; key: "showAll" | "international" | "domestic" }[] =
   { id: "domestic", key: "domestic" },
 ];
 
-// Panel width per Figma V1.3 (screenshots/cable-system-v3.png), node 335:298.
+// Panel width per Figma temp/cablesystem.css (Rectangle 52 + Rectangle 54).
 const PANEL_WIDTH = 454;
+const PANEL_BODY_HEIGHT = 254;
+const TITLE_STRIP_HEIGHT = 47;
+const FILTER_BUTTON_HEIGHT = 23;
 
 export default function Sidebar({
   selectedCable,
@@ -56,10 +58,10 @@ export default function Sidebar({
         width: PANEL_WIDTH,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 6,
       }}
     >
-      {/* TOP — title strip with 4 crosshair (+) corner markers, black bg, count chips right-aligned */}
+      {/* TOP — title strip with white-gradient fill + L-bracket corners */}
       <TitleStrip
         title={t("cableSystem")}
         activeCount={activeCount}
@@ -68,24 +70,31 @@ export default function Sidebar({
         inactiveLabel={t("inactive")}
       />
 
-      {/* MIDDLE — 3×N grid panel with bevel gradient + scroll thumb on right edge */}
+      {/* MIDDLE — 3-col grid panel with bevel gradient + tactical frame bands + orange scroll bar */}
       <div
-        className="v1-card-bevel"
         style={{
-          padding: 12,
-          height: 270,
-          display: "grid",
-          gridTemplateColumns: "1fr 6px",
-          gap: 10,
+          position: "relative",
+          width: PANEL_WIDTH,
+          height: PANEL_BODY_HEIGHT,
+          background:
+            "linear-gradient(303.52deg, #034DA1 -11.48%, rgba(3, 77, 161, 0) 82.93%), linear-gradient(123.48deg, rgba(240, 90, 34, 0.6) -7.19%, rgba(240, 90, 34, 0) 100%)",
         }}
       >
+        {/* Frame bands — top + bottom 50px borders, left + right 135px vertical lines */}
+        <PanelFrame />
+
+        {/* Scroll container — inset so cards don't overlap the frame edges */}
         <div
+          className="v1-cable-grid-scroll"
           style={{
-            minWidth: 0,
+            position: "absolute",
+            top: 8,
+            bottom: 8,
+            left: 8,
+            right: 30,
             overflowY: "auto",
             scrollbarWidth: "none",
           }}
-          className="v1-cable-grid-scroll"
         >
           {visible.length === 0 ? (
             <div
@@ -103,7 +112,7 @@ export default function Sidebar({
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 7,
+                gap: 6,
               }}
             >
               {visible.map((cable) => (
@@ -120,36 +129,32 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* Scroll indicator track + orange thumb (visual only — content scrolls
-            independently). 38% thumb height + 6% top inset per V3 spec. */}
-        <ScrollIndicator visibleCount={visible.length} rowsShown={3} />
+        {/* Orange scroll bar — vertical line + thumb + 5px horizontal caps */}
+        <ScrollBar visibleCount={visible.length} />
       </div>
 
-      {/* BOTTOM — filter tabs as a 3-col grid */}
+      {/* BOTTOM — filter tabs row */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 6,
+          gap: 3,
         }}
       >
-        {FILTERS.map((f) => {
-          const active = filter === f.id;
-          return (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFilter(f.id)}
-              className={`v1-filter-tab ${active ? "is-active" : ""}`}
-            >
-              {t(f.key).toUpperCase()}
-            </button>
-          );
-        })}
+        {FILTERS.map((f) => (
+          <FilterButton
+            key={f.id}
+            label={t(f.key).toUpperCase()}
+            active={filter === f.id}
+            onClick={() => setFilter(f.id)}
+          />
+        ))}
       </div>
     </div>
   );
 }
+
+/* ───────────────────────── TITLE STRIP ───────────────────────── */
 
 function TitleStrip({
   title,
@@ -168,32 +173,37 @@ function TitleStrip({
     <div
       style={{
         position: "relative",
-        padding: "12px 18px",
-        background: "#000000",
-        border: "1px solid rgba(255, 255, 255, 0.10)",
+        width: PANEL_WIDTH,
+        height: TITLE_STRIP_HEIGHT,
+        background:
+          "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
+        border: "0.37px solid #FFFFFF",
         display: "flex",
-        justifyContent: "space-between",
         alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 14px",
+        boxSizing: "border-box",
       }}
     >
-      <CrossMark position="tl" />
-      <CrossMark position="tr" />
-      <CrossMark position="bl" />
-      <CrossMark position="br" />
+      <FrameBracket position="tl" />
+      <FrameBracket position="tr" />
+      <FrameBracket position="bl" />
+      <FrameBracket position="br" />
 
       <span
-        className="v1-h-display"
         style={{
-          fontSize: 18,
           fontFamily: "var(--v1-display)",
-          fontWeight: 700,
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
+          fontStyle: "normal",
+          fontWeight: 600,
+          fontSize: 26,
+          lineHeight: "34px",
+          color: "#FFFFFF",
         }}
       >
         {title}
       </span>
-      <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+
+      <div style={{ display: "flex", gap: 22, alignItems: "center" }}>
         <CountChip n={activeCount} label={activeLabel} tone="active" />
         {inactiveCount > 0 && (
           <CountChip n={inactiveCount} label={inactiveLabel} tone="inactive" />
@@ -203,46 +213,25 @@ function TitleStrip({
   );
 }
 
-function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
-  const base = {
-    position: "absolute" as const,
-    width: 14,
-    height: 14,
-    pointerEvents: "none" as const,
-  };
-  const offsets = {
-    tl: { top: -7, left: -7 },
-    tr: { top: -7, right: -7 },
-    bl: { bottom: -7, left: -7 },
-    br: { bottom: -7, right: -7 },
+// 8×8 L-bracket — same shape as the Header strip (top-left + top-right + bottom-left + bottom-right)
+function FrameBracket({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const variants = {
+    tl: { top: -4, left: -4, borderTop: "2px solid #FFFFFF", borderLeft: "2px solid #FFFFFF" },
+    tr: { top: -4, right: -4, borderTop: "2px solid #FFFFFF", borderRight: "2px solid #FFFFFF" },
+    bl: { bottom: -4, left: -4, borderBottom: "2px solid #FFFFFF", borderLeft: "2px solid #FFFFFF" },
+    br: { bottom: -4, right: -4, borderBottom: "2px solid #FFFFFF", borderRight: "2px solid #FFFFFF" },
   };
   return (
-    <span aria-hidden style={{ ...base, ...offsets[position] }}>
-      {/* vertical arm */}
-      <span
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: 0,
-          width: 1.2,
-          height: 14,
-          transform: "translateX(-50%)",
-          background: "rgba(255, 255, 255, 0.85)",
-        }}
-      />
-      {/* horizontal arm */}
-      <span
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: 0,
-          width: 14,
-          height: 1.2,
-          transform: "translateY(-50%)",
-          background: "rgba(255, 255, 255, 0.85)",
-        }}
-      />
-    </span>
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        width: 8,
+        height: 8,
+        pointerEvents: "none",
+        ...variants[position],
+      }}
+    />
   );
 }
 
@@ -255,15 +244,19 @@ function CountChip({
   label: string;
   tone: "active" | "inactive";
 }) {
+  const color = tone === "active" ? "#8FFF3F" : "#FF3F3F";
+  const dark = tone === "active" ? "#3F642E" : "#642E2E";
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <StatusIndicator status={tone} pulse={tone === "active"} scale={0.95} />
+      <BigStatus accent={color} middle={dark} />
       <span
         style={{
           fontFamily: "var(--v1-heading)",
-          fontSize: 13,
-          letterSpacing: "0.08em",
-          color: tone === "active" ? "var(--v1-active)" : "var(--v1-inactive)",
+          fontStyle: "normal",
+          fontWeight: 500,
+          fontSize: 17,
+          lineHeight: "22px",
+          color,
         }}
       >
         {n} {label}
@@ -272,40 +265,251 @@ function CountChip({
   );
 }
 
-function ScrollIndicator({
-  visibleCount,
-  rowsShown,
-}: {
-  visibleCount: number;
-  rowsShown: number;
-}) {
-  // Thumb size scales inversely with overflow — capped between 22% and 88%.
-  const rowsTotal = Math.max(1, Math.ceil(visibleCount / 3));
-  const ratio = Math.min(1, rowsShown / rowsTotal);
-  const thumbPct = Math.max(22, Math.min(88, ratio * 100));
+// Title-bar size status indicator (15px concentric rings, with subtle outer glow)
+function BigStatus({ accent, middle }: { accent: string; middle: string }) {
   return (
-    <div
+    <span
       aria-hidden
       style={{
-        width: 4,
-        alignSelf: "stretch",
-        background: "rgba(255, 255, 255, 0.12)",
         position: "relative",
+        width: 15,
+        height: 15,
+        borderRadius: "50%",
+        border: `1.37px solid ${accent}`,
+        boxShadow: `0 0 4px ${accent}80`,
+        flexShrink: 0,
       }}
     >
+      <span
+        style={{
+          position: "absolute",
+          inset: 2.05,
+          borderRadius: "50%",
+          background: middle,
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          inset: 4.3,
+          borderRadius: "50%",
+          background: accent,
+        }}
+      />
+    </span>
+  );
+}
+
+/* ───────────────────────── PANEL FRAME ───────────────────────── */
+
+// Four white border bands overlaid on the panel:
+//   · top horizontal 50px-tall band (full width)
+//   · bottom horizontal 50px-tall band (full width)
+//   · left + right vertical 135px lines in the middle
+function PanelFrame() {
+  return (
+    <>
+      {/* Top horizontal band */}
       <div
         style={{
           position: "absolute",
           left: 0,
-          top: "6%",
+          top: 0,
+          width: PANEL_WIDTH,
+          height: 50,
+          border: "1px solid #FFFFFF",
+          pointerEvents: "none",
+          boxSizing: "border-box",
+        }}
+      />
+      {/* Bottom horizontal band */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          bottom: 0,
+          width: PANEL_WIDTH,
+          height: 50,
+          border: "1px solid #FFFFFF",
+          pointerEvents: "none",
+          boxSizing: "border-box",
+        }}
+      />
+      {/* Left vertical line — 135px in the middle */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 61,
+          width: 0,
+          height: 135,
+          borderLeft: "1px solid #FFFFFF",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Right vertical line */}
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 61,
+          width: 0,
+          height: 135,
+          borderLeft: "1px solid #FFFFFF",
+          pointerEvents: "none",
+        }}
+      />
+    </>
+  );
+}
+
+/* ───────────────────────── SCROLL BAR ───────────────────────── */
+
+// Single 4px wide orange line + thumb + 5px horizontal caps at top/bottom
+function ScrollBar({ visibleCount }: { visibleCount: number }) {
+  // Thumb height scales: 87/163 ≈ 53% in the Figma reference (for the full ~21 cables).
+  // Approximate ratio so the thumb shrinks as more cables show.
+  const rowsShown = 3;
+  const rowsTotal = Math.max(1, Math.ceil(visibleCount / 3));
+  const ratio = Math.min(1, rowsShown / rowsTotal);
+  const thumbPct = Math.max(22, Math.min(85, ratio * 100));
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        right: 21,
+        top: 30,
+        width: 4,
+        bottom: 30,
+        pointerEvents: "none",
+      }}
+    >
+      {/* Vertical 1px orange track line, centered in the 4px column */}
+      <div
+        style={{
+          position: "absolute",
+          left: 1.5,
+          top: 0,
+          bottom: 0,
+          width: 0,
+          borderLeft: "1px solid #F05A22",
+        }}
+      />
+      {/* Thumb — 4px wide orange section */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
           width: 4,
           height: `${thumbPct}%`,
-          background: "var(--v1-orange)",
+          background: "#F05A22",
+        }}
+      />
+      {/* Top cap — 10px horizontal stub */}
+      <div
+        style={{
+          position: "absolute",
+          left: -3,
+          top: -1,
+          width: 10,
+          height: 0,
+          borderTop: "1px solid #F05A22",
+        }}
+      />
+      {/* Bottom cap */}
+      <div
+        style={{
+          position: "absolute",
+          left: -3,
+          bottom: -1,
+          width: 10,
+          height: 0,
+          borderTop: "1px solid #F05A22",
         }}
       />
     </div>
   );
 }
 
-// Keep underscore-prefixed helper that consumers may still reference; intentionally unused now.
+/* ───────────────────────── FILTER BUTTONS ───────────────────────── */
+
+// 114×23 button: active = solid orange + 2px red bottom strip + 700 weight;
+//                inactive = bevel gradient + 400 weight.
+// Both have 2 white corner squares (top-left, bottom-right).
+function FilterButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        position: "relative",
+        height: FILTER_BUTTON_HEIGHT,
+        background: active
+          ? "#F05A22"
+          : "linear-gradient(302.51deg, #034DA1 -89.34%, rgba(3, 77, 161, 0) 54.67%), linear-gradient(122.48deg, rgba(240, 90, 34, 0.6) -38.43%, rgba(240, 90, 34, 0) 58.47%)",
+        border: "0.65px solid #FFFFFF",
+        color: "#FFFFFF",
+        fontFamily: "var(--v1-heading)",
+        fontWeight: active ? 700 : 400,
+        fontSize: 13,
+        lineHeight: "17px",
+        textAlign: "center",
+        cursor: "pointer",
+        padding: 0,
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Top-left corner square */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 0.4,
+          left: 0,
+          width: 2.35,
+          height: 2.35,
+          background: "#FFFFFF",
+        }}
+      />
+      {/* Bottom-right corner square */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          width: 2.35,
+          height: 2.35,
+          background: "#FFFFFF",
+        }}
+      />
+      {label}
+      {/* Active: 2px red bottom strip */}
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: -2,
+            height: 2,
+            background: "#ED1B2E",
+          }}
+        />
+      )}
+    </button>
+  );
+}
+
 export type { CableSystem };
