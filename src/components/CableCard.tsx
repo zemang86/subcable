@@ -50,46 +50,52 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
       }}
       aria-pressed={isSelected}
     >
-      {/* TOP ROW — DOM/INT chip + name (right-aligned) + status indicator (far right) */}
+      {/* TOP ROW — DOM/INT chip + name (right-aligned, with auto-sized
+          divider beneath it that scales with the text length) + status. */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
           gap: 4,
           minHeight: 6,
         }}
       >
-        <DomChip type={TYPE_CHIP[cable.classification]} />
-        <span
+        <DomChip type={TYPE_CHIP[cable.classification]} isSelected={isSelected} />
+        {/* Right-aligned container so the subtitle hugs the right side;
+            the span is inline-block so it sizes to its TEXT, not flex:1,
+            which lets the border-bottom (= the divider) shrink/grow with name length. */}
+        <div
           style={{
             flex: 1,
             minWidth: 0,
             textAlign: "right",
-            fontFamily: "var(--v1-heading)",
-            fontWeight: 300,
-            fontSize: 7,
-            lineHeight: 1.2,
-            color: text,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            lineHeight: 1,
           }}
         >
-          {cable.name}
-        </span>
+          <span
+            style={{
+              display: "inline-block",
+              maxWidth: "100%",
+              fontFamily: "var(--v1-heading)",
+              fontWeight: 300,
+              fontSize: 7,
+              lineHeight: 1.25,
+              color: text,
+              borderBottom: `0.51px solid ${dividerColor}`,
+              paddingBottom: 1.5,
+              paddingRight: 5,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              verticalAlign: "top",
+            }}
+          >
+            {cable.name}
+          </span>
+        </div>
         <MiniStatus inactive={inactive} />
       </div>
-
-      {/* DIVIDER — horizontal line below the top row */}
-      <div
-        style={{
-          height: 0,
-          borderTop: `0.51px solid ${dividerColor}`,
-          marginLeft: 14,
-          marginRight: 0,
-        }}
-      />
 
       {/* SHORT CODE — big Rajdhani 600 */}
       <span
@@ -135,8 +141,10 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
   );
 }
 
-// DOM/INT chip — solid light-gray #D9D9D9 pill with cobalt #0A0449 text
-function DomChip({ type }: { type: string }) {
+// DOM/INT chip — solid light-gray #D9D9D9 pill with cobalt #0A0449 text.
+// Selected cards get a marginally wider chip (11.55 vs 10.57 in Figma) and
+// sit 0.64px lower to match the temp/cablecards-active.css offset.
+function DomChip({ type, isSelected }: { type: string; isSelected: boolean }) {
   return (
     <span
       style={{
@@ -146,10 +154,11 @@ function DomChip({ type }: { type: string }) {
         background: "#D9D9D9",
         borderRadius: 1.3,
         padding: "0.5px 2px",
-        minWidth: 11.55,
-        height: 5.49,
+        minWidth: isSelected ? 13 : 12,
+        height: 6,
+        marginTop: isSelected ? 0.6 : 0,
         fontFamily: "var(--v1-pixel)",
-        fontSize: 3,
+        fontSize: 3.3,
         fontWeight: 700,
         color: "#0A0449",
         letterSpacing: "0.04em",
