@@ -2,8 +2,51 @@
 
 /* ───────── v1.0 — Tactical-HUD design tokens ─────────
    Token names match docs/design_handoff_subcable_v1/styles-v1.css.
-   Type families are wired through next/font CSS variables exposed on <body>
-   in src/app/layout.tsx (--font-chakra, --font-rajdhani, …). */
+   Local TTFs are served from /public/fonts/ via plain @font-face declarations
+   below — next/font was broken under Next 16 Turbopack and refused to apply.
+   Space Mono is the only family pulled from a CDN (Google Fonts @import) since
+   we don't have its files locally. */
+
+/* ───────── @font-face — Chakra Petch (display) ───────── */
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Light.ttf")          format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-LightItalic.ttf")    format("truetype"); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Regular.ttf")        format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Italic.ttf")         format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Medium.ttf")         format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-MediumItalic.ttf")   format("truetype"); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-SemiBold.ttf")       format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-SemiBoldItalic.ttf") format("truetype"); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Bold.ttf")           format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-BoldItalic.ttf")     format("truetype"); font-weight: 700; font-style: italic; font-display: swap; }
+
+/* ───────── @font-face — Rajdhani (heading) ───────── */
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Light.ttf")    format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Regular.ttf")  format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Medium.ttf")   format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Bold.ttf")     format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ───────── @font-face — IBM Plex Mono (body) ───────── */
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Thin.ttf")            format("truetype"); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-ThinItalic.ttf")      format("truetype"); font-weight: 100; font-style: italic; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-ExtraLight.ttf")      format("truetype"); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-ExtraLightItalic.ttf")format("truetype"); font-weight: 200; font-style: italic; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Light.ttf")           format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-LightItalic.ttf")     format("truetype"); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Regular.ttf")         format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Italic.ttf")          format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Medium.ttf")          format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-MediumItalic.ttf")    format("truetype"); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-SemiBold.ttf")        format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-SemiBoldItalic.ttf")  format("truetype"); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Bold.ttf")            format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-BoldItalic.ttf")      format("truetype"); font-weight: 700; font-style: italic; font-display: swap; }
+
+/* ───────── @font-face — B612 Mono (stat) ───────── */
+@font-face { font-family: "B612 Mono"; src: url("/fonts/B612_Mono/B612Mono-Regular.ttf")    format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "B612 Mono"; src: url("/fonts/B612_Mono/B612Mono-Italic.ttf")     format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "B612 Mono"; src: url("/fonts/B612_Mono/B612Mono-Bold.ttf")       format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "B612 Mono"; src: url("/fonts/B612_Mono/B612Mono-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; font-display: swap; }
 
 :root {
   /* Surface */
@@ -42,12 +85,13 @@
   --v1-mute-2:       #D9D9D9;
   --v1-mute-dark:    #4E4F4E;
 
-  /* Type families — chain through next/font variables on <body> */
-  --v1-display:  var(--font-chakra),      "Chakra Petch", "Rajdhani", system-ui, sans-serif;
-  --v1-heading:  var(--font-rajdhani),    "Rajdhani", "Helvetica Neue", sans-serif;
-  --v1-mono:     var(--font-plex-mono),   "IBM Plex Mono", ui-monospace, Menlo, monospace;
-  --v1-stat:     var(--font-b612-mono),   "B612 Mono", "IBM Plex Mono", monospace;
-  --v1-pixel:    var(--font-space-mono),  "Space Mono", monospace;
+  /* Type families — point straight at the @font-face family names declared
+     above. No next/font indirection (it was broken under Next 16 Turbopack). */
+  --v1-display:  "Chakra Petch", "Rajdhani", system-ui, sans-serif;
+  --v1-heading:  "Rajdhani", "Helvetica Neue", sans-serif;
+  --v1-mono:     "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --v1-stat:     "B612 Mono", "IBM Plex Mono", monospace;
+  --v1-pixel:    "Space Mono", monospace;
 
   /* Legacy aliases — the existing JSX uses `.font-display` and hex literals;
      redirect both to the v1 stack so each rewrite phase can be incremental. */

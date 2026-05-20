@@ -1,43 +1,11 @@
 import type { Metadata } from "next";
-import { Chakra_Petch, Rajdhani, IBM_Plex_Mono, B612_Mono, Space_Mono } from "next/font/google";
 import "./globals.css";
 
-// v1.0 tactical-HUD type stack. Only the weights actually consumed by the spec
-// are loaded; `display: 'swap'` so the system fallback paints first.
-const chakra = Chakra_Petch({
-  variable: "--font-chakra",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  display: "swap",
-});
-
-const rajdhani = Rajdhani({
-  variable: "--font-rajdhani",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
-
-const b612Mono = B612_Mono({
-  variable: "--font-b612-mono",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  display: "swap",
-});
-
-const spaceMono = Space_Mono({
-  variable: "--font-space-mono",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  display: "swap",
-});
+// Font wiring: all 4 v1.0 families (Chakra Petch / Rajdhani / IBM Plex Mono /
+// B612 Mono) are served as plain @font-face declarations in globals.css,
+// pointing at TTFs in /public/fonts/. Space Mono comes from a Google Fonts
+// @import in the same file. next/font was bypassed because Next.js 16
+// Turbopack registered the faces but never applied them to elements.
 
 export const metadata: Metadata = {
   title: "TM Global · Submarine Cable Network",
@@ -50,16 +18,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const fontVars = [
-    chakra.variable,
-    rajdhani.variable,
-    plexMono.variable,
-    b612Mono.variable,
-    spaceMono.variable,
-  ].join(" ");
   return (
     <html lang="en">
-      <body className={`${fontVars} antialiased`}>{children}</body>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap"
+        />
+      </head>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
