@@ -2,34 +2,54 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+
 import Globe from "./GlobeWrapper";
-import Header from "./Header";
 import Sidebar from "./Sidebar";
 import LoadingScreen from "./LoadingScreen";
+import CableInformation from "./CableInformation";
+import { BottomTitlebar } from "./BottomTitlebar";
+import { LanguageToggle } from "./LanguageToggle";
+import { CompassButton } from "./CompassButton";
+import { AudioMute } from "./AudioMute";
+import { RightCluster } from "./RightCluster";
+import { KeyStatistic } from "./KeyStatistic";
+import { LandingPointCallout } from "./LandingPointCallout";
+import HowToGuideDialog from "./HowToGuideDialog";
+import FunFactDialog from "./FunFactDialog";
+import MorseCodePop from "./MorseCodePop";
+
 import { cables, cablesById } from "@/data/cables";
 import { landingPoints } from "@/data/landingPoints";
 import { cableRoutes } from "@/data/cableRoutes";
 import countries from "@/data/countries.json";
 import robotoMedium from "@/data/roboto-medium.typeface.json";
-import { CableSystem, LandingPoint } from "@/lib/types";
-import { TM_COLORS, CABLE_COLORS } from "@/lib/colors";
-import CallDialog from "./CallDialog";
-import InfoModal from "./InfoModal";
-import { resolveCallRoute } from "@/lib/callRoutes";
-import { playConnect, playDialing, playMessage } from "@/lib/morseAudio";
 
-// Travelling-dot tuning. Replaced the path-dash trick (dot length scaled with
-// segment length → wildly variable visual size). These spheres are constant
-// world-size; speed is clamped on short segments to avoid 0.5s loops.
+import type {
+  CableSystem,
+  DialogId,
+  Language,
+  LandingPoint,
+} from "@/lib/types";
+import { V1_COLORS, CABLE_COLORS } from "@/lib/colors";
+import { resolveCallRoute } from "@/lib/callRoutes";
+import {
+  playConnect,
+  playDialing,
+  playMessage,
+  setMuted as setAudioMuted,
+} from "@/lib/morseAudio";
+
+// ───────── Tuning ─────────
+
+// Travelling-dot tuning — constant world-size spheres along every cable.
 const DOT_RADIUS = 0.11;
 const DOT_SPEED_KM_PER_SEC = 375;
 const DOT_MIN_LOOP_SEC = 4;
 
-// Quantized zoom buckets — three-globe rebuilds TextGeometry for every label
-// each time labelSize/labelDotRadius returns a new value. A continuous scalar
-// from piecewiseByZoom triggers ~163 dispose+tessellate-glyph-paths per zoom
-// tick → catastrophic stutter. Buckets cap the rebuilds at one per threshold
-// crossing instead of one per pixel of pinch.
+// Quantized zoom buckets — three-globe rebuilds TextGeometry whenever
+// labelSize / labelDotRadius returns a new value. A continuous scalar from
+// piecewiseByZoom triggers ~163 dispose+tessellate-glyph-paths per zoom tick →
+// catastrophic stutter. Buckets cap rebuilds at one per threshold crossing.
 type ZoomBucket = 0 | 1 | 2 | 3 | 4 | 5;
 const bucketForAltitude = (alt: number): ZoomBucket => {
   if (alt >= 1.5) return 0;
@@ -41,11 +61,9 @@ const bucketForAltitude = (alt: number): ZoomBucket => {
 };
 const POINT_RADIUS_BY_BUCKET = [0, 0, 0.06, 0.04, 0.025, 0.025] as const;
 
-// City labels: one threshold instead of buckets. Above the threshold
-// (alt 0.314 ≈ 2000 km) cities are invisible. Below, geometry is built once
-// at CITY_LABEL_BASE_SIZE; the per-frame scaler handles fade-in across a
-// narrow band and a sub-linear shrink with altitude. Sub-linear (sqrt) keeps
-// labels visible at very close zoom instead of vanishing.
+// City labels: one threshold instead of buckets. Above it cities vanish.
+// Below, geometry is built once and a per-frame scaler handles fade-in + a
+// sqrt shrink with altitude (keeps labels visible at very close zoom).
 const CITY_LABEL_BASE_SIZE = 0.13;
 const CITY_VISIBLE_ALT = 0.314;
 const CITY_FADE_BAND = 0.05;
@@ -54,18 +72,20 @@ const CITY_MIN_SCALE = 0.18;
 const cityScaleAt = (alt: number): number => {
   if (alt >= CITY_VISIBLE_ALT) return 0;
   const fade = Math.min(1, (CITY_VISIBLE_ALT - alt) / CITY_FADE_BAND);
-  const shrink = Math.max(CITY_MIN_SCALE, Math.sqrt(Math.max(0, alt) / CITY_REF_ALT));
+  const shrink = Math.max(
+    CITY_MIN_SCALE,
+    Math.sqrt(Math.max(0, alt) / CITY_REF_ALT),
+  );
   return fade * shrink;
 };
 
 // Country labels: mirror of the city pattern, but inverted. Fade OUT as you
-// zoom in past a threshold (you're focused on a region, country names become
-// noise). Always visible above the threshold, sub-linear shrink with altitude
-// so big country names don't dominate at mid-zoom.
+// zoom in past a threshold; visible above with sqrt shrink so big country
+// names don't dominate at mid-zoom.
 const COUNTRY_LABEL_BASE_SIZE = 0.85;
-const COUNTRY_HIDDEN_ALT = 0.2;            // alt 0.20 ≈ 1270 km — hidden below
-const COUNTRY_FADE_BAND = 0.1;             // 640 km fade-out band
-const COUNTRY_REF_ALT = 1.5;               // alt at which base size applies fully
+const COUNTRY_HIDDEN_ALT = 0.2;
+const COUNTRY_FADE_BAND = 0.1;
+const COUNTRY_REF_ALT = 1.5;
 const countryScaleAt = (alt: number): number => {
   if (alt <= COUNTRY_HIDDEN_ALT) return 0;
   const fade = Math.min(1, (alt - COUNTRY_HIDDEN_ALT) / COUNTRY_FADE_BAND);
@@ -73,128 +93,51 @@ const countryScaleAt = (alt: number): number => {
   return fade * shrink;
 };
 
-// 1x1 transparent PNG — fed to globeImageUrl in outline mode so three.js
-// loads a clean (color-keyed) texture instead of holding onto the earth bitmap.
-const BLANK_PIXEL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+// ───────── Static assets ─────────
 
-// Pre-baked equirectangular world maps (sea + land + country strokes), used
-// as the basemap for both mono modes. Generated by scripts/generate-world-map.mjs.
-// Replaces CARTO tile streaming so the kiosk works fully offline.
-const WORLD_MAP_LIGHT_URL = "/textures/world-mono-light.webp";
+// Pre-baked equirectangular dark world map (sea + land + country strokes).
+// Generated by scripts/generate-world-map.mjs. Replaces tile streaming so the
+// kiosk works fully offline. Light variant + outline-mode + texture-mode all
+// removed in v1.0 (resolution §H.11 = dark only, §H.1 = re-skin).
 const WORLD_MAP_DARK_URL = "/textures/world-mono-dark.webp";
 
-// Regional high-density bake (4096² over a 40°×40° SEA window — ~1.2 km/texel
-// vs ~5 km for the global). Drawn as a single grid-mesh overlay that fades in
-// at close zoom; one extra draw call, no polygon overhead. See
-// scripts/generate-regional-map.mjs.
-const SEA_OVERLAY_LIGHT_URL = "/textures/world-mono-light-sea.webp";
+// Regional sharpness overlay — 4K bake over the SEA window (~1.2 km/texel vs
+// ~5 km for the global). One grid-mesh draw call, fades in at close zoom.
 const SEA_OVERLAY_DARK_URL = "/textures/world-mono-dark-sea.webp";
 const SEA_LAT_MIN = -15;
 const SEA_LAT_MAX = 25;
 const SEA_LNG_MIN = 90;
 const SEA_LNG_MAX = 130;
-const SEA_GRID = 32;             // 33×33 vertices, 2048 triangles
-const SEA_OVERLAY_ALT = 0.0008;  // sit just above the globe surface
-const SEA_FADE_IN_ALT = 0.6;     // start fading in below ~3800 km
-const SEA_FADE_OUT_ALT = 0.3;    // fully opaque below ~1900 km
+const SEA_GRID = 32;
+const SEA_OVERLAY_ALT = 0.0008;
+const SEA_FADE_IN_ALT = 0.6;
+const SEA_FADE_OUT_ALT = 0.3;
 
-// Globe styles (textured = full earth bitmap; outline = country borders only)
-const STYLES = {
-  "texture-dark": {
-    globe: "/textures/earth-night-hires.webp",
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#2362DD",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-  "texture-light": {
-    globe: "/textures/earth-day-hires.webp",
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#4da6ff",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-  "outline-dark": {
-    globe: BLANK_PIXEL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#2362DD",
-    globeColor: "#0B1A3A", // deep navy "sea"
-    countryStroke: "rgba(180, 220, 255, 0.9)",
-    countryFill: "rgba(34, 70, 50, 0.85)", // muted green "land"
-  },
-  "outline-light": {
-    globe: BLANK_PIXEL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#cfe6ff",
-    globeColor: "#EDE9DE", // cream sea — soft mono backdrop
-    countryStroke: "rgba(40, 50, 70, 0.85)", // charcoal hairline
-    countryFill: "#FAFAF6", // off-white land
-  },
-  "mono-dark": {
-    // Pre-baked dark basemap — fully offline, same approach as mono-light.
-    globe: WORLD_MAP_DARK_URL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#2362DD",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-  "mono-light": {
-    // Pre-baked basemap — sea + land + country strokes are all in this WebP.
-    // No tile streaming, no polygon overlay needed.
-    globe: WORLD_MAP_LIGHT_URL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#cfe6ff",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-} as const;
-const BUMP_IMAGE = "/textures/earth-topology.png";
+// ───────── v1.0 palette → globe constants ─────────
 
-// XYZ tile servers
-const SATELLITE_TILE_URL = (x: number, y: number, level: number) =>
-  `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${level}/${y}/${x}`;
+const ATMOSPHERE_COLOR = V1_COLORS.atmosphere;          // #034DA1 v1-blue
+const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
+const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
+const LANDING_POINT_DEFAULT = V1_COLORS.fg;             // white
+const LANDING_POINT_ACTIVE = V1_COLORS.active;          // #8FFF3F lime
+const LANDING_POINT_MUTED = "rgba(120, 120, 120, 0.30)";
+const TRAVELLING_DOT_COLOR = V1_COLORS.fg;              // white
 
-// CARTO basemaps (monochrome, free for non-commercial w/ attribution).
-// Subdomain rotation a/b/c/d to spread requests across CDN edges.
-// Use the `_nolabels` variants — we draw our own city/cable labels on top, and
-// dropping CARTO's baked glyphs halves PNG size and skips a render pass.
-const cartoSub = (z: number) => "abcd"[(z * 7) % 4];
-const CARTO_LIGHT_TILE_URL = (x: number, y: number, level: number) =>
-  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/light_nolabels/${level}/${x}/${y}.png`;
-const CARTO_DARK_TILE_URL = (x: number, y: number, level: number) =>
-  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/dark_nolabels/${level}/${x}/${y}.png`;
+// Default + Malaysia-recenter coordinates.
+const DEFAULT_LAT = 5;
+const DEFAULT_LNG = 108;
+const DEFAULT_ALT = 2.2;
+const MY_LAT = 4.2105;
+const MY_LNG = 101.9758;
+const MY_ALT = 2.2;
 
-const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables satellite tiles
-
+// Tooltip styling for the built-in pointLabel / pathLabel render.
 const TOOLTIP_STYLE =
-  "padding:6px 10px;background:rgba(6,1,58,0.92);border:1px solid rgba(24,0,231,0.5);border-radius:4px;color:#FFFFFF;font-size:12px;font-family:'HK Grotesk Wide','Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:0.04em;";
+  "padding:6px 10px;background:rgba(4,14,31,0.92);border:1px solid rgba(255,255,255,0.40);color:#FFFFFF;font-size:12px;font-family:'Rajdhani','Helvetica Neue',sans-serif;font-weight:600;letter-spacing:0.04em;";
 const renderPathLabel = (path: any) =>
   `<div style="${TOOLTIP_STYLE}">${path.name}</div>`;
 const renderPointLabel = (p: any) =>
   `<div style="${TOOLTIP_STYLE}">${p.city}, ${p.country}</div>`;
-
-type GlobeStyle = keyof typeof STYLES;
-type Theme = "dark" | "light";
-type RenderStyle = "texture" | "outline" | "mono";
-
-const RENDER_STYLE_LABEL: Record<RenderStyle, string> = {
-  texture: "TEXTURE",
-  outline: "OUTLINE",
-  mono: "MONO",
-};
-
-function nextStyle(s: RenderStyle): RenderStyle {
-  return s === "texture" ? "outline" : s === "outline" ? "mono" : "texture";
-}
-
-function styleKey(render: RenderStyle, theme: Theme): GlobeStyle {
-  return `${render}-${theme}` as GlobeStyle;
-}
 
 interface PathData {
   coords: [number, number][];
@@ -208,19 +151,27 @@ export default function GlobeScene() {
   const globeRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [renderStyle, setRenderStyle] = useState<RenderStyle>("mono");
-  const style = STYLES[styleKey(renderStyle, theme)];
+  const [selectedLandingPoint, setSelectedLandingPoint] =
+    useState<LandingPoint | null>(null);
+  const [calloutScreen, setCalloutScreen] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [openDialog, setOpenDialog] = useState<DialogId>(null);
+  const [language, setLanguage] = useState<Language>("en");
+  const [muted, setMuted] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [zoomLevel, setZoomLevel] = useState(2.2);
+  const [zoomLevel, setZoomLevel] = useState(DEFAULT_ALT);
   const [autoRotate, setAutoRotate] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [callOpen, setCallOpen] = useState(false);
   const [activeCall, setActiveCall] = useState<{
     message: string;
     startedAt: number;
   } | null>(null);
+
+  // Push mute state down to morseAudio so playDot/playMessage/etc no-op.
+  useEffect(() => {
+    setAudioMuted(muted);
+  }, [muted]);
 
   // Resize handler
   useEffect(() => {
@@ -232,7 +183,7 @@ export default function GlobeScene() {
   }, []);
 
   // Solid line per segment. Travelling dots are NOT in this list — they're
-  // real THREE.Mesh spheres added directly to the scene (see RAF effect below).
+  // real THREE.Mesh spheres added directly to the scene (see RAF effect).
   const pathsData: PathData[] = useMemo(() => {
     const out: PathData[] = [];
     for (const route of cableRoutes) {
@@ -241,9 +192,9 @@ export default function GlobeScene() {
       const status = cable?.status ?? "active";
       const colorByStatus =
         status === "retired" || status === "inactive"
-          ? TM_COLORS.cableRetired
+          ? "rgba(255, 255, 255, 0.18)"
           : status === "planned"
-            ? TM_COLORS.cablePlanned
+            ? V1_COLORS.orange
             : baseColor;
       for (const seg of route.segments) {
         out.push({
@@ -258,8 +209,8 @@ export default function GlobeScene() {
     return out;
   }, []);
 
-  // Per-segment metadata for the travelling-dot RAF: cumulative arc-length in
-  // km along each polyline, so we can map elapsed-time → sub-leg → lat/lng.
+  // Per-segment cumulative arc-length (km) so the travelling-dot RAF can map
+  // elapsed time → distance → lat/lng.
   const dotSegments = useMemo(() => {
     const haversine = (a: [number, number], b: [number, number]) => {
       const R = 6371;
@@ -292,14 +243,14 @@ export default function GlobeScene() {
     return segs;
   }, []);
 
-  // Greedy cluster: any landing points within CLUSTER_KM of an existing cluster
-  // centroid get merged. Avoids stacked dots/labels for near-duplicate sites
-  // (Sedili CLS1+CLS2, Bayan Baru/Pulau Jerejak, Katong/East Coast, etc.).
+  // Greedy cluster: any landing points within CLUSTER_KM of an existing
+  // cluster centroid get merged. Avoids stacked dots/labels for near-duplicate
+  // sites (Sedili CLS1+CLS2, Katong/East Coast, etc.).
   const CLUSTER_KM = 6;
   const pointClusters = useMemo(() => {
     const haversine = (
       a: { lat: number; lng: number },
-      b: { lat: number; lng: number }
+      b: { lat: number; lng: number },
     ) => {
       const R = 6371;
       const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -331,24 +282,22 @@ export default function GlobeScene() {
   }, []);
 
   // Switch between clustered (far/mid zoom) and individual (close zoom) points.
-  // Close enough that the two dots no longer overlap visually -> show both.
   const useClusters = zoomLevel > 0.18;
 
-  // Prepare points data for globe — either cluster reps or raw points.
   const pointsData = useMemo(() => {
     if (!useClusters) {
       return landingPoints.map((p) => ({
         ...p,
         memberIds: [p.id],
         size: 0.4,
-        color: TM_COLORS.landingPointDefault,
+        color: LANDING_POINT_DEFAULT,
       }));
     }
     return pointClusters.map((c) => {
       const ids = c.members.map((m) => m.id);
       const cities = Array.from(new Set(c.members.map((m) => m.city)));
       const cableIds = Array.from(
-        new Set(c.members.flatMap((m) => m.cableIds))
+        new Set(c.members.flatMap((m) => m.cableIds)),
       );
       return {
         id: ids.join("+"),
@@ -361,15 +310,13 @@ export default function GlobeScene() {
         cableIds,
         memberIds: ids,
         size: 0.4,
-        color: TM_COLORS.landingPointDefault,
+        color: LANDING_POINT_DEFAULT,
       };
     });
   }, [useClusters, pointClusters]);
 
-  // Country labels — derived once from countries.json. We pick the largest
-  // polygon per feature (so MultiPolygon countries label on their main body,
-  // not a stray island), then use its outer-ring bbox centre. Tiny countries
-  // are filtered out to keep the globe uncluttered at far zoom.
+  // Country labels — pick the largest polygon per feature so MultiPolygon
+  // countries label on their main body, not a stray island.
   const countryLabels = useMemo(() => {
     const out: { lat: number; lng: number; name: string; area: number }[] = [];
     const ringArea = (ring: number[][]) => {
@@ -380,7 +327,10 @@ export default function GlobeScene() {
       return Math.abs(a) / 2;
     };
     const ringCentre = (ring: number[][]) => {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
       for (const [x, y] of ring) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
@@ -409,7 +359,7 @@ export default function GlobeScene() {
           bestRing = outer;
         }
       }
-      if (!bestRing || bestArea < 4) continue; // skip tiny countries (~degrees²)
+      if (!bestRing || bestArea < 4) continue;
       const [lng, lat] = ringCentre(bestRing);
       out.push({
         lat,
@@ -421,10 +371,8 @@ export default function GlobeScene() {
     return out;
   }, []);
 
-  // City labels are built from pointClusters directly (NOT from pointsData),
-  // so their identity stays stable across the dot-cluster flip at alt 0.18.
-  // Sharing pointsData previously caused every label's TextGeometry to be
-  // disposed + rebuilt the moment the user zoomed past 1147 km.
+  // City labels are built from pointClusters directly (NOT pointsData) so
+  // identity stays stable across the cluster flip at alt 0.18.
   const cityLabelsData = useMemo(
     () =>
       pointClusters.map((c) => {
@@ -438,12 +386,9 @@ export default function GlobeScene() {
           lng: c.lng,
         };
       }),
-    [pointClusters]
+    [pointClusters],
   );
 
-  // Combined labels feed: cities + country names. We branch accessors on the
-  // `kind` field so each type gets its own size/color. Stable identity since
-  // both inputs are stable — no unnecessary labels-layer rebuilds.
   const allLabels = useMemo(() => {
     const cities = cityLabelsData.map((p) => ({ ...p, kind: "city" as const }));
     const countriesL = countryLabels.map((c) => ({
@@ -453,42 +398,39 @@ export default function GlobeScene() {
     return [...countriesL, ...cities];
   }, [cityLabelsData, countryLabels]);
 
-  // Initialize globe view centered on SEA
+  // Initial view + globe controls
   const handleGlobeReady = useCallback(() => {
     if (globeRef.current) {
-      globeRef.current.pointOfView({ lat: 5, lng: 108, altitude: 2.2 }, 0);
+      globeRef.current.pointOfView(
+        { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
+        0,
+      );
       const controls = globeRef.current.controls();
       if (controls) {
         controls.autoRotate = false;
         controls.autoRotateSpeed = 0.3;
         controls.enableDamping = true;
         controls.dampingFactor = 0.1;
-        // Touch support
         controls.enablePan = false;
-        controls.touches = {
-          ONE: 0, // THREE.TOUCH.ROTATE
-          TWO: 2, // THREE.TOUCH.DOLLY_PAN
-        };
+        controls.touches = { ONE: 0, TWO: 2 };
       }
     }
     setTimeout(() => setIsLoaded(true), 500);
   }, []);
 
-  // Sync auto-rotate state with controls
   useEffect(() => {
     if (!globeRef.current) return;
     const controls = globeRef.current.controls();
     if (controls) controls.autoRotate = autoRotate;
   }, [autoRotate, isLoaded]);
 
-  // Pause auto-rotation on interaction, resume after idle
+  // Pause auto-rotation on interaction, resume after idle.
   useEffect(() => {
     if (!globeRef.current) return;
     const controls = globeRef.current.controls();
     if (!controls) return;
 
     let idleTimer: ReturnType<typeof setTimeout>;
-
     const stopAutoRotate = () => {
       controls.autoRotate = false;
       clearTimeout(idleTimer);
@@ -498,11 +440,9 @@ export default function GlobeScene() {
         }, 8000);
       }
     };
-
     const el = globeRef.current.renderer().domElement;
     el.addEventListener("pointerdown", stopAutoRotate);
     el.addEventListener("touchstart", stopAutoRotate, { passive: true });
-
     return () => {
       el.removeEventListener("pointerdown", stopAutoRotate);
       el.removeEventListener("touchstart", stopAutoRotate);
@@ -510,11 +450,7 @@ export default function GlobeScene() {
     };
   }, [isLoaded, autoRotate]);
 
-  // Track camera altitude. The throttle threshold matters a lot: each
-  // setZoomLevel triggers a React re-render, which makes three-globe re-run
-  // every layer's update() (because inline accessors get fresh refs and
-  // bucketed scalars may step). 0.1 ≈ 5–8 updates across a full pinch range
-  // instead of 30–50.
+  // Camera altitude polling — throttled so React re-renders don't blow up.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     let rafId: number;
@@ -533,21 +469,19 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(rafId);
   }, [isLoaded]);
 
-  // Quantize zoom into a discrete bucket — accessors that read this only
-  // change when crossing a threshold, not on every continuous tick.
   const zoomBucket = useMemo(() => bucketForAltitude(zoomLevel), [zoomLevel]);
 
-  // Handle cable selection
+  // Cable selection — zoom-to-fit the selected cable's landing points.
   const handleSelectCable = useCallback((cable: CableSystem | null) => {
     setSelectedCable(cable);
+    setSelectedLandingPoint(null);
     if (cable && globeRef.current) {
       const points = landingPoints.filter((p) =>
-        cable.landingPointIds.includes(p.id)
+        cable.landingPointIds.includes(p.id),
       );
       if (points.length === 0) return;
       const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
       const avgLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
-
       const latSpread =
         Math.max(...points.map((p) => p.lat)) -
         Math.min(...points.map((p) => p.lat));
@@ -556,220 +490,145 @@ export default function GlobeScene() {
         Math.min(...points.map((p) => p.lng));
       const spread = Math.max(latSpread, lngSpread);
       const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
-
       globeRef.current.pointOfView(
         { lat: avgLat, lng: avgLng, altitude },
-        1500
+        1500,
       );
     } else if (!cable && globeRef.current) {
-      globeRef.current.pointOfView({ lat: 5, lng: 108, altitude: 2.2 }, 1500);
-    }
-  }, []);
-
-  // Handle point click
-  const handlePointClick = useCallback((point: LandingPoint) => {
-    if (globeRef.current) {
       globeRef.current.pointOfView(
-        { lat: point.lat, lng: point.lng, altitude: 0.15 },
-        1500
+        { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
+        1500,
       );
     }
   }, []);
 
-  // Click on a globe point: pan to it and select its first associated cable.
+  // Click on a globe point: pick the cluster's first landing point and open
+  // the LandingPointCallout. If the cable isn't already selected, also
+  // select its first associated cable.
   const handleGlobePointClick = useCallback(
     (point: any) => {
-      handlePointClick(point);
-      const firstCableId = point.cableIds?.[0];
-      if (firstCableId && cablesById[firstCableId]) {
-        setSelectedCable(cablesById[firstCableId]);
+      const memberIds: string[] = point.memberIds || [point.id];
+      const lp = landingPoints.find((p) => memberIds.includes(p.id));
+      if (!lp) return;
+      setSelectedLandingPoint(lp);
+      if (!selectedCable && lp.cableIds.length > 0) {
+        const first = cablesById[lp.cableIds[0]];
+        if (first) setSelectedCable(first);
       }
     },
-    [handlePointClick]
+    [selectedCable],
   );
 
-  // Handle globe path click
   const handlePathClick = useCallback(
     (path: PathData) => {
       const cable = cablesById[path.cableId];
       if (cable) handleSelectCable(cable);
     },
-    [handleSelectCable]
+    [handleSelectCable],
   );
 
-  // Path color: muted lines on a light canvas need a dark stroke or they
-  // vanish into the basemap. Dots are now real meshes — see RAF effect.
-  const isLightCanvas = theme === "light";
-  const mutedCableColor = isLightCanvas
-    ? "rgba(30, 40, 60, 0.35)"
-    : TM_COLORS.cableMuted;
-  const dotColor = isLightCanvas ? "#0B1A3A" : "#FFFFFF";
+  // Recenter on Malaysia (compass) — leaves selection/dialogs alone.
+  const recenterMalaysia = useCallback(() => {
+    globeRef.current?.pointOfView(
+      { lat: MY_LAT, lng: MY_LNG, altitude: MY_ALT },
+      1200,
+    );
+  }, []);
+
+  // Full reset (RightCluster ⊙) — deselect cable, close callout/dialog,
+  // recenter, stop auto-rotate.
+  const resetView = useCallback(() => {
+    setSelectedCable(null);
+    setSelectedLandingPoint(null);
+    setOpenDialog(null);
+    setAutoRotate(false);
+    recenterMalaysia();
+  }, [recenterMalaysia]);
+
+  // Path color: selected → red 3px; muted (non-selected when a cable is
+  // selected) → white 30%; otherwise per-cable identity color.
   const getPathColor = useCallback(
     (path: PathData) => {
-      const isSel = selectedCable && path.cableId === selectedCable.id;
-      const isMuted = selectedCable && !isSel;
-      if (isMuted) return mutedCableColor;
+      if (selectedCable) {
+        return path.cableId === selectedCable.id
+          ? CABLE_SELECTED_COLOR
+          : CABLE_MUTED_COLOR;
+      }
       return path.color;
     },
-    [selectedCable, mutedCableColor]
+    [selectedCable],
   );
-
   const getPathStroke = useCallback(
     (path: PathData) => {
       const isSel = selectedCable && path.cableId === selectedCable.id;
-      return isSel ? 4 : 2;
+      return isSel ? 3 : 1;
     },
-    [selectedCable]
+    [selectedCable],
   );
 
-  // Set of active landing-point IDs for the selected cable (O(1) lookup in the
-  // per-point callbacks below).
+  // Point color: highlights cluster members of the selected cable in lime.
   const selectedLPSet = useMemo(
     () => (selectedCable ? new Set(selectedCable.landingPointIds) : null),
-    [selectedCable]
+    [selectedCable],
   );
-
-  // Point color based on selection state. Cluster points highlight when ANY
-  // member id is in the selected set.
-  const mutedPointColor = isLightCanvas
-    ? "rgba(30, 40, 60, 0.35)"
-    : "rgba(100, 100, 100, 0.3)";
   const isPointSelected = useCallback(
     (point: any) => {
       if (!selectedLPSet) return false;
       const ids: string[] = point.memberIds || [point.id];
       return ids.some((id) => selectedLPSet.has(id));
     },
-    [selectedLPSet]
+    [selectedLPSet],
   );
   const getPointColor = useCallback(
     (point: any) => {
-      if (!selectedLPSet) return TM_COLORS.landingPointDefault;
-      if (isPointSelected(point)) return TM_COLORS.cableHighlight;
-      return mutedPointColor;
+      if (!selectedLPSet) return LANDING_POINT_DEFAULT;
+      if (isPointSelected(point)) return LANDING_POINT_ACTIVE;
+      return LANDING_POINT_MUTED;
     },
-    [selectedLPSet, isPointSelected, mutedPointColor]
+    [selectedLPSet, isPointSelected],
   );
 
-  // Flatten dots onto the globe surface (no cylinder height) so they read as
-  // pinned markers, not floating poles.
   const getPointAltitude = useCallback(() => 0.001, []);
 
-  // Both mono modes use a pre-baked offline texture — no tile streaming.
-  // Hoisted before the accessor refs so polygonStrokeColor can read it.
-  const usesBakedMap = renderStyle === "mono";
-
-  // Stable accessor refs. Three-globe is reference-equality based — every new
-  // closure looks like a "changed prop" and re-runs the layer's full update().
-  // For labels that means TextGeometry rebuild × every label, which is the
-  // single biggest stutter source (see three-globe.mjs:3592-3606).
+  // Stable accessor refs (three-globe is reference-equality based — every new
+  // closure looks like a "changed prop" and re-runs the layer's full update).
   const pathPointLat = useCallback((p: any) => p[0], []);
   const pathPointLng = useCallback((p: any) => p[1], []);
   const pathPointAlt = useCallback(() => 0.003, []);
-  const polygonGeoJsonGeometry = useCallback((d: any) => d.geometry, []);
-  const polygonCapColor = useCallback(
-    () => style.countryFill || "rgba(0,0,0,0)",
-    [style.countryFill]
-  );
-  const polygonSideColor = useCallback(() => "rgba(0,0,0,0)", []);
-  const polygonStrokeColor = useCallback(
-    () => style.countryStroke || "rgba(0,0,0,0)",
-    [style.countryStroke]
-  );
   const labelText = useCallback(
     (l: any) => (l.kind === "country" ? l.name : l.city),
-    []
+    [],
   );
   const labelColor = useCallback(
-    (l: any) => {
-      if (l.kind === "country") {
-        return isLightCanvas
-          ? "rgba(60, 70, 95, 0.65)"
-          : "rgba(180, 200, 230, 0.55)";
-      }
-      return isLightCanvas
-        ? "rgba(15, 23, 42, 0.9)"
-        : "rgba(226, 232, 240, 0.85)";
-    },
-    [isLightCanvas]
+    (l: any) =>
+      l.kind === "country"
+        ? "rgba(180, 200, 230, 0.55)"
+        : "rgba(226, 232, 240, 0.85)",
+    [],
   );
-  // Both label kinds now use a fixed base size + per-frame mesh.scale (see
-  // the label scaler effect). TextGeometry is built once and never rebuilt.
   const labelSize = useCallback(
     (l: any) =>
       l.kind === "country" ? COUNTRY_LABEL_BASE_SIZE : CITY_LABEL_BASE_SIZE,
-    []
+    [],
   );
-  // labels never carry a dot — landing-station markers are the points layer's
-  // job (with selection-aware colour); a dot baked into the label was just a
-  // visual duplicate of the same coordinate.
   const labelDotRadius = useCallback(() => 0, []);
   const labelIncludeDot = useCallback(() => false, []);
   const pointRadius = POINT_RADIUS_BY_BUCKET[zoomBucket];
 
-  const [useTiles, setUseTiles] = useState(false);
-  useEffect(() => {
-    // Outline mode = vector polygons only, no raster tiles.
-    if (renderStyle === "outline") {
-      if (useTiles) setUseTiles(false);
-      return;
-    }
-    // Mono = baked basemap, no tiles.
-    if (usesBakedMap) {
-      if (useTiles) setUseTiles(false);
-      return;
-    }
-    if (!useTiles && zoomLevel < TILE_ZOOM_THRESHOLD) {
-      setUseTiles(true);
-    } else if (useTiles && zoomLevel > TILE_ZOOM_THRESHOLD + 0.15) {
-      setUseTiles(false);
-    }
-  }, [zoomLevel, useTiles, renderStyle, usesBakedMap]);
-
-  // Tile URL provider switches with render style.
-  const tileUrl = useMemo(() => {
-    if (renderStyle === "mono") {
-      return theme === "dark" ? CARTO_DARK_TILE_URL : CARTO_LIGHT_TILE_URL;
-    }
-    return SATELLITE_TILE_URL;
-  }, [renderStyle, theme]);
-
-  // Three modes for the globe sphere material:
-  //   1. outline   — solid colored sphere, dispose any texture, set emissive
-  //                  so the night side doesn't render dark on MeshPhongMaterial
-  //   2. baked map — equirectangular texture; flat-bright by routing the map
-  //                  through emissiveMap so day/night terminator disappears
-  //   3. textured  — real earth bitmap, default lit shading
-  // We wait one tick after globeImageUrl propagates so the texture three.js
-  // just loaded is actually attached when we read mat.map.
+  // Globe sphere material — baked equirectangular dark map routed through
+  // emissiveMap so the day/night terminator disappears (mono basemap is
+  // already shaded; we want it rendered flat-bright).
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     const id = setTimeout(() => {
       const mat = globeRef.current?.globeMaterial?.();
       if (!mat) return;
-      if (style.globeColor) {
-        if (mat.map) {
-          mat.map.dispose?.();
-          mat.map = null;
-        }
-        mat.emissiveMap = null;
-        mat.color?.set?.(style.globeColor);
-        mat.emissive?.set?.(style.globeColor);
-        if ("emissiveIntensity" in mat) mat.emissiveIntensity = 1;
-      } else if (usesBakedMap && mat.map) {
+      if (mat.map) {
         mat.emissiveMap = mat.map;
         mat.color?.set?.("#000000");
         mat.emissive?.set?.("#ffffff");
         if ("emissiveIntensity" in mat) mat.emissiveIntensity = 1;
-      } else {
-        mat.emissiveMap = null;
-        mat.color?.set?.("#ffffff");
-        mat.emissive?.set?.("#000000");
-        if ("emissiveIntensity" in mat) mat.emissiveIntensity = 0;
       }
-      // Anisotropic filtering — dramatically sharpens textures viewed at
-      // oblique angles (i.e., everywhere except the dead-centre of the globe).
-      // Free GPU feature; default 1, max is hardware-dependent (commonly 16).
       const renderer = globeRef.current?.renderer?.();
       if (renderer && mat.map) {
         const maxAniso = renderer.capabilities?.getMaxAnisotropy?.() ?? 1;
@@ -781,7 +640,7 @@ export default function GlobeScene() {
       mat.needsUpdate = true;
     }, 60);
     return () => clearTimeout(id);
-  }, [isLoaded, style.globeColor, style.globe, usesBakedMap]);
+  }, [isLoaded]);
 
   // Travelling dots — one THREE.Sphere mesh per cable segment, all animated
   // continuously regardless of selection. Self-contained RAF; meshes share a
@@ -793,7 +652,7 @@ export default function GlobeScene() {
 
     const geo = new THREE.SphereGeometry(DOT_RADIUS, 12, 8);
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(dotColor),
+      color: new THREE.Color(TRAVELLING_DOT_COLOR),
       depthTest: false,
       transparent: true,
     });
@@ -809,9 +668,6 @@ export default function GlobeScene() {
     const start = performance.now();
     const tick = () => {
       const elapsedSec = (performance.now() - start) / 1000;
-      // Scale the spheres inversely with camera distance to keep their
-      // on-screen size constant — like pathStroke (px-based) instead of a
-      // fixed world radius that would balloon at close zoom.
       const pov = globeRef.current?.pointOfView?.();
       const alt = pov?.altitude ?? 1;
       const scale = Math.max(0.12, Math.min(3, (1 + alt) / 2.0));
@@ -820,7 +676,7 @@ export default function GlobeScene() {
         if (seg.totalKm <= 0) continue;
         const speed = Math.min(
           DOT_SPEED_KM_PER_SEC,
-          seg.totalKm / DOT_MIN_LOOP_SEC
+          seg.totalKm / DOT_MIN_LOOP_SEC,
         );
         const dist = (elapsedSec * speed) % seg.totalKm;
         let j = 1;
@@ -846,28 +702,21 @@ export default function GlobeScene() {
       geo.dispose();
       mat.dispose();
     };
-  }, [isLoaded, dotSegments, dotColor]);
+  }, [isLoaded, dotSegments]);
 
-  // Regional sharpness overlay — a single grid mesh covering the SEA window,
-  // textured with a 4K bake of just that region. Built from getCoords samples
-  // so it lives in the same coord frame as everything else; OrbitControls
-  // orbits the camera (not the globe), so a fixed-position mesh tracks
-  // visually. Material starts at opacity 0 and fades in as we zoom past the
-  // SEA_FADE_IN_ALT threshold — at far zoom the overlay would just be a
-  // visible "patch", and at close zoom it covers most of the visible region.
+  // Regional sharpness overlay (SEA window). Single grid mesh, fades in at
+  // close zoom. Always dark in v1.0.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
-    if (!usesBakedMap) return;
     const scene = globeRef.current.scene?.();
     if (!scene) return;
 
-    const url = theme === "dark" ? SEA_OVERLAY_DARK_URL : SEA_OVERLAY_LIGHT_URL;
     const loader = new THREE.TextureLoader();
     let mesh: THREE.Mesh | null = null;
     let raf = 0;
     let cancelled = false;
 
-    loader.load(url, (texture) => {
+    loader.load(SEA_OVERLAY_DARK_URL, (texture) => {
       if (cancelled) {
         texture.dispose();
         return;
@@ -935,7 +784,7 @@ export default function GlobeScene() {
             : Math.min(
                 1,
                 (SEA_FADE_IN_ALT - alt) /
-                  (SEA_FADE_IN_ALT - SEA_FADE_OUT_ALT)
+                  (SEA_FADE_IN_ALT - SEA_FADE_OUT_ALT),
               );
         mat.opacity = opacity;
         mat.visible = opacity > 0.001;
@@ -955,27 +804,13 @@ export default function GlobeScene() {
         (mesh.geometry as THREE.BufferGeometry).dispose();
       }
     };
-  }, [isLoaded, usesBakedMap, theme]);
-
-  // Country polygons only render in outline mode. Tried using them as a
-  // close-zoom "sharpening" overlay on the baked texture, but 242 extruded
-  // meshes (some with thousands of vertices) crushed the framerate even when
-  // faded out. The 1-draw-call texture is unbeatable here; if you ever need
-  // crisper strokes, do a higher-density bake of just the relevant region
-  // and overlay that as a second sphere texture, NOT a polygon mesh.
-  const polygonsData = useMemo(
-    () =>
-      renderStyle === "outline" ? (countries as any).features : [],
-    [renderStyle]
-  );
+  }, [isLoaded]);
 
   // Per-frame label scaler — both kinds drive visibility + size via
-  // mesh.scale on the label Group; TextGeometry is built once at a fixed
-  // base size and never rebuilt. Group refs attached by three-globe's
-  // ThreeDigest as `__threeObjLabel` on each labelsData entry.
+  // mesh.scale on the label Group; TextGeometry is built once and never
+  // rebuilt.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
-
     let raf = 0;
     const tick = () => {
       const pov = globeRef.current?.pointOfView?.();
@@ -988,7 +823,7 @@ export default function GlobeScene() {
           | undefined;
         if (!group) continue;
         group.scale.setScalar(
-          label.kind === "country" ? countryScale : cityScale
+          label.kind === "country" ? countryScale : cityScale,
         );
       }
       raf = requestAnimationFrame(tick);
@@ -997,10 +832,62 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(raf);
   }, [isLoaded, allLabels]);
 
+  // Track the selected landing point's screen position so LandingPointCallout
+  // stays anchored over its globe coordinate while the camera rotates/zooms.
+  // Throttled to ~30 fps via a frame-skip to avoid a 60Hz React storm.
+  // setCalloutScreen(null) lives in handleGlobePointClick / resetView / etc —
+  // the effect itself only schedules updates while a point is active.
+  useEffect(() => {
+    if (!isLoaded || !selectedLandingPoint || !globeRef.current) return;
+    let raf = 0;
+    let frame = 0;
+    const tick = () => {
+      frame = (frame + 1) & 1;
+      if (frame === 0) {
+        const xyz = globeRef.current.getCoords(
+          selectedLandingPoint.lat,
+          selectedLandingPoint.lng,
+          0.01,
+        );
+        const camera: THREE.Camera | null =
+          globeRef.current?.camera?.() ?? null;
+        const renderer = globeRef.current?.renderer?.();
+        if (camera && renderer) {
+          const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
+          const dom = renderer.domElement as HTMLCanvasElement;
+          setCalloutScreen({
+            x: ((v.x + 1) / 2) * dom.clientWidth,
+            y: ((1 - v.y) / 2) * dom.clientHeight,
+          });
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isLoaded, selectedLandingPoint]);
+
+  // Derived stats for the top-right KeyStatistic stack.
+  const stats = useMemo(() => {
+    const total = cables.length;
+    const active = cables.filter((c) => c.status === "active").length;
+    const points = landingPoints.length;
+    return { total, active, points };
+  }, []);
+
+  // Cable-scoped landing-point list passed to MorseCodePop.
+  const cableLandingPoints = useMemo(() => {
+    if (!selectedCable) return [];
+    const lookup = new Map(landingPoints.map((p) => [p.id, p]));
+    return selectedCable.landingPointIds
+      .map((id) => lookup.get(id))
+      .filter((p): p is LandingPoint => Boolean(p));
+  }, [selectedCable]);
+
   return (
     <div
-      className="relative w-full h-screen overflow-hidden bg-[#06013A]"
-      style={{ touchAction: "none" }}
+      className="relative w-full h-screen overflow-hidden"
+      style={{ background: "var(--v1-bg)", touchAction: "none" }}
     >
       {!isLoaded && <LoadingScreen />}
 
@@ -1008,21 +895,10 @@ export default function GlobeScene() {
         ref={globeRef}
         width={dimensions.width}
         height={dimensions.height}
-        globeImageUrl={style.globe}
-        globeTileEngineUrl={useTiles ? tileUrl : undefined}
-        bumpImageUrl={renderStyle === "texture" ? BUMP_IMAGE : undefined}
-        showAtmosphere={renderStyle !== "mono"}
-        atmosphereColor={style.atmosphere}
+        globeImageUrl={WORLD_MAP_DARK_URL}
+        showAtmosphere={true}
+        atmosphereColor={ATMOSPHERE_COLOR}
         atmosphereAltitude={0.18}
-        // Country outlines (only populated in outline mode)
-        polygonsData={polygonsData}
-        polygonGeoJsonGeometry={polygonGeoJsonGeometry}
-        polygonAltitude={0.001}
-        polygonCapColor={polygonCapColor}
-        polygonSideColor={polygonSideColor}
-        polygonStrokeColor={polygonStrokeColor}
-        polygonsTransitionDuration={0}
-        // Paths (cable routes)
         pathsData={pathsData}
         pathPoints="coords"
         pathPointLat={pathPointLat}
@@ -1032,7 +908,6 @@ export default function GlobeScene() {
         pathStroke={getPathStroke as any}
         pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
-        // Points (landing stations)
         pointsData={pointsData}
         pointLat="lat"
         pointLng="lng"
@@ -1041,7 +916,6 @@ export default function GlobeScene() {
         pointRadius={pointRadius}
         pointLabel={renderPointLabel}
         onPointClick={handleGlobePointClick}
-        // Labels — combined feed (countries + cities), accessors branch on kind
         labelsData={allLabels}
         labelLat="lat"
         labelLng="lng"
@@ -1050,185 +924,129 @@ export default function GlobeScene() {
         labelSize={labelSize}
         labelDotRadius={labelDotRadius}
         labelAltitude={0.005}
-        labelResolution={renderStyle === "mono" ? 1 : 2}
+        labelResolution={1}
         labelTypeFace={robotoMedium as any}
         labelIncludeDot={labelIncludeDot}
-        // Events
         onGlobeReady={handleGlobeReady}
         animateIn={true}
       />
 
-      <Header />
-
-      {/* Altitude readout — tucked under the header. react-globe.gl reports
-          altitude in Earth-radius units; we convert to km (× 6371) for
-          human-readable display. */}
-      <div className="absolute top-[88px] right-6 z-10 pointer-events-none">
-        <div className="flex items-center gap-3 px-3 py-1.5 bg-[#06013A]/85 backdrop-blur-md border border-[#1800E7]/40 rounded">
-          <span className="font-display text-[9px] font-bold tracking-[0.2em] text-[#A8B0D6] uppercase">
-            Altitude
-          </span>
-          <span className="font-display text-[11px] font-bold text-white tabular-nums">
-            {Math.round(zoomLevel * 6371).toLocaleString()} km
-          </span>
-          <div className="relative w-24 h-1 bg-white/10 rounded overflow-hidden">
-            <div
-              className="absolute top-0 left-0 h-full bg-[#FF5E00]"
-              style={{
-                // Camera range ~127 km (alt 0.02) → ~25,500 km (alt 4.0).
-                // Bar fills from left = far out, right = close in.
-                width: `${Math.max(2, Math.min(100, (1 - Math.log(Math.max(0.02, zoomLevel) / 0.02) / Math.log(4 / 0.02)) * 100))}%`,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
+      {/* Top-left: CableSystem panel (filter tabs + 3x3 grid + counts) */}
       <Sidebar
         selectedCable={selectedCable}
         onSelectCable={handleSelectCable}
-        onPointClick={handlePointClick}
+        language={language}
       />
 
-      {/* Bottom-right control cluster — INFO + settings buttons.
-          Sits to the LEFT of the floating sidebar modal (which is at right-6
-          and 380px wide → so this cluster anchors at right-[420px]). */}
-      <div className="absolute bottom-6 right-[420px] z-10 flex items-end gap-2">
-        <button
-          onClick={() => setInfoOpen(true)}
-          aria-label="How to use"
-          className="flex items-center justify-center w-12 h-12 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg text-[#A8B0D6] active:bg-white/5 transition-colors"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-5 h-5"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7v.5" />
-            <circle cx="12" cy="17" r="0.6" fill="currentColor" />
-          </svg>
-        </button>
-
-        <div className="relative">
-        <button
-          onClick={() => setSettingsOpen((v) => !v)}
-          aria-label="Display settings"
-          className="flex items-center justify-center w-12 h-12 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg text-[#A8B0D6] active:bg-white/5 transition-colors"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-5 h-5"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
-
-        {settingsOpen && (
-          <div className="absolute bottom-14 right-0 flex flex-col gap-2 p-3 bg-[#06013A]/95 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg min-w-[200px]">
-            <div className="font-display text-[10px] text-white font-bold tracking-[0.2em] mb-1 uppercase">
-              Display
-            </div>
-
-            <button
-              onClick={() => setAutoRotate(!autoRotate)}
-              className="flex items-center gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
-            >
-              <div
-                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#1800E7]" : "bg-[#0B0750]"}`}
-              >
-                <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-white" : "left-0.5 bg-[#A8B0D6]"}`}
-                />
-              </div>
-              <span className="font-display text-[11px] font-bold tracking-wider text-[#A8B0D6]">
-                ROTATE
-              </span>
-            </button>
-
-            <button
-              onClick={() => setRenderStyle(nextStyle(renderStyle))}
-              className="flex items-center justify-between gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
-            >
-              <span className="font-display text-[11px] font-bold tracking-wider text-white">
-                STYLE
-              </span>
-              <span className="font-display text-[11px] font-bold tracking-wider text-[#FF7A00]">
-                {RENDER_STYLE_LABEL[renderStyle]}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="flex items-center gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
-            >
-              <div
-                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${theme === "dark" ? "bg-[#0B0750]" : "bg-[#1800E7]"}`}
-              >
-                <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${theme === "dark" ? "left-0.5 bg-[#A8B0D6]" : "left-5 bg-[#FF5E00]"}`}
-                />
-              </div>
-              <span className="font-display text-[11px] font-bold tracking-wider text-[#A8B0D6]">
-                {theme === "dark" ? "DARK" : "LIGHT"}
-              </span>
-            </button>
-          </div>
-        )}
-        </div>
+      {/* Audio mute — sits just under the CableSystem panel chrome */}
+      <div
+        style={{
+          position: "fixed",
+          top: 32,
+          left: 500,
+          zIndex: 25,
+        }}
+      >
+        <AudioMute muted={muted} onToggle={() => setMuted((m) => !m)} />
       </div>
 
-      {/* Bottom-left: MAKE A CALL primary action */}
-      <div className="absolute bottom-6 left-6 z-10">
-        <button
-          onClick={() => !activeCall && setCallOpen(true)}
-          disabled={!!activeCall}
-          aria-label="Make a call"
-          className="group flex items-center gap-3 pl-4 pr-5 py-3 rounded-xl bg-[#FF5E00] border border-[#FF5E00] shadow-[0_4px_24px_rgba(255,94,0,0.35)] active:bg-[#E65500] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-4 h-4"
-            >
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-          </span>
-          <span className="text-left">
-            <span className="block font-display font-bold text-[9px] tracking-[0.25em] text-white/80 uppercase leading-none">
-              {activeCall ? "Calling…" : "Demo"}
-            </span>
-            <span className="block font-display font-bold text-sm tracking-[0.15em] text-white uppercase leading-tight mt-0.5">
-              Make a Call
-            </span>
-          </span>
-        </button>
+      {/* Top-center: language toggle + compass */}
+      <div
+        style={{
+          position: "fixed",
+          top: 32,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 25,
+          display: "flex",
+          gap: 14,
+          alignItems: "center",
+        }}
+      >
+        <LanguageToggle value={language} onChange={setLanguage} />
+        <CompassButton onRecenter={recenterMalaysia} />
       </div>
 
-      {infoOpen && <InfoModal onClose={() => setInfoOpen(false)} />}
-      {callOpen && (
-        <CallDialog
-          onClose={() => setCallOpen(false)}
+      {/* Top-right: key statistics */}
+      <div
+        style={{
+          position: "fixed",
+          top: 32,
+          right: 32,
+          zIndex: 20,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <KeyStatistic label="Total Cables" value={stats.total} />
+        <KeyStatistic label="Active" value={stats.active} />
+        <KeyStatistic label="Landing Points" value={stats.points} accent="mute" />
+      </div>
+
+      {/* Right edge centered: right cluster */}
+      <div
+        style={{
+          position: "fixed",
+          top: "50%",
+          right: 32,
+          transform: "translateY(-50%)",
+          zIndex: 25,
+        }}
+      >
+        <RightCluster
+          openDialog={openDialog}
+          onOpen={(id) =>
+            setOpenDialog((current) => (current === id ? null : id))
+          }
+          onResetView={resetView}
+          cableSelected={Boolean(selectedCable)}
+        />
+      </div>
+
+      {/* Bottom-left: CableInformation when a cable is selected */}
+      {selectedCable && (
+        <CableInformation
+          cable={selectedCable}
+          language={language}
+          onOpenMorse={() => setOpenDialog("morse")}
+        />
+      )}
+
+      {/* Bottom: titlebar */}
+      <BottomTitlebar selectedCable={selectedCable} language={language} />
+
+      {/* Map overlay: landing point callout */}
+      {selectedLandingPoint && calloutScreen && (
+        <LandingPointCallout
+          point={selectedLandingPoint}
+          screenPos={calloutScreen}
+          onClose={() => setSelectedLandingPoint(null)}
+        />
+      )}
+
+      {/* Dialogs */}
+      {openDialog === "howto" && (
+        <HowToGuideDialog
+          onClose={() => setOpenDialog(null)}
+          language={language}
+        />
+      )}
+      {openDialog === "funfact" && selectedCable && (
+        <FunFactDialog
+          cable={selectedCable}
+          onClose={() => setOpenDialog(null)}
+          language={language}
+        />
+      )}
+      {openDialog === "morse" && selectedCable && (
+        <MorseCodePop
+          cable={selectedCable}
+          landingPoints={cableLandingPoints}
+          language={language}
+          onClose={() => setOpenDialog(null)}
           onSend={(message) => {
-            setCallOpen(false);
+            setOpenDialog(null);
             setActiveCall({ message, startedAt: performance.now() });
           }}
         />
@@ -1245,6 +1063,7 @@ export default function GlobeScene() {
   );
 }
 
+// ───────── CallAnimationOverlay ─────────
 // Drives the call animation: stitched cable polyline → bright orange pulse
 // mesh that traverses source → destination, camera lerps to follow, decoded
 // message floats above the pulse, then camera returns to world view on
@@ -1267,7 +1086,7 @@ function CallAnimationOverlay({
   globeRef: React.MutableRefObject<any>;
 }) {
   const [labelPos, setLabelPos] = useState<{ x: number; y: number } | null>(
-    null
+    null,
   );
   const [phase, setPhase] = useState<
     "dial" | "connect" | "intro" | "travel" | "arrive" | "return"
@@ -1286,44 +1105,31 @@ function CallAnimationOverlay({
       return;
     }
 
-    // Dramatic dialing build-up before the pulse launches:
-    //   dial    (1300ms) — DTMF-style descending pips
-    //   connect (1100ms) — rising tone + camera glides to the start
-    //   intro   ( 800ms) — pause at the start coord, then launch
-    //   travel  (varies) — pulse traverses + morse audio plays
-    //   arrive  (1500ms) — flash at destination
-    //   return  (1800ms) — camera back to world view
     const dialMs = 1300;
     const connectMs = 1100;
     const introMs = 800;
     const travelMsLocal =
       (route.totalKm / CALL_PULSE_SPEED_KM_PER_SEC) * 1000;
 
-    // Phase 1: dialing tones immediately. Camera holds on whatever it was
-    // showing — gives the pre-launch suspense.
     playDialing();
 
-    // Phase 2: at end of dial, play connect tone + start camera glide to
-    // the start of the cable (not midpoint — we want to see the launch).
     const start = route.coords[0];
     setTimeout(() => {
       playConnect();
       globeRef.current?.pointOfView(
         { lat: start[0], lng: start[1], altitude: CALL_INTRO_ALT },
-        connectMs + introMs
+        connectMs + introMs,
       );
     }, dialMs);
 
-    // Phase 3: morse audio fires when the pulse actually launches.
     setTimeout(
       () => playMessage(message, travelMsLocal),
-      dialMs + connectMs + introMs
+      dialMs + connectMs + introMs,
     );
 
-    // Pulse mesh — bigger + brighter than the perpetual dots.
     const geo = new THREE.SphereGeometry(CALL_PULSE_RADIUS, 16, 12);
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color("#FF5E00"),
+      color: new THREE.Color(V1_COLORS.orangeHot),
       depthTest: false,
       transparent: true,
     });
@@ -1332,10 +1138,9 @@ function CallAnimationOverlay({
     pulse.frustumCulled = false;
     scene.add(pulse);
 
-    // Soft halo — additive sprite-ish shell that scales with the pulse.
     const haloGeo = new THREE.SphereGeometry(CALL_PULSE_RADIUS * 2.4, 16, 12);
     const haloMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color("#FF8A3D"),
+      color: new THREE.Color(V1_COLORS.orange),
       transparent: true,
       opacity: 0.35,
       depthTest: false,
@@ -1348,18 +1153,13 @@ function CallAnimationOverlay({
 
     let raf = 0;
     let cancelled = false;
-    // The phase budgets above (dialMs/connectMs/introMs/travelMsLocal) are
-    // the source of truth for timing — alias them here under the names the
-    // RAF below already uses.
     const preLaunchMs = dialMs + connectMs + introMs;
     const travelMs = travelMsLocal;
     const arriveMs = 1500;
     const returnMs = 1800;
     const startTs = performance.now();
 
-    // react-globe.gl exposes the active perspective camera via .camera().
     const camera: THREE.Camera | null = globeRef.current?.camera?.() ?? null;
-
     const projectToScreen = (xyz: { x: number; y: number; z: number }) => {
       if (!camera) return null;
       const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
@@ -1386,8 +1186,6 @@ function CallAnimationOverlay({
       ];
     };
 
-    // Hide the pulse + halo until launch; otherwise they sit at (0,0,0)
-    // (= globe centre) during the dial/connect build-up, peeking through.
     pulse.visible = false;
     halo.visible = false;
 
@@ -1395,7 +1193,6 @@ function CallAnimationOverlay({
       if (cancelled) return;
       const elapsed = performance.now() - startTs;
 
-      // Phases: dial → connect → intro → travel → arrive → return
       if (elapsed < dialMs) {
         setPhase("dial");
       } else if (elapsed < dialMs + connectMs) {
@@ -1404,17 +1201,18 @@ function CallAnimationOverlay({
         setPhase("intro");
       } else if (elapsed < preLaunchMs + travelMs) {
         setPhase("travel");
-        if (!pulse.visible) { pulse.visible = true; halo.visible = true; }
+        if (!pulse.visible) {
+          pulse.visible = true;
+          halo.visible = true;
+        }
         const tt = (elapsed - preLaunchMs) / travelMs;
         const dist = tt * route.totalKm;
         const [lat, lng] = sampleRoute(dist);
         const xyz = globeRef.current.getCoords(lat, lng, 0.012);
         pulse.position.set(xyz.x, xyz.y, xyz.z);
         halo.position.set(xyz.x, xyz.y, xyz.z);
-        // Pulse the halo opacity for visual life.
         haloMat.opacity = 0.25 + 0.2 * Math.sin(elapsed / 120);
 
-        // Camera follow — smooth lerp toward the pulse.
         const pov = globeRef.current.pointOfView?.();
         if (pov) {
           const alpha = 0.06;
@@ -1424,22 +1222,19 @@ function CallAnimationOverlay({
             pov.altitude + (CALL_FOLLOW_ALT - pov.altitude) * alpha;
           globeRef.current.pointOfView(
             { lat: nextLat, lng: nextLng, altitude: nextAlt },
-            0
+            0,
           );
         }
 
-        // Project to screen for the floating message label.
         const screen = projectToScreen(xyz);
         if (screen) setLabelPos(screen);
       } else if (elapsed < preLaunchMs + travelMs + arriveMs) {
         setPhase("arrive");
-        // Park pulse at destination, scale flash-up.
         const last = route.coords[route.coords.length - 1];
         const xyz = globeRef.current.getCoords(last[0], last[1], 0.012);
         pulse.position.set(xyz.x, xyz.y, xyz.z);
         halo.position.set(xyz.x, xyz.y, xyz.z);
-        const arriveT =
-          (elapsed - preLaunchMs - travelMs) / arriveMs;
+        const arriveT = (elapsed - preLaunchMs - travelMs) / arriveMs;
         const flash = 1 + Math.sin(arriveT * Math.PI) * 1.4;
         pulse.scale.setScalar(flash);
         halo.scale.setScalar(flash);
@@ -1456,12 +1251,10 @@ function CallAnimationOverlay({
               lng: CALL_RETURN_LNG,
               altitude: CALL_RETURN_ALT,
             },
-            returnMs
+            returnMs,
           );
         }
-        // Fade the pulse out during return.
-        const rt =
-          (elapsed - preLaunchMs - travelMs - arriveMs) / returnMs;
+        const rt = (elapsed - preLaunchMs - travelMs - arriveMs) / returnMs;
         mat.opacity = Math.max(0, 1 - rt);
         haloMat.opacity = Math.max(0, 0.4 * (1 - rt));
         setLabelPos(null);
@@ -1506,44 +1299,89 @@ function CallAnimationOverlay({
             transform: "translate(-50%, -100%)",
           }}
         >
-          <div className="px-4 py-2 rounded-lg bg-[#FF5E00] border border-white/20 shadow-[0_4px_24px_rgba(255,94,0,0.6)]">
-            <span className="font-display font-bold text-base tracking-[0.2em] text-white uppercase whitespace-nowrap">
+          <div
+            style={{
+              padding: "10px 18px",
+              background: "var(--v1-orange)",
+              border: "1px solid rgba(255, 255, 255, 0.30)",
+              boxShadow: "0 4px 24px rgba(240, 90, 34, 0.55)",
+            }}
+          >
+            <span
+              className="v1-h-display"
+              style={{
+                fontSize: 18,
+                color: "var(--v1-fg)",
+                letterSpacing: "0.18em",
+                whiteSpace: "nowrap",
+              }}
+            >
               {message}
             </span>
           </div>
-          <div className="w-px h-12 bg-gradient-to-b from-[#FF5E00] to-transparent mx-auto" />
+          <div
+            style={{
+              width: 1,
+              height: 48,
+              background:
+                "linear-gradient(180deg, var(--v1-orange) 0%, transparent 100%)",
+              margin: "0 auto",
+            }}
+          />
         </div>
       )}
-      <div className="fixed top-[40%] left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+      <div
+        style={{
+          position: "fixed",
+          top: "40%",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 30,
+          pointerEvents: "none",
+        }}
+      >
         {phase === "dial" && (
-          <div className="px-6 py-3 rounded-full bg-[#06013A]/90 backdrop-blur-xl border border-[#FF5E00]/60 shadow-[0_4px_24px_rgba(255,94,0,0.3)] animate-pulse">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-[#FF5E00] uppercase">
-              Dialing…
-            </span>
-          </div>
+          <PhaseChip text="Dialing…" tone="orange" pulse />
         )}
         {phase === "connect" && (
-          <div className="px-6 py-3 rounded-full bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/60">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
-              Establishing Link…
-            </span>
-          </div>
+          <PhaseChip text="Establishing Link…" tone="blue" />
         )}
-        {phase === "intro" && (
-          <div className="px-6 py-3 rounded-full bg-[#1800E7]/80 backdrop-blur-xl border border-white/30">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
-              Transmitting
-            </span>
-          </div>
-        )}
-        {phase === "arrive" && (
-          <div className="px-6 py-3 rounded-full bg-[#FF5E00]/90 backdrop-blur-xl border border-white/30 shadow-[0_4px_24px_rgba(255,94,0,0.5)]">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
-              Delivered
-            </span>
-          </div>
-        )}
+        {phase === "intro" && <PhaseChip text="Transmitting" tone="blue" />}
+        {phase === "arrive" && <PhaseChip text="Delivered" tone="orange" />}
       </div>
     </>
+  );
+}
+
+function PhaseChip({
+  text,
+  tone,
+  pulse = false,
+}: {
+  text: string;
+  tone: "orange" | "blue";
+  pulse?: boolean;
+}) {
+  return (
+    <div
+      className={pulse ? "v1-pulse" : undefined}
+      style={{
+        padding: "12px 24px",
+        background:
+          tone === "orange" ? "var(--v1-orange)" : "var(--v1-blue)",
+        border: "1px solid rgba(255, 255, 255, 0.40)",
+      }}
+    >
+      <span
+        className="v1-h-display"
+        style={{
+          fontSize: 13,
+          color: "var(--v1-fg)",
+          letterSpacing: "0.30em",
+        }}
+      >
+        {text}
+      </span>
+    </div>
   );
 }

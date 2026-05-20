@@ -22,10 +22,6 @@ const FILTERS: { id: Filter; key: "showAll" | "international" | "domestic" }[] =
   { id: "domestic", key: "domestic" },
 ];
 
-function isInactive(c: CableSystem): boolean {
-  return c.status !== "active";
-}
-
 export default function Sidebar({
   selectedCable,
   onSelectCable,

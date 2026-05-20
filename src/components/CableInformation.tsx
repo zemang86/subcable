@@ -7,6 +7,8 @@ import { StatusIndicator } from "./StatusIndicator";
 interface CableInformationProps {
   cable: CableSystem;
   language?: Language;
+  /** Opens the morse-keyboard dialog scoped to this cable. */
+  onOpenMorse?: () => void;
 }
 
 const TYPE_LABEL: Record<CableSystem["classification"], string> = {
@@ -22,6 +24,7 @@ function statusVariant(status: CableSystem["status"]): "active" | "inactive" {
 export default function CableInformation({
   cable,
   language = "en",
+  onOpenMorse,
 }: CableInformationProps) {
   const t = useT(language);
   const status = statusVariant(cable.status);
@@ -123,11 +126,33 @@ export default function CableInformation({
           fontSize: 11,
           color: "var(--v1-mute)",
           lineHeight: 1.6,
-          margin: 0,
+          margin: "0 0 14px",
         }}
       >
         {cable.description}
       </p>
+
+      {onOpenMorse && !inactive && (
+        <button
+          type="button"
+          onClick={onOpenMorse}
+          style={{
+            width: "100%",
+            minHeight: 48,
+            background: "var(--v1-orange)",
+            border: "1px solid var(--v1-orange-hot)",
+            color: "var(--v1-fg)",
+            cursor: "pointer",
+            fontFamily: "var(--v1-heading)",
+            fontWeight: 700,
+            fontSize: 13,
+            letterSpacing: "0.20em",
+            textTransform: "uppercase",
+          }}
+        >
+          {t("sendMessage")} →
+        </button>
+      )}
     </div>
   );
 }
