@@ -7,7 +7,7 @@ Tracks every component / spec in `tm-submarine-cable-map-design-system/` against
 - 🔍 verify — likely already matches but worth a spot-check
 - 🧊 deferred — tech-debt, parked
 
-Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a` · M4 `c281c08` · M5 `4b4bc28` · M5b `f7d75b1` · M6 `0a67bb0` · M7 `4cd8286` · M7b `babc1fa` · M8 `3718502` · M9 `6349827` · M10 `9925b41` · M11 `f1510d0` · M12 `3e5f330` · M13 `38bff1f` · M14 `0c35f64` · M15 `b3d9acc` · M16 `fd1a8df` · M17 `3721986` · M18 `79b4ee2` · M19 `45a0e0d` · M20 `af816a3` · M21 (Header) `041ccfb` · M22 (RightCluster) `801f362` · M23 (FunFact title+bg) `c5a14bb` · M24 (FunFact bracket frame) `86f89cd` · M25 (HowToGuide) `c8f710c` (+ pre-M1 history).
+Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a` · M4 `c281c08` · M5 `4b4bc28` · M5b `f7d75b1` · M6 `0a67bb0` · M7 `4cd8286` · M7b `babc1fa` · M8 `3718502` · M9 `6349827` · M10 `9925b41` · M11 `f1510d0` · M12 `3e5f330` · M13 `38bff1f` · M14 `0c35f64` · M15 `b3d9acc` · M16 `fd1a8df` · M17 `3721986` · M18 `79b4ee2` · M19 `45a0e0d` · M20 `af816a3` · M21 (Header) `041ccfb` · M22 (RightCluster) `801f362` · M23 (FunFact title+bg) `c5a14bb` · M24 (FunFact bracket frame) `86f89cd` · M25 (HowToGuide) `c8f710c` · M26 (Morse bevelled card + 2-row pickers) `4a4ec9c` · M27 (Morse keys gradient pills) `dea53bc` · M28 (Morse reference ribbon) `f6e4d29` · M29 (Morse `fullmorse.svg` pixel-perfect rebuild) `1b4252a` · M30 (Morse native 1× for 3×3 wall) `b2add04` · M31 (Morse in-progress buffer) `3a314d6` · M32 (Idle attractor expanded sweep + mute moved into bottom-center cluster) `8917dd3` · M33 (Tappable LandingPointCallout — expanded card + new marker SVG + expand/shrink animation) `e5b7281` (+ pre-M1 history). Now on `version2` branch (forked from `main` at `3a314d6`, pushed to `origin/version2`).
 
 ---
 
@@ -22,7 +22,7 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 - ✅ **Header compaction pass (M21)** — height 120 → 80, title 52 → 40 (Bahasa fits one line via `whiteSpace: nowrap`), cable code at `right:87`, DOM/INT chip at `right:24` in a 3-column layout to stop the chip overlapping the cable code, and L-bracket corners swapped for the 8×8 **crosshair `+`** convention nested inside the visible Rectangle 50 border so the markers sit on the real corner.
 - ✅ **KeyStatistic strip** — hidden for now (mount + import + stats useMemo removed from `GlobeScene.tsx`). `KeyStatistic.tsx` component file kept around in case we re-add it later (M9).
 - ✅ RightCluster on left edge (mirror of kit, swap preserved per your call)
-- ✅ AudioMute top-right (paired with our right-side Sidebar)
+- ✅ **AudioMute repositioned (M32)** — moved from top-right (paired with Sidebar) into the **bottom-center cluster**, sitting left of LanguageToggle next to RecenterButton; keeps all globally-touchable controls in one strip.
 
 ## 2. Atom components
 
@@ -81,9 +81,8 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 
 - ✅ **HowTo (M25)** — title moved into a 47px TitleStrip header card with crosshair `+` corners (matches CableInformation / CableSystem pattern); bottom title strip removed; panel body now uses the **bevelled SVG card** from `temp/card-help.svg` (orange→blue gradient + white stroke + cut corners, `preserveAspectRatio="none"`) as its background, replacing the prior CSS gradient + U-bracket frame approach; 3 tiles render the `tap.png`/`pinch.png`/`swipe.png` illustrations at 100% (assets shipped to `public/textures/howto/`), with the prior CSS frame + corner markers + inline SVG icons dropped since the frame is baked into the PNGs.
 - ✅ **FunFact (M23 + M24)** — title moved into a TitleStrip header card matching CableSystem/CableInformation (47px, white-translucent gradient, 4 crosshair `+` corners, 28px Chakra Petch 500, ✕ close on right); panel body now uses the orange→blue gradient from `temp/facts_bg_gradient.css`; player and thumbnail strip **swapped** (player on top, thumbs at the bottom for touch reach); 4 fixed thumbs I/II at 16:9 with orange-active border; placeholder images temporarily use `picsum.photos` seeded URLs so the layout feels populated. Panel frame is a **CSS-bordered HUD bracket frame** (top + bottom U brackets @ 50px + left/right vertical rails inset 60px), chosen over an SVG stretch so brackets stay fixed at any panel size.
-- ✅ MorseCodePop (light-fill message area, 2-col A–Z reference, brown backspace)
-- 🔍 **MorseCodePop key buttons** — currently inline; can adopt `.v1-btn-*` (see §3)
-- 🔍 **Dialog frames** all consistent? FunFact + HowTo now share a TitleStrip-on-top + bevelled/framed panel-body pattern; MorseCodePop still uses the old `var(--v1-bg-deep)` shell. Consider lifting a shared `DialogShell` (TitleStrip + body slot) so MorseCodePop matches the other two.
+- ✅ **MorseCodePop (M26 → M31)** — full rebuild on top of `temp/fullmorse.svg` (pixel-perfect chrome: bevelled card + 2-row country/location pickers + gradient key pills + orange Morse Code Guide ribbon with A–Z + 0–9 reference). Native 833×641 size at `SCALE = 1` because the 3×3 TV wall handles its own up-scaling (M30). Live overlays only for interactivity — opaque navy picker masks, transparent `<select>` tap targets, opaque grey message canvas with **in-progress buffer rendered in orange** (`.` → `·`, `-` → `−`) alongside the decoded letters so users can see what they're typing before hitting Enter Letter (M31). TitleStrip header card matches CableSystem/CableInformation pattern (47px, crosshair `+` corners). Picker wiring still binds both row cells to the same `cablePoints` slot — functionality wiring deferred to a future session.
+- 🔍 **Dialog frames** all consistent? All three now use the TitleStrip-on-top pattern. MorseCodePop body is the `fullmorse.svg` pixel-asset instead of a CSS-bevelled card — different visual treatment but the **header** matches. Lifting a shared `DialogShell` (TitleStrip + body slot) remains optional cleanup.
 - ⚠️ **FunFact placeholder assets** — `public/textures/funfact/` placeholder-* still pending; current build uses `picsum.photos/seed/...` URLs which require network access and aren't kiosk-safe. Either swap real cable cross-section / repeater / ship images into `public/textures/funfact/` before kiosk deploy, or ship neutral SVG placeholders.
 
 ## 6. Globe rendering
@@ -92,6 +91,9 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 - ✅ Unselected cables: white 1px 30%
 - ✅ Atmosphere `#034DA1`
 - ✅ LandingPointCallout per landing point on selected cable, with PointHUD reticle
+- ✅ **PointHUD reticle rebuilt (M33)** — replaced the prior 4-arc concentric reticle with the new `temp/marker.svg` mark (white outer ring + orange inner ring + green center dot, native 79×74) rendered at `MARKER_SCALE = 0.5`. SVG container shrunk to 40×70 with the reticle near the bottom; exports `HUD_CENTER_Y`, `HUD_BOTTOM_PAD`, `MARKER_TOP` so consumers can math the anchor correctly. `hideLine` prop suppresses the inline drop line when an external stem provides it.
+- ✅ **Expandable LandingPointCallout (M33)** — tap a callout to grow it into a **439w card** with: city title (`FitTitle` auto-shrinks to one line, 74 → 28px floor), country + lat/lng row, picsum thumbnail (placeholder until real per-point photos exist), `Built: DD/MM/YY` placeholder, and lorem body copy. Height is content-driven via flex column (no fixed panel height) so descriptions of any length render cleanly. Siblings dim + desaturate while one is expanded. Anchored bottom-up via `translateY(-100%)` so the **stem-then-reticle** stack terminates exactly at the globe point — negative margins close the empty top/bottom pads of `PointHUD` so the stem connects flush to the reticle without gaps. Stem is a single 2.28px vertical orange line (the prior U-bracket was scrapped in iteration). Expansion is cleared on idle, cable selection change, and full reset.
+- ✅ **Expand / shrink animation (M33)** — `.v1-callout-expand` / `.v1-callout-shrink` keyframes in `globals.css` scale the panel from 0.6 → 1 (240ms ease-out on open, 200ms ease-in on close) with `transform-origin: 50% 100%` so it grows from / collapses into the stem. Internal `closing` state in `ExpandedCard` delays the actual unmount by 200ms so the shrink animation finishes before the component disappears.
 - ⚠️ **Cable line style** — the recent screenshot shows the SKR1M line as **alternating dashes + travelling dots**. Ours is currently solid red 3px. Add a dash pattern to the path stroke? (would need a three-globe path-rendering tweak)
 - ⚠️ **Landing-point marker on the globe surface** — currently a plain colored sphere (lime when active, muted when on a non-selected cable). The kit's PointHUD reticle is anchored to the bottom of each callout; the globe-surface dot is separate. Decide whether to also replace the surface dot with a reticle (probably no — too busy at world zoom).
 - 🔍 **City labels** ("Penang", "Cherating", etc.) — kit screenshot shows no city labels independent of the callouts. We currently render text labels via three-globe's `labelsData`. Suppress when a cable is selected (since callouts now carry the name)?
@@ -114,7 +116,7 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 ## 9. Loading + idle
 
 - 🔍 LoadingScreen — kit calls for solid black bg + 3×3 grid overlay + "LOADING" Rajdhani 60px 0.15em. Compare against our current `LoadingScreen.tsx`.
-- 🔍 Idle attractor — kit only documents "slow rotate + global cable pulse + TAP ANYWHERE hint"; verify our `useIdleAttractor.ts` still matches
+- ✅ **Idle attractor expanded sweep (M32)** — 60s threshold (`useIdleAttractor(60_000)`) untouched, but on activation now clears `openDialog`, `selectedCable`, `selectedLandingPoint`, and `expandedPointId` in addition to enabling auto-rotate, so the attractor reveals a clean globe regardless of what state the previous user left behind. Active call animations (~25s worst case) are intentionally left alone since they self-complete inside the 60s window.
 
 ## 10. Tech-debt (pre-existing, not blocking design alignment)
 
@@ -127,15 +129,17 @@ Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a
 
 ## Suggested order to chew through
 
-1. ✅ ~~§1 Layout~~ — closed (+ M21 Header compaction)
+1. ✅ ~~§1 Layout~~ — closed (+ M21 Header compaction, M32 AudioMute relocation)
 2. ✅ ~~§4 Sidebar / Cable System~~ — closed M11 → M18
 3. ✅ ~~§4 Cable Information~~ — closed M19 → M20
 4. ✅ ~~§3 RightCluster~~ — closed M22 (full-SVG buttons + lime-ring overlay + Morse always-on)
 5. ✅ ~~§5 FunFact + HowTo dialog shells~~ — closed M23 → M25 (TitleStrip-on-top + framed body)
-6. **§5 MorseCodePop polish** ← **NEXT** (light-fill area already done; align panel chrome with the TitleStrip pattern + lift key buttons to `.v1-btn-*` classes)
-7. **§5 FunFact assets** — swap `picsum.photos` URLs for real cable cross-section / repeater / ship images in `public/textures/funfact/` before kiosk deploy
-8. **§6 Cable line dash pattern** — visual feature most visible on the screenshot
-9. **§2/3/8 verify-rounds** — quick spot-checks, mostly already aligned
-10. **§7 Brand assets** — logo / icons / splash decisions
-11. **§9 LoadingScreen + idle** — small polish
-12. **§10 tech-debt** — when product alignment is done
+6. ✅ ~~§5 MorseCodePop pixel-perfect rebuild~~ — closed M26 → M31 (`fullmorse.svg` chrome, native 1× for 3×3 wall, live in-progress buffer)
+7. ✅ ~~§6 LandingPointCallout + new PointHUD reticle~~ — closed M33 (tap-to-expand, expand/shrink animation, marker SVG, idle sweep)
+8. **§5 FunFact assets** ← **NEXT** — swap `picsum.photos` URLs for real cable cross-section / repeater / ship images in `public/textures/funfact/` before kiosk deploy. Same goes for the new LandingPointCallout expanded-card thumbnail (also picsum-seeded right now).
+9. **§5 Morse functionality wiring** — pickers currently both bind to the same `cablePoints` slot in MorseCodePop; wire From/To independently and thread `(cableId, fromId, toId)` into `resolveCallRoute()` so the call animation respects the user's picks.
+10. **§6 Cable line dash pattern** — visual feature most visible on the screenshot
+11. **§2/3/8 verify-rounds** — quick spot-checks, mostly already aligned
+12. **§7 Brand assets** — logo / icons / splash decisions
+13. **§9 LoadingScreen** — small polish (idle attractor itself is now closed in M32)
+14. **§10 tech-debt** — when product alignment is done
