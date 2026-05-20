@@ -1,6 +1,7 @@
 "use client";
 
 import { CableSystem } from "@/lib/types";
+import { StatusIndicator } from "./StatusIndicator";
 
 interface CableCardProps {
   cable: CableSystem;
@@ -8,57 +9,102 @@ interface CableCardProps {
   onSelect: (cable: CableSystem) => void;
 }
 
-const STATUS_BADGE: Record<CableSystem["status"], { label: string; bg: string; fg: string }> = {
-  active: { label: "ACTIVE", bg: "bg-[#1800E7]/20", fg: "text-white" },
-  planned: { label: "PLANNED", bg: "bg-[#FF5E00]/20", fg: "text-[#FF7A00]" },
-  retired: { label: "RETIRED", bg: "bg-slate-500/15", fg: "text-slate-300" },
-  inactive: { label: "LEGACY", bg: "bg-slate-500/15", fg: "text-slate-300" },
-};
-
-const CLASSIFICATION_LABEL: Record<CableSystem["classification"], string> = {
-  international: "INTL",
-  iru: "IRU",
+const TYPE_CHIP: Record<CableSystem["classification"], string> = {
+  international: "INT",
+  iru: "INT",
   domestic: "DOM",
 };
 
+function statusVariant(status: CableSystem["status"]): "active" | "inactive" {
+  return status === "active" ? "active" : "inactive";
+}
+
 export default function CableCard({ cable, isSelected, onSelect }: CableCardProps) {
-  const statusBadge = STATUS_BADGE[cable.status];
-  const muted = cable.status === "retired" || cable.status === "inactive";
+  const status = statusVariant(cable.status);
+  const inactive = status === "inactive";
+  const meta = inactive
+    ? cable.length
+    : `${cable.length} · ${cable.landingPointIds.length} POINTS`;
+
   return (
     <button
+      type="button"
       onClick={() => onSelect(cable)}
-      className={`w-full text-left p-4 rounded-lg border transition-all duration-200 min-h-[60px] ${
-        isSelected
-          ? "bg-[#1800E7]/15 border-[#1800E7] shadow-[0_0_20px_rgba(24,0,231,0.25)]"
-          : "bg-[#0B0750]/60 border-[#1800E7]/25 active:bg-white/5"
-      } ${muted ? "opacity-70" : ""}`}
+      className={`v1-cablecard ${isSelected ? "is-selected" : ""} ${inactive ? "is-inactive" : ""}`}
+      style={{
+        cursor: "pointer",
+        textAlign: "left",
+        minHeight: 60,
+      }}
+      aria-pressed={isSelected}
     >
-      <div className="flex items-start gap-3">
-        <div
-          className="w-1 h-12 rounded-full flex-shrink-0 mt-0.5"
-          style={{ backgroundColor: cable.color }}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-display text-sm font-bold text-white tracking-wide">
-              {cable.shortName}
-            </span>
-            <span
-              className={`font-display text-[9px] font-bold px-1.5 py-0.5 rounded ${statusBadge.bg} ${statusBadge.fg} tracking-wider`}
-            >
-              {statusBadge.label}
-            </span>
-            <span className="font-display text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-[#A8B0D6] tracking-wider">
-              {CLASSIFICATION_LABEL[cable.classification]}
-            </span>
-          </div>
-          <p className="text-xs text-[#A8B0D6] mt-1 truncate">{cable.name}</p>
-          <div className="flex flex-wrap gap-3 mt-2 text-[10px] text-[#7A8AFF] tracking-wider font-medium tabular-nums">
-            <span>{cable.length}</span>
-            <span>{cable.landingPointIds.length} POINTS</span>
-            {cable.buildYear && <span>RFS {cable.rfs}</span>}
-          </div>
-        </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 6,
+        }}
+      >
+        <span
+          className="v1-h-display"
+          style={{
+            fontSize: cable.shortName.length > 8 ? 9 : 11,
+            color: "var(--v1-fg)",
+            lineHeight: 1.1,
+            flex: 1,
+            wordBreak: "break-word",
+          }}
+        >
+          {cable.shortName}
+        </span>
+        <span
+          style={{
+            fontFamily: "var(--v1-pixel)",
+            fontSize: 8,
+            color: "var(--v1-fg)",
+            padding: "1px 5px",
+            border: "1px solid rgba(255, 255, 255, 0.6)",
+            flexShrink: 0,
+          }}
+        >
+          {TYPE_CHIP[cable.classification]}
+        </span>
+      </div>
+
+      <div
+        style={{
+          fontFamily: "var(--v1-mono)",
+          fontSize: 8,
+          color: "rgba(255, 255, 255, 0.85)",
+          lineHeight: 1.3,
+          overflow: "hidden",
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+        }}
+      >
+        {cable.name}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginTop: "auto",
+        }}
+      >
+        <StatusIndicator status={status} pulse={!inactive} scale={0.6} />
+        <span
+          style={{
+            fontFamily: "var(--v1-mono)",
+            fontSize: 7,
+            color: "var(--v1-mute)",
+          }}
+        >
+          {meta}
+        </span>
       </div>
     </button>
   );

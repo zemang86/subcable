@@ -1,209 +1,196 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CableSystem, Classification, LandingPoint } from "@/lib/types";
 import { cables } from "@/data/cables";
-import { landingPoints } from "@/data/landingPoints";
+import type { CableSystem, Filter, LandingPoint } from "@/lib/types";
+import { useT } from "@/lib/i18n";
+import type { Language } from "@/lib/types";
 import CableCard from "./CableCard";
-import CableDetailPanel from "./CableDetailPanel";
-
-type Filter = "all" | Classification | "planned";
+import { StatusIndicator } from "./StatusIndicator";
 
 interface SidebarProps {
   selectedCable: CableSystem | null;
   onSelectCable: (cable: CableSystem | null) => void;
-  onPointClick: (point: LandingPoint) => void;
+  /** Kept for legacy compatibility with GlobeScene; unused inside the v1 CableSystem panel. */
+  onPointClick?: (point: LandingPoint) => void;
+  language?: Language;
 }
 
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "ALL" },
-  { id: "international", label: "INTL" },
-  { id: "domestic", label: "DOM" },
-  { id: "iru", label: "IRU" },
-  { id: "planned", label: "NEW" },
+const FILTERS: { id: Filter; key: "showAll" | "international" | "domestic" }[] = [
+  { id: "all", key: "showAll" },
+  { id: "international", key: "international" },
+  { id: "domestic", key: "domestic" },
 ];
+
+function isInactive(c: CableSystem): boolean {
+  return c.status !== "active";
+}
 
 export default function Sidebar({
   selectedCable,
   onSelectCable,
-  onPointClick,
+  language = "en",
 }: SidebarProps) {
-  const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const t = useT(language);
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return cables.filter((c) => {
-      if (filter === "planned") {
-        if (c.status !== "planned") return false;
-      } else if (filter !== "all") {
-        if (c.classification !== filter) return false;
-        if (c.status === "planned") return false;
-      }
-      if (!q) return true;
-      return (
-        c.name.toLowerCase().includes(q) ||
-        c.shortName.toLowerCase().includes(q) ||
-        (c.routeSummary?.toLowerCase().includes(q) ?? false)
+  const visible = useMemo(() => {
+    if (filter === "all") return cables;
+    if (filter === "international") {
+      return cables.filter(
+        (c) => c.classification === "international" || c.classification === "iru",
       );
-    });
-  }, [searchQuery, filter]);
+    }
+    return cables.filter((c) => c.classification === "domestic");
+  }, [filter]);
 
-  const grouped = useMemo(() => {
-    const active = filtered.filter((c) => c.status === "active");
-    const planned = filtered.filter((c) => c.status === "planned");
-    const retired = filtered.filter(
-      (c) => c.status === "retired" || c.status === "inactive"
-    );
-    return { active, planned, retired };
-  }, [filtered]);
-
-  const counts = useMemo(() => {
-    return {
-      total: cables.length,
-      active: cables.filter((c) => c.status === "active").length,
-      planned: cables.filter((c) => c.status === "planned").length,
-    };
-  }, []);
+  const activeCount = visible.filter((c) => c.status === "active").length;
+  const inactiveCount = visible.length - activeCount;
 
   return (
-    <div className="fixed bottom-6 right-6 z-20 w-[380px] h-[66vh] flex flex-col rounded-2xl bg-[#06013A]/95 backdrop-blur-xl border border-[#1800E7]/40 shadow-[0_8px_40px_rgba(0,0,0,0.5)] overflow-hidden">
-      {/* Top header strip — title + active count summary */}
-      <div className="px-5 py-3 border-b border-[#1800E7]/20 flex items-center justify-between">
-        <h2 className="font-display font-bold text-xs tracking-[0.2em] text-white uppercase">
-          Cable Systems
-        </h2>
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#FF5E00] animate-pulse" />
-          <span className="text-[10px] text-[#A8B0D6] tracking-wider font-medium">
-            {counts.active} ACTIVE · {counts.planned} PLANNED · {counts.total} TOTAL
-          </span>
-        </div>
+    <div
+      style={{
+        position: "fixed",
+        top: 32,
+        left: 32,
+        zIndex: 20,
+        width: 460,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      {/* Filter tabs */}
+      <div style={{ display: "flex", gap: 6 }}>
+        {FILTERS.map((f) => {
+          const active = filter === f.id;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              style={{
+                flex: 1,
+                height: 44,
+                padding: "0 10px",
+                cursor: "pointer",
+                background: active ? "var(--v1-orange)" : "rgba(255, 255, 255, 0.04)",
+                border: "1px solid rgba(255, 255, 255, 0.40)",
+                color: "var(--v1-fg)",
+                fontFamily: "var(--v1-heading)",
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: "0.15em",
+                textTransform: "uppercase",
+                transition: "background 120ms",
+              }}
+            >
+              {t(f.key).toUpperCase()}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Content — cable list / detail panel (top-most major area) */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2 touch-pan-y">
-        {selectedCable ? (
-          <CableDetailPanel
-            cable={selectedCable}
-            landingPoints={landingPoints}
-            onPointClick={onPointClick}
-            onClose={() => onSelectCable(null)}
-          />
+      {/* 3×3 grid panel — scrolls vertically when >9 (resolution §H.2) */}
+      <div
+        className="v1-card-bevel"
+        style={{
+          padding: 14,
+          minHeight: 254,
+          maxHeight: "60vh",
+          overflowY: "auto",
+        }}
+      >
+        {visible.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: 28,
+              color: "var(--v1-mute)",
+              fontSize: 11,
+            }}
+          >
+            No cables match.
+          </div>
         ) : (
-          <>
-            {grouped.active.length > 0 && (
-              <SectionHeader label="ACTIVE" count={grouped.active.length} />
-            )}
-            {grouped.active.map((cable) => (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 8,
+            }}
+          >
+            {visible.map((cable) => (
               <CableCard
                 key={cable.id}
                 cable={cable}
-                isSelected={false}
-                onSelect={onSelectCable}
+                isSelected={selectedCable?.id === cable.id}
+                onSelect={() =>
+                  onSelectCable(selectedCable?.id === cable.id ? null : cable)
+                }
               />
             ))}
-
-            {grouped.planned.length > 0 && (
-              <SectionHeader
-                label="PLANNED / IN DEVELOPMENT"
-                count={grouped.planned.length}
-                accent="#FF5E00"
-              />
-            )}
-            {grouped.planned.map((cable) => (
-              <CableCard
-                key={cable.id}
-                cable={cable}
-                isSelected={false}
-                onSelect={onSelectCable}
-              />
-            ))}
-
-            {grouped.retired.length > 0 && (
-              <SectionHeader
-                label="LEGACY / INACTIVE"
-                count={grouped.retired.length}
-                accent="#94A3B8"
-              />
-            )}
-            {grouped.retired.map((cable) => (
-              <CableCard
-                key={cable.id}
-                cable={cable}
-                isSelected={false}
-                onSelect={onSelectCable}
-              />
-            ))}
-
-            {filtered.length === 0 && (
-              <div className="text-[11px] text-[#A8B0D6] text-center py-8">
-                No cables match.
-              </div>
-            )}
-          </>
+          </div>
         )}
       </div>
 
-      {/* Footer — search + filter tabs at the BOTTOM (kiosk reach) */}
-      <div className="px-5 pt-3 pb-4 border-t border-[#1800E7]/20 bg-[#06013A]/40">
-        <input
-          type="text"
-          placeholder="Search cables, routes, regions…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2.5 bg-[#06013A]/80 border border-[#1800E7]/30 rounded-lg text-xs text-white placeholder-[#A8B0D6]/50 outline-none focus:border-[#1800E7] transition-colors min-h-[44px]"
-        />
-
-        {/* Classification tabs */}
-        <div className="flex gap-1 mt-3">
-          {FILTERS.map((f) => {
-            const active = filter === f.id;
-            return (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`flex-1 px-2 py-2 rounded font-display text-[10px] font-bold tracking-wider transition-colors min-h-[36px] ${
-                  active
-                    ? "bg-[#1800E7] text-white border border-[#1800E7]"
-                    : "bg-white/5 text-[#A8B0D6] border border-transparent active:bg-white/10"
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+      {/* Count summary strip */}
+      <div
+        className="v1-titlebar"
+        style={{
+          padding: "10px 14px",
+          background: "linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.6) 100%)",
+          border: "1px solid rgba(255, 255, 255, 0.15)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span className="v1-h-display" style={{ fontSize: 13 }}>
+          {t("cableSystem")}
+        </span>
+        <div style={{ display: "flex", gap: 14 }}>
+          <CountChip
+            label={`${activeCount} ${t("active")}`}
+            tone="active"
+          />
+          <CountChip
+            label={`${inactiveCount} ${t("inactive")}`}
+            tone="inactive"
+            hidden={inactiveCount === 0}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function SectionHeader({
+function CountChip({
   label,
-  count,
-  accent = "#FFFFFF",
+  tone,
+  hidden = false,
 }: {
   label: string;
-  count: number;
-  accent?: string;
+  tone: "active" | "inactive";
+  hidden?: boolean;
 }) {
+  if (hidden) return null;
   return (
-    <div className="flex items-center gap-2 pt-2 pb-1">
-      <div
-        className="h-px flex-1"
-        style={{ background: `${accent}33` }}
-      />
+    <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+      <StatusIndicator status={tone} pulse={tone === "active"} scale={0.7} />
       <span
-        className="font-display text-[9px] font-bold tracking-[0.2em]"
-        style={{ color: accent }}
+        style={{
+          fontFamily: "var(--v1-heading)",
+          fontSize: 11,
+          letterSpacing: "0.08em",
+          color: tone === "active" ? "var(--v1-active)" : "var(--v1-inactive)",
+        }}
       >
-        {label} · {count}
+        {label}
       </span>
-      <div
-        className="h-px flex-1"
-        style={{ background: `${accent}33` }}
-      />
     </div>
   );
 }
+
+// Keep underscore-prefixed helper that consumers may still reference; intentionally unused now.
+export type { CableSystem };
