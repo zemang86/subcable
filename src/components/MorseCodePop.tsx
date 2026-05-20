@@ -15,7 +15,7 @@ import { useT } from "@/lib/i18n";
 const MAX_CHARS = 20;
 
 interface MorseCodePopProps {
-  cable: CableSystem;
+  cable: CableSystem | null;
   landingPoints: LandingPoint[];
   onSend: (message: string, fromId: string, toId: string) => void;
   onClose: () => void;
@@ -32,12 +32,15 @@ export default function MorseCodePop({
   const t = useT(language);
 
   // Landing points scoped to the selected cable (resolution §H.8).
+  // When no cable is selected, the From/To pickers are empty and SEND is gated;
+  // the keyboard demo itself stays fully playable.
   const cablePoints = useMemo(() => {
+    if (!cable) return [];
     const lookup = new Map(landingPoints.map((p) => [p.id, p]));
     return cable.landingPointIds
       .map((id) => lookup.get(id))
       .filter((p): p is LandingPoint => Boolean(p));
-  }, [cable.landingPointIds, landingPoints]);
+  }, [cable, landingPoints]);
 
   const initialFrom = cablePoints[0]?.id ?? "";
   const initialTo = cablePoints[cablePoints.length - 1]?.id ?? initialFrom;

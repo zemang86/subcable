@@ -964,7 +964,7 @@ export default function GlobeScene() {
         <RecenterButton onRecenter={resetView} />
       </div>
 
-      {/* Left edge centered: action cluster (Help / Fun Fact / Morse / Reset) */}
+      {/* Left edge centered: action cluster (Morse / Fun Fact / Help) */}
       <div
         style={{
           position: "fixed",
@@ -1019,7 +1019,7 @@ export default function GlobeScene() {
           language={language}
         />
       )}
-      {openDialog === "morse" && selectedCable && (
+      {openDialog === "morse" && (
         <MorseCodePop
           cable={selectedCable}
           landingPoints={cableLandingPoints}
