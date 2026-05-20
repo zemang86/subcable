@@ -352,49 +352,55 @@ export default function MorseCodePop({
           </div>
         </div>
 
-        {/* Right column: morse reference grid */}
-        <div
-          style={{
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            maxHeight: 420,
-            overflowY: "auto",
-            padding: 6,
-          }}
-        >
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
-            {MORSE_ALPHABET.map(({ char, code }) => (
-              <div
-                key={char}
-                style={{
-                  background: "var(--v1-blue)",
-                  padding: "5px 8px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  color: "var(--v1-bg)",
-                  gap: 6,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "var(--v1-heading)",
-                    fontWeight: 700,
-                    fontSize: 12,
-                  }}
-                >
-                  {char}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--v1-mono)",
-                    fontSize: 10,
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {code}
-                </span>
-              </div>
-            ))}
+        {/* Right column: Morse Code Guide — orange ribbon header on top of
+            a translucent grey panel containing a 2-col grid of blue cells,
+            each with letter + literal dot/dash glyphs (per temp/morse.css). */}
+        <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {/* Orange gradient title ribbon */}
+          <div
+            style={{
+              position: "relative",
+              padding: "6px 10px",
+              background:
+                "linear-gradient(90deg, #F05A22 0%, rgba(240, 90, 34, 0) 100%)",
+              borderTop: "2px solid #FFFFFF",
+              borderLeft: "4px solid #FFFFFF",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--v1-heading)",
+                fontWeight: 500,
+                fontSize: 17.5,
+                lineHeight: "22px",
+                color: "#FFFFFF",
+              }}
+            >
+              Morse Code Guide
+            </span>
+          </div>
+          {/* Translucent grey body */}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              background: "rgba(217, 217, 217, 0.63)",
+              border: "1px solid #FFFFFF",
+              padding: 8,
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 4,
+              }}
+            >
+              {MORSE_ALPHABET.map(({ char, code }) => (
+                <MorseRefCell key={char} char={char} code={code} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -747,6 +753,76 @@ function PanelBackground() {
         vectorEffect="non-scaling-stroke"
       />
     </svg>
+  );
+}
+
+/* ───────────────────────── MORSE REF CELL ───────────────────────── */
+// Per temp/morse.css: 51×19 pill, rgba(3,77,161,0.82) bg, hairline white
+// border, 2px radius. Letter (Rajdhani 500, ~8.7px) on the left, then a
+// row of literal glyph shapes for each Morse symbol — small white circle
+// for a dot, small white bar for a dash.
+
+function MorseRefCell({ char, code }: { char: string; code: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        background: "rgba(3, 77, 161, 0.82)",
+        border: "0.5px solid #FFFFFF",
+        borderRadius: 2,
+        padding: "3px 6px",
+        minHeight: 19,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--v1-heading)",
+          fontWeight: 500,
+          fontSize: 9,
+          lineHeight: 1,
+          color: "#FFFFFF",
+          width: 8,
+        }}
+      >
+        {char}
+      </span>
+      <span
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 2,
+        }}
+      >
+        {code.split("").map((sym, i) =>
+          sym === "." ? (
+            <span
+              key={i}
+              aria-hidden
+              style={{
+                width: 3,
+                height: 3,
+                borderRadius: "50%",
+                background: "#F1F7FF",
+              }}
+            />
+          ) : (
+            <span
+              key={i}
+              aria-hidden
+              style={{
+                width: 7,
+                height: 1,
+                background: "#F1F7FF",
+              }}
+            />
+          ),
+        )}
+      </span>
+    </div>
   );
 }
 
