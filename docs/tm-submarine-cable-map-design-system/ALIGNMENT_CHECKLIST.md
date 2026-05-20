@@ -7,7 +7,7 @@ Tracks every component / spec in `tm-submarine-cable-map-design-system/` against
 - 🔍 verify — likely already matches but worth a spot-check
 - 🧊 deferred — tech-debt, parked
 
-Recent commits ahead of origin/main: `2c74062` `26458da` `ad24e3a` `c281c08` `4b4bc28` `f7d75b1` (+6 pre-M1).
+Recent commits ahead of origin/main: M1 `2c74062` · M2 `26458da` · M3 `ad24e3a` · M4 `c281c08` · M5 `4b4bc28` · M5b `f7d75b1` · M6 `0a67bb0` · M7 `4cd8286` · M7b `babc1fa` · M8 `3718502` · M9 `6349827` · M10 `9925b41` · M11 `f1510d0` · M12 `3e5f330` · M13 `38bff1f` · M14 `0c35f64` · M15 `b3d9acc` · M16 `fd1a8df` · M17 `3721986` · M18 `79b4ee2` (+ pre-M1 history).
 
 ---
 
@@ -29,11 +29,11 @@ Recent commits ahead of origin/main: `2c74062` `26458da` `ad24e3a` `c281c08` `4b
 - ✅ `.v1-bracket` — used in HowTo tiles
 - ✅ `.v1-circle-btn` — 76×76, radial gradient, lime-glow on active
 - ✅ `.v1-pill` — language toggle: 56px tall (kiosk-touch-friendly per CLAUDE.md min 48px), 4px inner gutter, brighter pill gradient, active capsule with drop shadow + inset highlight, flip-color (EN=orange, BM=blue)
-- ✅ `.v1-filter-tab` — 44px, orange-active
+- ✅ `.v1-filter-tab` — superseded by inline FilterButton inside the Cable System panel (M18); old class still in globals.css for any future re-use
 - ✅ `.v1-btn-{primary,blue,danger,send}` — added to globals.css; verify each consumer uses the class instead of inlining (Morse keyboard mostly still inlines)
 - 🔍 **`.v1-status`** (triple-ring) vs `preview/comp-status.html` — already matches per the css spot-check, but double-confirm 14×14 / 1.4px / inset 2&4
 - 🔍 **`.v1-tag`** chip vs `preview/comp-tags.html` — verify 10px Rajdhani 0.18em
-- 🔍 **`.v1-cablecard`** vs `preview/comp-cable-card.html` — verify 4px radius, 60min-h, 11/8/7px font ramp, clamp-2-lines
+- ✅ **`.v1-cablecard`** — rebuilt exactly per Figma `temp/cablecards-{active,notactive}.css` (M12 → M17). Solid-orange selected state replaced with translucent-white + 2px orange outline + cobalt-blue text + auto-sized subtitle divider; chip is `#D9D9D9` pill with `#0A0449` text; status indicator on top-right (lime/green concentric rings); 66px tall
 - 🔍 **`.v1-input`** vs `preview/comp-input.html` — only used in Morse pickers right now; check 48min-h, blue-fill bg, locate icon
 - 🔍 **Bevel card** vs `preview/comp-bevel-card.html` — pixel-diff vs Figma if you can side-by-side
 
@@ -46,16 +46,19 @@ Recent commits ahead of origin/main: `2c74062` `26458da` `ad24e3a` `c281c08` `4b
 
 ## 4. Panels
 
-### Sidebar / Cable System
-- ✅ Filter tabs (Show All / International / Domestic) at 44px orange-active — relocated to BOTTOM, 3-col grid (M11)
-- ✅ 3×3 grid panel with bevel card — width 454px, scroll thumb (orange) on right edge (M11)
-- ✅ **Title strip on TOP** — black bg, 18px Chakra Petch Bold, 4 crosshair (+) corner markers, count chips inline-right (M11 / V3 spec)
-- ✅ **Cable System layout flipped** to match `screenshots/cable-system-v3.png` (title → grid → filters, was filters → grid → counts)
-- ✅ **CableCard bottom row** — 3 stacked metric blocks (Length+Km / Pts+Pts / RFS-month+year) replacing the inline string (M11)
+### Sidebar / Cable System — ✅ FULLY DONE (M11 → M18)
+- ✅ Filter tabs (Show All / International / Domestic) — 32px tall, **inside** the panel container, 3-col grid column-aligned with the cards above; solid-orange active + red 2px bottom strip + 3px white corner squares; minimal transparent inactive (M18)
+- ✅ 3-col scrollable grid panel — width 454px, **live orange scroll bar** (thumb tracks scroll position via ref + ResizeObserver, M14)
+- ✅ Panel frame — single SVG (lifted from `temp/systemcable.svg`) with 2 brackets + 2 side lines, rounded line-caps, `preserveAspectRatio="none"` so it stretches with panel size; replaces the 4 hand-rolled div bands (M18)
+- ✅ Title strip — **white-translucent gradient** (matches Header), 26px Chakra Petch 600, 4 **crosshair (+)** corner markers (M11 → M15), 17px Rajdhani 500 counts with literal `#8FFF3F` / `#FF3F3F` colors and concentric-ring status indicators
+- ✅ CableCard — taller (66px) with more grid gap (12px), `minmax(0,1fr)` columns prevent horizontal scroll, font sizes bumped for kiosk readability (M13)
+- ✅ CableCard subtitle divider — auto-sizes to text length (border-bottom on subtitle span, wider when subtitle is long) per Figma `cablecards-{active,notactive}.css` (M16)
+- ✅ CableCard selected state — explicit `background-image: none` to fully clear bevel gradient; translucent white `rgba(255,255,255,0.56)` + 2px orange border (M17)
 
-### Cable Information
+### Cable Information — ⚠️ NEXT UP
 - ✅ Inactive cables show DECOMMISSIONED chip
 - ✅ "Send Message →" orange CTA
+- ⚠️ **Audit against Figma export** — same treatment as Cable System: have user drop a `temp/cableinfo*.css` and align exactly (panel frame? title strip? field grid layout?)
 - 🔍 **4-col field grid** (LENGTH / BUILT / RFS / TYPE) — kit may have a different ordering or capacity field; check vs Figma
 - ⚠️ **CAPACITY field** — the user's screenshot shows a `CAPACITY 8,000 Gbps` field next to BUILT. We don't currently render capacity. Check whether `CableSystem` data model has it (probably not) and decide to add it.
 - ⚠️ **"Full name" label** in front of the cable name — the screenshot shows `Full name` as an eyebrow above the cable long-name. Add or skip?
@@ -110,11 +113,12 @@ Recent commits ahead of origin/main: `2c74062` `26458da` `ad24e3a` `c281c08` `4b
 
 ## Suggested order to chew through
 
-1. **§1 Layout** — biggest visual delta; one user-call gates a lot of downstream work
-2. **§5 FunFact assets** — easy win, swap in the real cable-cross-section image
-3. **§6 Cable line dash pattern** — visual feature most visible on the screenshot
-4. **§4 CAPACITY + Full-name fields** — small data-model addition
-5. **§2/3/8 verify-rounds** — quick spot-checks, mostly already aligned
-6. **§7 Brand assets** — logo / icons / splash decisions
-7. **§9 LoadingScreen + idle** — small polish
-8. **§10 tech-debt** — when product alignment is done
+1. ✅ ~~§1 Layout~~ — closed
+2. ✅ ~~§4 Sidebar / Cable System~~ — closed M11 → M18
+3. **§4 Cable Information** ← **NEXT** (audit-and-rebuild treatment same as Cable System; user will drop Figma CSS into `temp/`)
+4. **§5 FunFact assets** — easy win, swap in the real cable-cross-section image
+5. **§6 Cable line dash pattern** — visual feature most visible on the screenshot
+6. **§2/3/8 verify-rounds** — quick spot-checks, mostly already aligned
+7. **§7 Brand assets** — logo / icons / splash decisions
+8. **§9 LoadingScreen + idle** — small polish
+9. **§10 tech-debt** — when product alignment is done
