@@ -9,20 +9,18 @@ type LandingPointCalloutProps = {
   screenPos: { x: number; y: number };
   /** When true, the callout fades and stops receiving pointer events. */
   hidden?: boolean;
-  onClose?: () => void;
 };
 
-const CALLOUT_WIDTH = 380;
-const CALLOUT_BOX_HEIGHT = 100; // padding 22+18 + title 32 + row 11 + gap 8 ≈ 91, round up
-const GAP_BOX_TO_HUD = 14;
-const HUD_CENTER_Y = 138; // y coord of dot inside the 64×170 PointHUD SVG
+const CALLOUT_WIDTH = 210;
+const CALLOUT_BOX_HEIGHT = 58; // padding 10+10 + title 20 + row 10 + gap 4
+const GAP_BOX_TO_HUD = 6;
+const HUD_CENTER_Y = 72; // y of dot inside the 48×90 PointHUD SVG
 const OFFSET_FROM_POINT = CALLOUT_BOX_HEIGHT + GAP_BOX_TO_HUD + HUD_CENTER_Y;
 
 export function LandingPointCallout({
   point,
   screenPos,
   hidden = false,
-  onClose,
 }: LandingPointCalloutProps) {
   return (
     <div
@@ -41,22 +39,19 @@ export function LandingPointCallout({
       }}
     >
       {/* Callout box — 4 L-corner orange brackets + translucent deep-orange fill */}
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label={`Close callout for ${point.name}`}
+      <div
+        role="group"
+        aria-label={point.name}
         style={{
           position: "relative",
           width: "100%",
-          padding: "22px 26px 18px",
+          padding: "10px 14px",
           background: "rgba(188, 53, 20, 0.55)",
-          border: "1px solid rgba(0, 0, 0, 0)",
           color: "var(--v1-fg)",
           textAlign: "left",
-          cursor: "pointer",
           display: "flex",
           flexDirection: "column",
-          gap: 8,
+          gap: 4,
         }}
       >
         <CornerBracket position="tl" />
@@ -68,7 +63,7 @@ export function LandingPointCallout({
           style={{
             fontFamily: "var(--v1-heading)",
             fontWeight: 700,
-            fontSize: 32,
+            fontSize: 20,
             color: "var(--v1-fg)",
             letterSpacing: "0.02em",
             lineHeight: 1,
@@ -81,13 +76,13 @@ export function LandingPointCallout({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            gap: 14,
+            gap: 8,
           }}
         >
           <span
             style={{
               fontFamily: "var(--v1-mono)",
-              fontSize: 11,
+              fontSize: 10,
               color: "var(--v1-fg)",
               letterSpacing: "0.04em",
             }}
@@ -97,7 +92,7 @@ export function LandingPointCallout({
           <span
             style={{
               fontFamily: "var(--v1-mono)",
-              fontSize: 11,
+              fontSize: 10,
               color: "var(--v1-fg)",
               letterSpacing: "0.04em",
             }}
@@ -105,7 +100,7 @@ export function LandingPointCallout({
             {point.lat.toFixed(2)}, {point.lng.toFixed(2)}
           </span>
         </div>
-      </button>
+      </div>
 
       {/* Drop line + reticle, centered under the callout box */}
       <PointHUD
@@ -119,16 +114,16 @@ export function LandingPointCallout({
 function CornerBracket({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
   const base = {
     position: "absolute" as const,
-    width: 22,
-    height: 22,
+    width: 14,
+    height: 14,
     borderStyle: "solid" as const,
     borderColor: "var(--v1-orange)",
   };
   const variants = {
-    tl: { top: -3, left: -3, borderWidth: "2.5px 0 0 2.5px" },
-    tr: { top: -3, right: -3, borderWidth: "2.5px 2.5px 0 0" },
-    bl: { bottom: -3, left: -3, borderWidth: "0 0 2.5px 2.5px" },
-    br: { bottom: -3, right: -3, borderWidth: "0 2.5px 2.5px 0" },
+    tl: { top: -2, left: -2, borderWidth: "1.8px 0 0 1.8px" },
+    tr: { top: -2, right: -2, borderWidth: "1.8px 1.8px 0 0" },
+    bl: { bottom: -2, left: -2, borderWidth: "0 0 1.8px 1.8px" },
+    br: { bottom: -2, right: -2, borderWidth: "0 1.8px 1.8px 0" },
   };
   return <span aria-hidden style={{ ...base, ...variants[position] }} />;
 }

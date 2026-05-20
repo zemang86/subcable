@@ -155,10 +155,11 @@ export default function GlobeScene() {
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
   const [selectedLandingPoint, setSelectedLandingPoint] =
     useState<LandingPoint | null>(null);
-  const [calloutScreen, setCalloutScreen] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
+  /** Screen-space position of every landing point along the selected cable —
+      keyed by point id. Used to position the per-point callouts. */
+  const [calloutScreens, setCalloutScreens] = useState<
+    Record<string, { x: number; y: number; visible: boolean }>
+  >({});
   const [openDialog, setOpenDialog] = useState<DialogId>(null);
   const [language, setLanguage] = useState<Language>("en");
   const [muted, setMuted] = useState(false);
@@ -829,40 +830,48 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(raf);
   }, [isLoaded, allLabels]);
 
-  // Track the selected landing point's screen position so LandingPointCallout
-  // stays anchored over its globe coordinate while the camera rotates/zooms.
-  // Throttled to ~30 fps via a frame-skip to avoid a 60Hz React storm.
-  // setCalloutScreen(null) lives in handleGlobePointClick / resetView / etc —
-  // the effect itself only schedules updates while a point is active.
+  // Track screen positions of every landing point along the selected cable.
+  // V1.3 Figma intent: when a cable is selected, every one of its landing
+  // points renders a callout simultaneously. Throttled to ~30 fps via a
+  // frame-skip to avoid a 60Hz React storm.
   useEffect(() => {
-    if (!isLoaded || !selectedLandingPoint || !globeRef.current) return;
+    if (!isLoaded || !selectedCable || !globeRef.current) {
+      setCalloutScreens({});
+      return;
+    }
+    const points = landingPoints.filter((p) =>
+      selectedCable.landingPointIds.includes(p.id),
+    );
     let raf = 0;
     let frame = 0;
     const tick = () => {
       frame = (frame + 1) & 1;
       if (frame === 0) {
-        const xyz = globeRef.current.getCoords(
-          selectedLandingPoint.lat,
-          selectedLandingPoint.lng,
-          0.01,
-        );
         const camera: THREE.Camera | null =
           globeRef.current?.camera?.() ?? null;
         const renderer = globeRef.current?.renderer?.();
         if (camera && renderer) {
-          const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
           const dom = renderer.domElement as HTMLCanvasElement;
-          setCalloutScreen({
-            x: ((v.x + 1) / 2) * dom.clientWidth,
-            y: ((1 - v.y) / 2) * dom.clientHeight,
-          });
+          const next: Record<string, { x: number; y: number; visible: boolean }> = {};
+          for (const p of points) {
+            const xyz = globeRef.current.getCoords(p.lat, p.lng, 0.01);
+            const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
+            // v.z > 1 = point is behind the camera (far side of the globe)
+            const visible = v.z <= 1;
+            next[p.id] = {
+              x: ((v.x + 1) / 2) * dom.clientWidth,
+              y: ((1 - v.y) / 2) * dom.clientHeight,
+              visible,
+            };
+          }
+          setCalloutScreens(next);
         }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [isLoaded, selectedLandingPoint]);
+  }, [isLoaded, selectedCable]);
 
   // Derived stats for the top-right KeyStatistic stack.
   const stats = useMemo(() => {
@@ -1013,14 +1022,19 @@ export default function GlobeScene() {
       {/* Bottom: titlebar */}
       <BottomTitlebar selectedCable={selectedCable} language={language} />
 
-      {/* Map overlay: landing point callout */}
-      {selectedLandingPoint && calloutScreen && (
-        <LandingPointCallout
-          point={selectedLandingPoint}
-          screenPos={calloutScreen}
-          onClose={() => setSelectedLandingPoint(null)}
-        />
-      )}
+      {/* Map overlay: one callout per landing point on the selected cable */}
+      {selectedCable &&
+        cableLandingPoints.map((p) => {
+          const pos = calloutScreens[p.id];
+          if (!pos || !pos.visible) return null;
+          return (
+            <LandingPointCallout
+              key={p.id}
+              point={p}
+              screenPos={{ x: pos.x, y: pos.y }}
+            />
+          );
+        })}
 
       {/* Dialogs */}
       {openDialog === "howto" && (
