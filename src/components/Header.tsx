@@ -21,11 +21,13 @@ export function Header({ selectedCable, language }: HeaderProps) {
         top: 12,
         left: 18,
         right: 23,
-        height: 120,
+        height: 80,
         pointerEvents: "none",
       }}
     >
-      {/* Rectangle 50 — translucent white-gradient fill, 3px inset from frame */}
+      {/* Rectangle 50 — translucent white-gradient fill, 3px inset from frame.
+          Crosshair markers are children of this so their -4 offset sits on the
+          actual visible border corner. */}
       <div
         style={{
           boxSizing: "border-box",
@@ -38,28 +40,26 @@ export function Header({ selectedCable, language }: HeaderProps) {
             "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
           border: "0.374494px solid #FFFFFF",
         }}
-      />
-
-      {/* 4 L-shaped corner brackets at the frame corners */}
-      <FrameCorner position="tl" />
-      <FrameCorner position="tr" />
-      <FrameCorner position="bl" />
-      <FrameCorner position="br" />
+      >
+        <CrossMark position="tl" />
+        <CrossMark position="tr" />
+        <CrossMark position="bl" />
+        <CrossMark position="br" />
+      </div>
 
       {/* Title: Submarine Cable Map */}
       <span
         style={{
           position: "absolute",
           left: 27,
-          top: 26,
-          width: 537,
-          height: 68,
+          top: 14,
           fontFamily: "var(--v1-display)",
           fontStyle: "normal",
           fontWeight: 700,
-          fontSize: 52,
-          lineHeight: "68px",
+          fontSize: 40,
+          lineHeight: "48px",
           color: "#FFFFFF",
+          whiteSpace: "nowrap",
         }}
       >
         {t("submarineCableMap")}
@@ -67,27 +67,26 @@ export function Header({ selectedCable, language }: HeaderProps) {
 
       {selectedCable && (
         <>
-          {/* SKR1M / cable code — Chakra Petch Regular 64px, right-anchored */}
+          {/* Cable code — middle-right column, leaves room for chip in 3rd column */}
           <span
             style={{
               position: "absolute",
-              right: 24,
-              top: 34,
-              width: 194,
-              height: 83,
+              right: 87,
+              top: 14,
               fontFamily: "var(--v1-display)",
               fontStyle: "normal",
               fontWeight: 400,
-              fontSize: 64,
-              lineHeight: "83px",
+              fontSize: 48,
+              lineHeight: "48px",
               color: "#FFFFFF",
               textAlign: "right",
+              whiteSpace: "nowrap",
             }}
           >
             {selectedCable.shortName}
           </span>
 
-          {/* Top-right DOM/INT chip cluster — film-strip frame */}
+          {/* DOM/INT chip — 3rd column, far right, vertically centered */}
           <DomChip label={typeLabel} />
         </>
       )}
@@ -95,21 +94,46 @@ export function Header({ selectedCable, language }: HeaderProps) {
   );
 }
 
-function FrameCorner({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
-  const base = {
-    position: "absolute" as const,
-    width: 8,
-    height: 8,
-    borderStyle: "solid" as const,
-    borderColor: "#FFFFFF",
-  };
+function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
   const variants = {
-    tl: { top: 0, left: 0, borderWidth: "2px 0 0 2px" },
-    tr: { top: 0, right: 0, borderWidth: "2px 2px 0 0" },
-    bl: { bottom: 0, left: 0, borderWidth: "0 0 2px 2px" },
-    br: { bottom: 0, right: 0, borderWidth: "0 2px 2px 0" },
+    tl: { top: -4, left: -4 },
+    tr: { top: -4, right: -4 },
+    bl: { bottom: -4, left: -4 },
+    br: { bottom: -4, right: -4 },
   };
-  return <span aria-hidden style={{ ...base, ...variants[position] }} />;
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        width: 8,
+        height: 8,
+        pointerEvents: "none",
+        ...variants[position],
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 0,
+          width: 8,
+          height: 0,
+          borderTop: "2px solid #FFFFFF",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 3,
+          width: 0,
+          height: 8,
+          borderLeft: "2px solid #FFFFFF",
+        }}
+      />
+    </span>
+  );
 }
 
 // Composite chip — translucent rect + Chakra Petch Light 275 label,
@@ -119,8 +143,8 @@ function DomChip({ label }: { label: string }) {
     <div
       style={{
         position: "absolute",
-        right: 29,
-        top: 10,
+        right: 24,
+        top: 26,
         width: 47.05,
         height: 27.74,
       }}
