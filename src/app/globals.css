@@ -84,6 +84,10 @@
   --v1-mute:         #C4C4C4;
   --v1-mute-2:       #D9D9D9;
   --v1-mute-dark:    #4E4F4E;
+  --v1-brown:        #78625A;          /* morse backspace key */
+
+  /* Bevel cut — Figma KeyStatistic path 335:263 */
+  --v1-bevel-cut:    17.5px;
 
   /* Type families — point straight at the @font-face family names declared
      above. No next/font indirection (it was broken under Next 16 Turbopack). */
@@ -218,12 +222,12 @@ body {
   background: rgba(255, 255, 255, 0.02);
 }
 
-/* Bevelled card — top-right corner cut */
+/* Bevelled card — top-right corner cut (Figma Rectangle 53 gradient) */
 .v1-card-bevel {
-  --c: 16px;
+  --c: var(--v1-bevel-cut);
   background:
-    linear-gradient(var(--v1-blue) 22%, rgba(3, 77, 161, 0) 88%),
-    linear-gradient(var(--v1-orange-60) 0%, rgba(240, 90, 34, 0) 100%);
+    linear-gradient(303.52deg, var(--v1-blue) -11.48%, rgba(3, 77, 161, 0) 82.93%),
+    linear-gradient(123.48deg, var(--v1-orange-60) -7.19%, rgba(240, 90, 34, 0) 100%);
   clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%);
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -231,10 +235,10 @@ body {
 
 /* Inverse bevel — bottom-left corner cut */
 .v1-card-bevel-bl {
-  --c: 16px;
+  --c: var(--v1-bevel-cut);
   background:
-    linear-gradient(var(--v1-blue) 22%, rgba(3, 77, 161, 0) 88%),
-    linear-gradient(var(--v1-orange-60) 0%, rgba(240, 90, 34, 0) 100%);
+    linear-gradient(303.52deg, var(--v1-blue) -11.48%, rgba(3, 77, 161, 0) 82.93%),
+    linear-gradient(123.48deg, var(--v1-orange-60) -7.19%, rgba(240, 90, 34, 0) 100%);
   clip-path: polygon(0 0, 100% 0, 100% 100%, var(--c) 100%, 0 calc(100% - var(--c)));
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
@@ -314,4 +318,137 @@ body {
     linear-gradient(to right,  rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: calc(100% / 3) calc(100% / 3);
+}
+
+/* ───────── Atomic UI components (ported from tm-* kit) ───────── */
+
+/* Circular cluster button (How-To / Info / Morse) — 76×76 per Figma V1.3 */
+.v1-circle-btn {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0) 80%),
+    rgba(255, 255, 255, 0.03);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  color: var(--v1-fg);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 200ms;
+}
+.v1-circle-btn.is-active {
+  border-color: var(--v1-active);
+  color: var(--v1-active);
+  box-shadow: 0 0 24px rgba(143, 255, 63, 0.5);
+}
+.v1-circle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Filter tab — 44px tall, orange when active */
+.v1-filter-tab {
+  flex: 1;
+  height: 44px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 500;
+  font-size: 11px; letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.v1-filter-tab.is-active {
+  background: var(--v1-orange);
+  border-color: var(--v1-orange-hot);
+}
+
+/* Language toggle pill — kit lines 366–407 */
+.v1-pill {
+  position: relative;
+  display: inline-flex;
+  height: 44px;
+  padding: 0;
+  border-radius: 9999px;
+  background:
+    linear-gradient(to right,
+      var(--v1-blue)     0%,
+      rgba(3, 77, 161, 0)  45%,
+      rgba(240, 90, 34, 0) 55%,
+      rgba(240, 90, 34, 0.55) 100%),
+    var(--v1-bg);
+  border: 0.6px solid rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+}
+.v1-pill__opt {
+  flex: 1 1 0;
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 24px;
+  border: none;
+  background: transparent;
+  border-radius: 9999px;
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 400;
+  font-size: 18.5px; letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 200ms;
+  margin: 0;
+}
+.v1-pill__opt.is-active {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 70%, var(--v1-blue) 100%);
+  border: 0.7px solid rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+}
+.v1-pill__opt:first-child.is-active { color: var(--v1-orange); }
+.v1-pill__opt:last-child.is-active  { color: var(--v1-blue); }
+
+/* Primary CTA — orange */
+.v1-btn-primary {
+  min-height: 48px;
+  padding: 0 18px;
+  background: var(--v1-orange);
+  border: 1px solid var(--v1-orange-hot);
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 13px; letter-spacing: 0.20em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Secondary CTA — blue */
+.v1-btn-blue {
+  min-height: 44px;
+  padding: 0 16px;
+  background: var(--v1-blue);
+  border: none;
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 12px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Destructive CTA — red */
+.v1-btn-danger {
+  min-height: 56px;
+  background: var(--v1-inactive-2);
+  border: none;
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 13px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Send CTA — inverted white (Morse dialog only) */
+.v1-btn-send {
+  min-height: 56px;
+  background: var(--v1-fg);
+  border: none;
+  color: var(--v1-blue);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 14px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
 }

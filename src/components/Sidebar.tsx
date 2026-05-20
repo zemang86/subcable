@@ -65,21 +65,7 @@ export default function Sidebar({
               key={f.id}
               type="button"
               onClick={() => setFilter(f.id)}
-              style={{
-                flex: 1,
-                height: 44,
-                padding: "0 10px",
-                cursor: "pointer",
-                background: active ? "var(--v1-orange)" : "rgba(255, 255, 255, 0.04)",
-                border: "1px solid rgba(255, 255, 255, 0.40)",
-                color: "var(--v1-fg)",
-                fontFamily: "var(--v1-heading)",
-                fontWeight: 500,
-                fontSize: 11,
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-                transition: "background 120ms",
-              }}
+              className={`v1-filter-tab ${active ? "is-active" : ""}`}
             >
               {t(f.key).toUpperCase()}
             </button>
@@ -95,8 +81,6 @@ export default function Sidebar({
           minHeight: 254,
           maxHeight: "60vh",
           overflowY: "auto",
-          background:
-            "linear-gradient(303.52deg, #034DA1 -11.48%, rgba(3, 77, 161, 0) 82.93%), linear-gradient(123.48deg, rgba(240, 90, 34, 0.6) -7.19%, rgba(240, 90, 34, 0) 100%)",
         }}
       >
         {visible.length === 0 ? (
