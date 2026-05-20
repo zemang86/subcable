@@ -285,90 +285,70 @@ export default function MorseCodePop({
             )}
           </div>
 
-          {/* DOT / DASH (primary 56px orange) */}
+          {/* Row 1: DOT (orange) | DASH (orange) — primary 76px keys */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <KeyBtn
-              variant="primary"
+            <MorseKey
+              tone="orange"
+              size="primary"
               disabled={atCap}
               onClick={() => append(".")}
-              label="·"
-              hint={t("dot")}
+              glyph={<DotGlyph />}
+              label={t("dot")}
             />
-            <KeyBtn
-              variant="primary"
+            <MorseKey
+              tone="orange"
+              size="primary"
               disabled={atCap}
               onClick={() => append("-")}
-              label="—"
-              hint={t("dash")}
+              glyph={<DashGlyph />}
+              label={t("dash")}
             />
           </div>
 
-          {/* ENTER LETTER (blue) · SPACE · BACKSPACE (mute-brown) */}
+          {/* Row 2: ENTER (blue) | SPACE (brown) | BACKSPACE (brown) — secondary 49px keys */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <KeyBtn
-              variant="blue"
+            <MorseKey
+              tone="blue"
+              size="secondary"
               disabled={atCap || buffer.length === 0}
               onClick={commitLetter}
-              label="↵"
-              hint={t("enterLetter")}
+              glyph={<EnterGlyph />}
+              label={t("enterLetter")}
             />
-            <KeyBtn
-              variant="plain"
+            <MorseKey
+              tone="brown"
+              size="secondary"
               disabled={atCap}
               onClick={insertSpace}
-              label="␣"
-              hint={t("space")}
+              glyph={<SpaceGlyph />}
+              label={t("space")}
             />
-            <KeyBtn
-              variant="brown"
+            <MorseKey
+              tone="brown"
+              size="secondary"
               onClick={backspace}
-              label="⌫"
-              hint={t("backspace")}
+              glyph={<BackspaceGlyph />}
+              label={t("backspace")}
             />
           </div>
 
-          {/* CLEAR ALL (red 1/3) · SEND (white bg blue text 2/3) */}
+          {/* Row 3: CLEAR ALL (red 1fr) | SEND MESSAGE (white 2fr) — tall 85px */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10 }}>
-            <button
-              type="button"
+            <MorseKey
+              tone="red"
+              size="tall"
               onClick={clear}
               disabled={buffer.length === 0 && decoded.length === 0}
-              style={{
-                minHeight: 56,
-                background: "var(--v1-inactive-2)",
-                border: "none",
-                color: "var(--v1-fg)",
-                fontFamily: "var(--v1-heading)",
-                fontWeight: 700,
-                fontSize: 13,
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                opacity: buffer.length === 0 && decoded.length === 0 ? 0.4 : 1,
-              }}
-            >
-              {t("clearAll")}
-            </button>
-            <button
-              type="button"
+              label={t("clearAll")}
+            />
+            <MorseKey
+              tone="white"
+              size="tall"
               onClick={() => canSend && onSend(decoded.trim(), from, to)}
               disabled={!canSend}
-              style={{
-                minHeight: 56,
-                background: "var(--v1-fg)",
-                border: "none",
-                color: "var(--v1-blue)",
-                fontFamily: "var(--v1-heading)",
-                fontWeight: 700,
-                fontSize: 14,
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                opacity: canSend ? 1 : 0.4,
-              }}
-            >
-              {t("sendMessage")}
-            </button>
+              glyph={<SendGlyph />}
+              label={t("sendMessage")}
+            />
           </div>
         </div>
 
@@ -770,82 +750,196 @@ function PanelBackground() {
   );
 }
 
-function KeyBtn({
+/* ───────────────────────── MORSE KEY ───────────────────────── */
+// Kit-spec key buttons per temp/morse.css:
+//   tone — gradient + text color (orange/blue/brown/red/white)
+//   size — primary (76px, big glyph), secondary (49px), tall (85px)
+// All keys share 9.7px corner radius, Rajdhani 600 label.
+
+const TONE_BG: Record<string, string> = {
+  orange:
+    "linear-gradient(180deg, #F05A22 0.41%, rgba(240, 90, 34, 0.3) 118.23%)",
+  blue:
+    "linear-gradient(180deg, #034DA1 0.41%, rgba(3, 77, 161, 0.18) 83.58%)",
+  brown:
+    "linear-gradient(180deg, #833214 0.41%, rgba(131, 50, 20, 0.3) 118.23%)",
+  red:
+    "linear-gradient(180deg, #ED1B2E 0.41%, rgba(237, 27, 46, 0.3) 118.23%)",
+  white: "#FFFFFF",
+};
+const SIZE_H: Record<string, number> = {
+  primary: 76,
+  secondary: 49,
+  tall: 85,
+};
+
+function MorseKey({
+  tone,
+  size,
   label,
-  hint,
+  glyph,
   onClick,
   disabled = false,
-  variant,
 }: {
+  tone: "orange" | "blue" | "brown" | "red" | "white";
+  size: "primary" | "secondary" | "tall";
   label: string;
-  hint: string;
+  glyph?: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
-  variant: "primary" | "blue" | "brown" | "plain";
 }) {
-  const styleByVariant: Record<typeof variant, React.CSSProperties> = {
-    primary: {
-      background: "var(--v1-orange)",
-      color: "var(--v1-fg)",
-      minHeight: 56,
-    },
-    blue: {
-      background: "var(--v1-blue)",
-      color: "var(--v1-fg)",
-      minHeight: 44,
-    },
-    brown: {
-      background: "var(--v1-brown)",
-      color: "var(--v1-fg)",
-      minHeight: 44,
-    },
-    plain: {
-      background: "rgba(255, 255, 255, 0.06)",
-      color: "var(--v1-fg)",
-      minHeight: 44,
-      border: "1px solid rgba(255, 255, 255, 0.30)",
-    },
-  };
+  const textColor = tone === "white" ? "#034DA1" : "#FFFFFF";
+  const labelSize = size === "primary" ? 14.6 : tone === "white" ? 16 : 9.7;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       style={{
-        ...styleByVariant[variant],
-        border: styleByVariant[variant].border ?? "none",
+        height: SIZE_H[size],
+        background: TONE_BG[tone],
+        border: "none",
+        borderRadius: 9.7,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 2,
+        gap: size === "primary" ? 6 : 4,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.4 : 1,
+        padding: 0,
       }}
     >
-      <span
-        style={{
-          fontFamily: "var(--v1-display)",
-          fontWeight: 700,
-          fontSize: variant === "primary" ? 28 : 22,
-          color: "var(--v1-fg)",
-          lineHeight: 1,
-        }}
-      >
-        {label}
-      </span>
+      {glyph}
       <span
         style={{
           fontFamily: "var(--v1-heading)",
           fontWeight: 600,
-          fontSize: 10,
-          letterSpacing: "0.18em",
-          textTransform: "uppercase",
-          color: "var(--v1-fg)",
+          fontSize: labelSize,
+          lineHeight: 1.2,
+          color: textColor,
         }}
       >
-        {hint}
+        {label}
       </span>
     </button>
+  );
+}
+
+/* ─────────── KEY GLYPHS — literal dot/dash/etc per kit ─────────── */
+
+function DotGlyph() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 17,
+        height: 17,
+        borderRadius: "50%",
+        background: "#F1F7FF",
+      }}
+    />
+  );
+}
+
+function DashGlyph() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 71,
+        height: 7,
+        background: "#F1F7FF",
+      }}
+    />
+  );
+}
+
+function EnterGlyph() {
+  return (
+    <svg width="17" height="15" viewBox="0 0 17 15" aria-hidden fill="none">
+      <path
+        d="M14 1v6a2 2 0 0 1-2 2H2.5"
+        stroke="#FFFFFF"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="5,6 2,9 5,12"
+        stroke="#FFFFFF"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SpaceGlyph() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 36,
+        height: 6,
+        background: "#FFFFFF",
+      }}
+    />
+  );
+}
+
+function BackspaceGlyph() {
+  return (
+    <svg width="29" height="18" viewBox="0 0 29 18" aria-hidden fill="none">
+      <path
+        d="M9 1H26.5A1.18 1.18 0 0 1 27.7 2.18V15.82A1.18 1.18 0 0 1 26.5 17H9L1.5 9 9 1Z"
+        stroke="#FFFFFF"
+        strokeWidth="1.18"
+        strokeDasharray="2.5 1.5"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="14"
+        y1="6"
+        x2="20"
+        y2="12"
+        stroke="#FFFFFF"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <line
+        x1="20"
+        y1="6"
+        x2="14"
+        y2="12"
+        stroke="#FFFFFF"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SendGlyph() {
+  return (
+    <svg width="32" height="28" viewBox="0 0 32 28" aria-hidden fill="none">
+      <circle
+        cx="22.5"
+        cy="11.25"
+        r="11.25"
+        stroke="#D2E7FF"
+        strokeWidth="3.75"
+        fill="none"
+      />
+      <path
+        d="M22.5 26L22.5 8M22.5 8L15 15.5M22.5 8L30 15.5"
+        stroke="#034DA1"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
