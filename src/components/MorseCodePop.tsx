@@ -20,7 +20,7 @@ const TITLE_STRIP_HEIGHT = 47;
 // transform so we get a kiosk-friendly footprint without breaking pixel match.
 const NATIVE_W = 833;
 const NATIVE_H = 641;
-const SCALE = 1.5;
+const SCALE = 1;
 
 // All in-frame coordinates derived from temp/morse.css (subtracting the
 // dialog's reference offset of left=574.57 top=348.44).
