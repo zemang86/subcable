@@ -186,6 +186,8 @@ export default function GlobeScene() {
     if (isIdle) {
       setAutoRotate(true);
       setOpenDialog(null);
+      setSelectedCable(null);
+      setSelectedLandingPoint(null);
     } else {
       setAutoRotate(false);
     }
@@ -935,19 +937,7 @@ export default function GlobeScene() {
         language={language}
       />
 
-      {/* Audio mute — top-right, paired with the Sidebar (kit puts it adjacent to CableSystem) */}
-      <div
-        style={{
-          position: "fixed",
-          top: 140,
-          right: 28,
-          zIndex: 25,
-        }}
-      >
-        <AudioMute muted={muted} onToggle={() => setMuted((m) => !m)} />
-      </div>
-
-      {/* Bottom-center: language toggle + re-center button (Figma V1.3) */}
+      {/* Bottom-center: audio mute + language toggle + re-center button (Figma V1.3) */}
       <div
         style={{
           position: "fixed",
@@ -960,6 +950,7 @@ export default function GlobeScene() {
           alignItems: "center",
         }}
       >
+        <AudioMute muted={muted} onToggle={() => setMuted((m) => !m)} />
         <LanguageToggle value={language} onChange={setLanguage} />
         <RecenterButton onRecenter={resetView} />
       </div>
