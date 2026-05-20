@@ -8,6 +8,8 @@ interface HowToGuideDialogProps {
   language?: Language;
 }
 
+const TITLE_STRIP_HEIGHT = 47;
+
 export default function HowToGuideDialog({
   onClose,
   language = "en",
@@ -35,140 +37,103 @@ export default function HowToGuideDialog({
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(1100px, 100%)",
-          minHeight: 500,
-          background: "var(--v1-bg-deep)",
-          border: "1px solid rgba(255, 255, 255, 0.30)",
           display: "flex",
           flexDirection: "column",
+          gap: 6,
         }}
       >
-        {/* Tile row — 3 bracket-corner tiles */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 28,
-            padding: "56px 60px",
-            flex: 1,
-          }}
-        >
-          <Tile
-            title={t("tapToInteract")}
-            body={t("tapToInteractBody")}
-            icon={
-              <>
-                <path d="M9 11.5V7a2 2 0 0 1 4 0v6" />
-                <path d="M13 8a2 2 0 0 1 4 0v5" />
-                <path d="M17 9a2 2 0 0 1 4 0v6a6 6 0 0 1-6 6h-3a6 6 0 0 1-5.66-4l-2.21-6a2 2 0 0 1 3.76-1.34l1.11 3" />
-              </>
-            }
-          />
-          <Tile
-            title={t("zoomInOut")}
-            body={t("zoomInOutBody")}
-            icon={
-              <>
-                <circle cx="11" cy="11" r="7" />
-                <path d="M21 21l-4.35-4.35" />
-                <path d="M11 8v6M8 11h6" />
-              </>
-            }
-          />
-          <Tile
-            title={t("swipe")}
-            body={t("swipeBody")}
-            icon={
-              <>
-                <path d="M3 12h18" />
-                <path d="M9 6l-6 6 6 6" />
-                <path d="M15 6l6 6-6 6" />
-              </>
-            }
-          />
-        </div>
+        <TitleStrip title={t("howToTitle")} onClose={onClose} />
 
-        {/* Title strip bottom */}
+        {/* Panel body — bevelled SVG card (orange→blue gradient + white stroke
+            outline + cut corners) from temp/card-help.svg replaces the CSS
+            gradient + HUD bracket frame approach. */}
         <div
           style={{
-            borderTop: "1px solid rgba(255, 255, 255, 0.20)",
-            padding: "16px 32px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            position: "relative",
+            padding: "64px 60px",
+            aspectRatio: "1058 / 416",
           }}
         >
-          <span
-            className="v1-h-display"
-            style={{ fontSize: 18, color: "var(--v1-fg)" }}
-          >
-            {t("howToTitle")}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
+          <PanelBackground />
+
+          <div
             style={{
-              width: 36,
-              height: 36,
-              background: "transparent",
-              border: "1px solid rgba(255, 255, 255, 0.40)",
-              color: "var(--v1-fg)",
-              cursor: "pointer",
-              fontFamily: "var(--v1-mono)",
-              fontSize: 14,
+              position: "relative",
+              zIndex: 1,
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 36,
+              height: "100%",
+              alignContent: "center",
             }}
           >
-            ✕
-          </button>
+            <Tile
+              title={t("tapToInteract")}
+              body={t("tapToInteractBody")}
+              image="/textures/howto/tap.png"
+            />
+            <Tile
+              title={t("zoomInOut")}
+              body={t("zoomInOutBody")}
+              image="/textures/howto/pinch.png"
+            />
+            <Tile
+              title={t("swipe")}
+              body={t("swipeBody")}
+              image="/textures/howto/swipe.png"
+            />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+/* ───────────────────────────── TILE ───────────────────────────── */
+// Per temp/help_comp.css: ~202px square, translucent grey-20% bg, hairline
+// white border, plus a small outlined rectangle at each of the 4 corners
+// (Vector 132–135). PNG illustration sits inside the frame, IBM Plex Mono
+// 600 24px title + Space Mono 400 14px body stack below.
+
 function Tile({
-  icon,
+  image,
   title,
   body,
 }: {
-  icon: React.ReactNode;
+  image: string;
   title: string;
   body: string;
 }) {
   return (
     <div
-      className="v1-bracket"
       style={{
-        padding: "32px 24px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 16,
+        gap: 18,
         textAlign: "center",
       }}
     >
-      <span className="bracket-tl" />
-      <span className="bracket-br" />
-      <svg
-        width="46"
-        height="46"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="var(--v1-fg)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        {icon}
-      </svg>
-      <div
-        className="v1-h-heading"
+      {/* PNG illustration — fills the tile, frame/border baked into the asset */}
+      <img
+        src={image}
+        alt={title}
         style={{
-          fontSize: 14,
-          color: "var(--v1-fg)",
-          textTransform: "uppercase",
-          letterSpacing: "0.12em",
+          width: "100%",
+          maxWidth: 202,
+          aspectRatio: "1 / 1",
+          objectFit: "contain",
+          display: "block",
+        }}
+      />
+
+      <div
+        style={{
+          fontFamily: "var(--v1-mono)",
+          fontWeight: 600,
+          fontSize: 24,
+          lineHeight: "32px",
+          color: "#FFFFFF",
         }}
       >
         {title}
@@ -176,15 +141,187 @@ function Tile({
       <p
         style={{
           fontFamily: "var(--v1-mono)",
-          fontSize: 11,
-          color: "var(--v1-mute)",
-          lineHeight: 1.6,
+          fontWeight: 400,
+          fontSize: 14,
+          lineHeight: "21px",
+          color: "#FFFFFF",
           margin: 0,
-          maxWidth: 280,
+          maxWidth: 260,
         }}
       >
         {body}
       </p>
     </div>
+  );
+}
+
+/* ──────────────────────── PANEL BACKGROUND ──────────────────────── */
+// Bevelled card lifted verbatim from temp/card-help.svg — single shape
+// stretches to fill its container. preserveAspectRatio="none" lets the
+// bevel cuts skew slightly with panel width but keeps the silhouette right
+// at our intended 1058×416 aspect.
+
+function PanelBackground() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 1058 416"
+      preserveAspectRatio="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
+    >
+      <path
+        d="M1028.02 0.5H25.767L0.5 27.1821V392.306L22.9595 414.775H46.8227H641.999H1029.43L1057.5 386.688V29.9907L1028.02 0.5Z"
+        fill="url(#help_card_orange)"
+      />
+      <path
+        d="M1028.02 0.5H25.767L0.5 27.1821V392.306L22.9595 414.775H46.8227H641.999H1029.43L1057.5 386.688V29.9907L1028.02 0.5Z"
+        fill="url(#help_card_blue)"
+      />
+      <path
+        d="M1028.02 0.5H25.767L0.5 27.1821V392.306L22.9595 414.775H46.8227H641.999H1029.43L1057.5 386.688V29.9907L1028.02 0.5Z"
+        stroke="white"
+        fill="none"
+      />
+      <defs>
+        <linearGradient
+          id="help_card_orange"
+          x1="529.461"
+          y1="0.499985"
+          x2="529.461"
+          y2="245.655"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#F05A22" />
+          <stop offset="1" stopColor="#F05A22" stopOpacity="0.4" />
+        </linearGradient>
+        <linearGradient
+          id="help_card_blue"
+          x1="544.883"
+          y1="433.628"
+          x2="543.832"
+          y2="168.746"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#034DA1" />
+          <stop offset="1" stopColor="#034DA1" stopOpacity="0.3" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+/* ───────────────────────── TITLE STRIP ───────────────────────── */
+// 47px tall, translucent-white gradient fill, hairline white border,
+// crosshair (+) at each of the 4 corners, title 28px Chakra Petch 500.
+// Mirrors the FunFactDialog / CableInformation title strip exactly.
+
+function TitleStrip({
+  title,
+  onClose,
+}: {
+  title: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: TITLE_STRIP_HEIGHT,
+        background:
+          "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
+        border: "0.37px solid #FFFFFF",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 16px",
+        boxSizing: "border-box",
+      }}
+    >
+      <CrossMark position="tl" />
+      <CrossMark position="tr" />
+      <CrossMark position="bl" />
+      <CrossMark position="br" />
+      <span
+        style={{
+          fontFamily: "var(--v1-display)",
+          fontWeight: 500,
+          fontSize: 28,
+          lineHeight: "36px",
+          color: "#FFFFFF",
+        }}
+      >
+        {title}
+      </span>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          width: 28,
+          height: 28,
+          background: "transparent",
+          border: "1px solid rgba(255, 255, 255, 0.6)",
+          color: "#FFFFFF",
+          cursor: "pointer",
+          fontFamily: "var(--v1-mono)",
+          fontSize: 14,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const variants = {
+    tl: { top: -4, left: -4 },
+    tr: { top: -4, right: -4 },
+    bl: { bottom: -4, left: -4 },
+    br: { bottom: -4, right: -4 },
+  };
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        width: 8,
+        height: 8,
+        pointerEvents: "none",
+        ...variants[position],
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 0,
+          width: 8,
+          height: 0,
+          borderTop: "2px solid #FFFFFF",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 3,
+          width: 0,
+          height: 8,
+          borderLeft: "2px solid #FFFFFF",
+        }}
+      />
+    </span>
   );
 }
