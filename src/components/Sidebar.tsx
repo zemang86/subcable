@@ -47,7 +47,7 @@ export default function Sidebar({
     <div
       style={{
         position: "fixed",
-        top: 220,
+        bottom: 28,
         right: 28,
         zIndex: 20,
         width: 460,
@@ -73,13 +73,13 @@ export default function Sidebar({
         })}
       </div>
 
-      {/* 3×3 grid panel — scrolls vertically when >9 (resolution §H.2) */}
+      {/* 3-row scrollable grid — fixed at 270px so exactly 3 rows of cards
+          are visible by default; anything past that scrolls. */}
       <div
         className="v1-card-bevel"
         style={{
           padding: 14,
-          minHeight: 254,
-          maxHeight: "60vh",
+          height: 270,
           overflowY: "auto",
         }}
       >

@@ -36,7 +36,12 @@ export default function CableInformation({
       className="v1-card-bevel"
       style={{
         position: "fixed",
-        bottom: 130,
+        // Sits directly above the Cable System panel (Sidebar):
+        //   bottom: 28 (Sidebar bottom anchor)
+        //   + 44 (filter tabs) + 10 (gap) + 270 (grid) + 10 (gap) + 44 (count strip)
+        //   + 14 (gap between Cable Info and Cable System)
+        //   ≈ 420
+        bottom: 420,
         right: 28,
         zIndex: 20,
         padding: 18,
