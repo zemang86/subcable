@@ -928,30 +928,30 @@ export default function GlobeScene() {
         animateIn={true}
       />
 
-      {/* Top-left: CableSystem panel (filter tabs + 3x3 grid + counts) */}
+      {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
       <Sidebar
         selectedCable={selectedCable}
         onSelectCable={handleSelectCable}
         language={language}
       />
 
-      {/* Audio mute — sits just to the left of the CableSystem panel (now on the right) */}
+      {/* Audio mute — top-right, paired with the Sidebar (kit puts it adjacent to CableSystem) */}
       <div
         style={{
           position: "fixed",
-          top: 80,
-          right: 500,
+          top: 140,
+          right: 28,
           zIndex: 25,
         }}
       >
         <AudioMute muted={muted} onToggle={() => setMuted((m) => !m)} />
       </div>
 
-      {/* Top-center: language toggle + compass */}
+      {/* Top-center: language toggle + compass — below the 110px titlebar */}
       <div
         style={{
           position: "fixed",
-          top: 80,
+          top: 140,
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 25,
@@ -964,16 +964,17 @@ export default function GlobeScene() {
         <CompassButton onRecenter={recenterMalaysia} />
       </div>
 
-      {/* Top-left: key statistics (moved from right to clear CableSystem's new right anchor) */}
+      {/* Top-left: key statistics — horizontal strip of 3 (mirror of kit's top-right) */}
       <div
         style={{
           position: "fixed",
-          top: 80,
-          left: 32,
+          top: 140,
+          left: 110,
           zIndex: 20,
           display: "flex",
-          flexDirection: "column",
+          flexDirection: "row",
           gap: 12,
+          alignItems: "flex-start",
         }}
       >
         <KeyStatistic label="Total Cables" value={stats.total} />
@@ -986,7 +987,7 @@ export default function GlobeScene() {
         style={{
           position: "fixed",
           top: "50%",
-          left: 32,
+          left: 26,
           transform: "translateY(-50%)",
           zIndex: 25,
         }}

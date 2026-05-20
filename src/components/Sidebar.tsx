@@ -47,8 +47,8 @@ export default function Sidebar({
     <div
       style={{
         position: "fixed",
-        top: 80,
-        right: 32,
+        top: 220,
+        right: 28,
         zIndex: 20,
         width: 460,
         display: "flex",

@@ -36,11 +36,11 @@ export default function CableInformation({
       className="v1-card-bevel"
       style={{
         position: "fixed",
-        bottom: 160,
-        right: 32,
+        bottom: 130,
+        right: 28,
         zIndex: 20,
         padding: 18,
-        width: 560,
+        width: 580,
       }}
     >
       <div
