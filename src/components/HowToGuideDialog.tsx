@@ -47,8 +47,8 @@ export default function HowToGuideDialog({
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 24,
-            padding: "48px 56px",
+            gap: 28,
+            padding: "56px 60px",
             flex: 1,
           }}
         >
@@ -99,7 +99,7 @@ export default function HowToGuideDialog({
         >
           <span
             className="v1-h-display"
-            style={{ fontSize: 16, color: "var(--v1-fg)" }}
+            style={{ fontSize: 18, color: "var(--v1-fg)" }}
           >
             {t("howToTitle")}
           </span>
@@ -150,8 +150,8 @@ function Tile({
       <span className="bracket-tl" />
       <span className="bracket-br" />
       <svg
-        width="40"
-        height="40"
+        width="46"
+        height="46"
         viewBox="0 0 24 24"
         fill="none"
         stroke="var(--v1-fg)"
@@ -165,7 +165,7 @@ function Tile({
       <div
         className="v1-h-heading"
         style={{
-          fontSize: 13,
+          fontSize: 14,
           color: "var(--v1-fg)",
           textTransform: "uppercase",
           letterSpacing: "0.12em",
@@ -176,10 +176,11 @@ function Tile({
       <p
         style={{
           fontFamily: "var(--v1-mono)",
-          fontSize: 9.5,
+          fontSize: 11,
           color: "var(--v1-mute)",
           lineHeight: 1.6,
           margin: 0,
+          maxWidth: 280,
         }}
       >
         {body}

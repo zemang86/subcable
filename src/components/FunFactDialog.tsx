@@ -15,8 +15,8 @@ interface FunFactDialogProps {
 const PLACEHOLDER_THUMBS = [
   { id: 1, label: "Cross-section", src: "/textures/funfact/placeholder-1.webp" },
   { id: 2, label: "Repeater",       src: "/textures/funfact/placeholder-2.webp" },
-  { id: 3, label: "Cable ship 1",   src: "/textures/funfact/placeholder-3.webp" },
-  { id: 4, label: "Cable ship 2",   src: "/textures/funfact/placeholder-4.webp" },
+  { id: 3, label: "Cable ship I",   src: "/textures/funfact/placeholder-3.webp" },
+  { id: 4, label: "Cable ship II",  src: "/textures/funfact/placeholder-4.webp" },
 ];
 
 export default function FunFactDialog({
@@ -51,7 +51,7 @@ export default function FunFactDialog({
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
           gap: 12,
-          padding: 20,
+          padding: 22,
           borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
         }}
       >
@@ -108,7 +108,7 @@ export default function FunFactDialog({
           maxHeight: 560,
           background: "rgba(0, 0, 0, 0.50)",
           border: "1px solid rgba(255, 255, 255, 0.15)",
-          margin: 20,
+          margin: 22,
           position: "relative",
           display: "flex",
           alignItems: "center",
@@ -179,7 +179,7 @@ export default function FunFactDialog({
       >
         <span
           className="v1-h-display"
-          style={{ fontSize: 16, color: "var(--v1-fg)" }}
+          style={{ fontSize: 18, color: "var(--v1-fg)" }}
         >
           {t("funFactTitle")}
         </span>

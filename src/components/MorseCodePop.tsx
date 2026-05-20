@@ -407,7 +407,7 @@ export default function MorseCodePop({
       >
         <span
           className="v1-h-display"
-          style={{ fontSize: 16, color: "var(--v1-fg)" }}
+          style={{ fontSize: 18, color: "var(--v1-fg)" }}
         >
           {t("morseCodeMessage")}
         </span>
@@ -538,7 +538,7 @@ function KeyBtn({
       minHeight: 44,
     },
     brown: {
-      background: "#78625A",
+      background: "var(--v1-brown)",
       color: "var(--v1-fg)",
       minHeight: 44,
     },
