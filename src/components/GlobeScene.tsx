@@ -38,6 +38,8 @@ import {
   playMessage,
   setMuted as setAudioMuted,
 } from "@/lib/morseAudio";
+import { useIdleAttractor } from "@/lib/useIdleAttractor";
+import { useT } from "@/lib/i18n";
 
 // ───────── Tuning ─────────
 
@@ -168,10 +170,26 @@ export default function GlobeScene() {
     startedAt: number;
   } | null>(null);
 
+  // Idle attractor (§H.12): after ~60s of no interaction, slow auto-rotate
+  // kicks in and a "TAP ANYWHERE TO BEGIN" hint appears. Any touch dismisses.
+  const isIdle = useIdleAttractor(60_000);
+  const t = useT(language);
+
   // Push mute state down to morseAudio so playDot/playMessage/etc no-op.
   useEffect(() => {
     setAudioMuted(muted);
   }, [muted]);
+
+  // Idle → enable auto-rotate and close any open dialog so the attractor
+  // doesn't end up rendered behind a modal nobody is around to dismiss.
+  useEffect(() => {
+    if (isIdle) {
+      setAutoRotate(true);
+      setOpenDialog(null);
+    } else {
+      setAutoRotate(false);
+    }
+  }, [isIdle]);
 
   // Resize handler
   useEffect(() => {
@@ -415,40 +433,19 @@ export default function GlobeScene() {
         controls.touches = { ONE: 0, TWO: 2 };
       }
     }
-    setTimeout(() => setIsLoaded(true), 500);
+    // Hold the loading screen for a minimum of 1500ms even when textures are
+    // cached, so the kiosk gets a clean intro frame (§H.9).
+    setTimeout(() => setIsLoaded(true), 1500);
   }, []);
 
+  // Drive controls.autoRotate from the React state. The state itself is set
+  // by the useIdleAttractor sync effect — pause-on-interaction is handled
+  // implicitly because any touch wakes the attractor (isIdle → false).
   useEffect(() => {
     if (!globeRef.current) return;
     const controls = globeRef.current.controls();
     if (controls) controls.autoRotate = autoRotate;
   }, [autoRotate, isLoaded]);
-
-  // Pause auto-rotation on interaction, resume after idle.
-  useEffect(() => {
-    if (!globeRef.current) return;
-    const controls = globeRef.current.controls();
-    if (!controls) return;
-
-    let idleTimer: ReturnType<typeof setTimeout>;
-    const stopAutoRotate = () => {
-      controls.autoRotate = false;
-      clearTimeout(idleTimer);
-      if (autoRotate) {
-        idleTimer = setTimeout(() => {
-          controls.autoRotate = true;
-        }, 8000);
-      }
-    };
-    const el = globeRef.current.renderer().domElement;
-    el.addEventListener("pointerdown", stopAutoRotate);
-    el.addEventListener("touchstart", stopAutoRotate, { passive: true });
-    return () => {
-      el.removeEventListener("pointerdown", stopAutoRotate);
-      el.removeEventListener("touchstart", stopAutoRotate);
-      clearTimeout(idleTimer);
-    };
-  }, [isLoaded, autoRotate]);
 
   // Camera altitude polling — throttled so React re-renders don't blow up.
   useEffect(() => {
@@ -889,7 +886,7 @@ export default function GlobeScene() {
       className="relative w-full h-screen overflow-hidden"
       style={{ background: "var(--v1-bg)", touchAction: "none" }}
     >
-      {!isLoaded && <LoadingScreen />}
+      {!isLoaded && <LoadingScreen language={language} />}
 
       <Globe
         ref={globeRef}
@@ -1058,6 +1055,40 @@ export default function GlobeScene() {
           onDone={() => setActiveCall(null)}
           globeRef={globeRef}
         />
+      )}
+
+      {/* Idle attractor hint — overlays everything else, pointer-events: none
+          so any touch hits the layer underneath and useIdleAttractor wakes. */}
+      {isIdle && isLoaded && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 40,
+            pointerEvents: "none",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+            paddingBottom: "20vh",
+          }}
+        >
+          <span
+            className="v1-pulse"
+            style={{
+              fontFamily: "var(--v1-heading)",
+              fontWeight: 500,
+              fontSize: 28,
+              letterSpacing: "0.30em",
+              textTransform: "uppercase",
+              color: "var(--v1-fg)",
+              padding: "16px 32px",
+              background: "rgba(0, 0, 0, 0.45)",
+              border: "1px solid rgba(255, 255, 255, 0.25)",
+            }}
+          >
+            {t("tapToBegin")}
+          </span>
+        </div>
       )}
     </div>
   );
