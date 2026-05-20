@@ -40,11 +40,13 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
         position: "relative",
         cursor: "pointer",
         textAlign: "left",
-        minHeight: 46,
-        padding: "4px 5px 3px 5px",
+        minHeight: 66,
+        minWidth: 0,
+        padding: "7px 9px 6px 9px",
         display: "flex",
         flexDirection: "column",
-        gap: 1,
+        gap: 2,
+        overflow: "hidden",
       }}
       aria-pressed={isSelected}
     >
@@ -62,10 +64,11 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
         <span
           style={{
             flex: 1,
+            minWidth: 0,
             textAlign: "right",
             fontFamily: "var(--v1-heading)",
             fontWeight: 300,
-            fontSize: 5.84,
+            fontSize: 7,
             lineHeight: 1.2,
             color: text,
             overflow: "hidden",
@@ -93,11 +96,14 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
         style={{
           fontFamily: "var(--v1-heading)",
           fontWeight: 600,
-          fontSize: cable.shortName.length > 10 ? 13 : 19,
+          fontSize: cable.shortName.length > 10 ? 13 : 20,
           lineHeight: 1.1,
           letterSpacing: "0.01em",
           color: text,
-          marginTop: -1,
+          marginTop: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
         {cable.shortName}
@@ -107,19 +113,21 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
       <div
         style={{
           display: "flex",
-          gap: 7,
+          gap: 6,
           marginTop: "auto",
           fontFamily: "var(--v1-mono)",
           fontWeight: 300,
-          fontSize: 5,
+          fontSize: 6.5,
           color: text,
-          letterSpacing: "0.02em",
+          letterSpacing: "0.01em",
           whiteSpace: "nowrap",
+          overflow: "hidden",
+          minWidth: 0,
         }}
       >
-        <span>{parseLength(cable.length)}</span>
-        <span>{cable.landingPointIds.length} Points</span>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ flexShrink: 0 }}>{parseLength(cable.length)}</span>
+        <span style={{ flexShrink: 0 }}>{cable.landingPointIds.length} Points</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
           {formatRfs(cable.rfs)}
         </span>
       </div>

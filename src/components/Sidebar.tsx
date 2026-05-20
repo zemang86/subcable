@@ -88,11 +88,12 @@ export default function Sidebar({
           className="v1-cable-grid-scroll"
           style={{
             position: "absolute",
-            top: 8,
-            bottom: 8,
-            left: 8,
-            right: 30,
+            top: 12,
+            bottom: 12,
+            left: 12,
+            right: 34,
             overflowY: "auto",
+            overflowX: "hidden",
             scrollbarWidth: "none",
           }}
         >
@@ -111,8 +112,8 @@ export default function Sidebar({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 6,
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: 12,
               }}
             >
               {visible.map((cable) => (
