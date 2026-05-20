@@ -232,10 +232,10 @@ function TitleStrip({
         boxSizing: "border-box",
       }}
     >
-      <FrameBracket position="tl" />
-      <FrameBracket position="tr" />
-      <FrameBracket position="bl" />
-      <FrameBracket position="br" />
+      <CrossMark position="tl" />
+      <CrossMark position="tr" />
+      <CrossMark position="bl" />
+      <CrossMark position="br" />
 
       <span
         style={{
@@ -260,13 +260,15 @@ function TitleStrip({
   );
 }
 
-// 8×8 L-bracket — same shape as the Header strip (top-left + top-right + bottom-left + bottom-right)
-function FrameBracket({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+// 8×8 crosshair (+) per Figma temp/cablesystem.css Group 56/57/58/59.
+// Two 2px-thick white lines crossing at the centre; the corner of the title
+// strip sits exactly on the cross's centre (half inside / half outside).
+function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
   const variants = {
-    tl: { top: -4, left: -4, borderTop: "2px solid #FFFFFF", borderLeft: "2px solid #FFFFFF" },
-    tr: { top: -4, right: -4, borderTop: "2px solid #FFFFFF", borderRight: "2px solid #FFFFFF" },
-    bl: { bottom: -4, left: -4, borderBottom: "2px solid #FFFFFF", borderLeft: "2px solid #FFFFFF" },
-    br: { bottom: -4, right: -4, borderBottom: "2px solid #FFFFFF", borderRight: "2px solid #FFFFFF" },
+    tl: { top: -4, left: -4 },
+    tr: { top: -4, right: -4 },
+    bl: { bottom: -4, left: -4 },
+    br: { bottom: -4, right: -4 },
   };
   return (
     <span
@@ -278,7 +280,30 @@ function FrameBracket({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
         pointerEvents: "none",
         ...variants[position],
       }}
-    />
+    >
+      {/* Horizontal arm (Vector 54) */}
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 0,
+          width: 8,
+          height: 0,
+          borderTop: "2px solid #FFFFFF",
+        }}
+      />
+      {/* Vertical arm (Vector 55 — rotated -90deg in Figma) */}
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 3,
+          width: 0,
+          height: 8,
+          borderLeft: "2px solid #FFFFFF",
+        }}
+      />
+    </span>
   );
 }
 
