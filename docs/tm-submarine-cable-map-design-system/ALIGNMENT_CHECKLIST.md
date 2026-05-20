@@ -28,7 +28,7 @@ Recent commits ahead of origin/main: `2c74062` `26458da` `ad24e3a` `c281c08` `4b
 - ✅ `.v1-card-bevel` — Rectangle 53 gradient lifted, 17.5px cut (`globals.css`)
 - ✅ `.v1-bracket` — used in HowTo tiles
 - ✅ `.v1-circle-btn` — 76×76, radial gradient, lime-glow on active
-- ✅ `.v1-pill` — language toggle with flip-color active state
+- ✅ `.v1-pill` — language toggle: 56px tall (kiosk-touch-friendly per CLAUDE.md min 48px), 4px inner gutter, brighter pill gradient, active capsule with drop shadow + inset highlight, flip-color (EN=orange, BM=blue)
 - ✅ `.v1-filter-tab` — 44px, orange-active
 - ✅ `.v1-btn-{primary,blue,danger,send}` — added to globals.css; verify each consumer uses the class instead of inlining (Morse keyboard mostly still inlines)
 - 🔍 **`.v1-status`** (triple-ring) vs `preview/comp-status.html` — already matches per the css spot-check, but double-confirm 14×14 / 1.4px / inset 2&4
