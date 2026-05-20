@@ -985,11 +985,7 @@ export default function GlobeScene() {
 
       {/* Bottom-left: CableInformation when a cable is selected */}
       {selectedCable && (
-        <CableInformation
-          cable={selectedCable}
-          language={language}
-          onOpenMorse={() => setOpenDialog("morse")}
-        />
+        <CableInformation cable={selectedCable} language={language} />
       )}
 
       {/* Bottom: titlebar */}
