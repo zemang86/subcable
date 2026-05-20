@@ -48,3 +48,6 @@ next-env.d.ts
 
 # import script cache (raw upstream GeoJSON, regenerated on demand)
 /scripts/.cache/
+
+# scratch / shared-UI snippets (CSS handoff drops)
+/temp/

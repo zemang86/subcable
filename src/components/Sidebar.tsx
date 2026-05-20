@@ -23,9 +23,12 @@ const FILTERS: { id: Filter; key: "showAll" | "international" | "domestic" }[] =
 
 // Panel width per Figma temp/cablesystem.css (Rectangle 52 + Rectangle 54).
 const PANEL_WIDTH = 454;
-const PANEL_BODY_HEIGHT = 254;
 const TITLE_STRIP_HEIGHT = 47;
-const FILTER_BUTTON_HEIGHT = 23;
+const FILTER_BUTTON_HEIGHT = 32;
+// Panel body holds: card grid (3 rows visible) + filter row aligned to the
+// bottom. 3 × 66 cards + 2 × 12 gap + 12 + 8 inner padding + 14 gap-to-filters
+// + 32 filter-row + 12 bottom-padding ≈ 314. Round to 318.
+const PANEL_BODY_HEIGHT = 318;
 
 export default function Sidebar({
   selectedCable,
@@ -111,7 +114,8 @@ export default function Sidebar({
         inactiveLabel={t("inactive")}
       />
 
-      {/* MIDDLE — 3-col grid panel with bevel gradient + tactical frame bands + orange scroll bar */}
+      {/* PANEL BODY — bevel gradient. Holds cards (top) + filter tabs (bottom)
+          inside a single container so the gradient + frame wraps both. */}
       <div
         style={{
           position: "relative",
@@ -124,14 +128,15 @@ export default function Sidebar({
         {/* Frame bands — top + bottom 50px borders, left + right 135px vertical lines */}
         <PanelFrame />
 
-        {/* Scroll container — inset so cards don't overlap the frame edges */}
+        {/* Scroll container — takes the top portion of the panel, leaving room
+            at the bottom for the filter row inside the same container. */}
         <div
           ref={scrollRef}
           className="v1-cable-grid-scroll"
           style={{
             position: "absolute",
             top: 12,
-            bottom: 12,
+            bottom: 12 + FILTER_BUTTON_HEIGHT + 14,
             left: 12,
             right: 34,
             overflowY: "auto",
@@ -172,30 +177,38 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* Orange scroll bar — thumb tracks the grid scroll position live */}
+        {/* Filter tabs row — INSIDE the panel, flush-aligned to the bottom of
+            the row. Column edges align with the card grid columns above. */}
+        <div
+          style={{
+            position: "absolute",
+            left: 12,
+            right: 34,
+            bottom: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: 12,
+            alignItems: "end",
+          }}
+        >
+          {FILTERS.map((f) => (
+            <FilterButton
+              key={f.id}
+              label={t(f.key).toUpperCase()}
+              active={filter === f.id}
+              onClick={() => setFilter(f.id)}
+            />
+          ))}
+        </div>
+
+        {/* Orange scroll bar — thumb tracks the grid scroll position live.
+            Bound to the scroll container's vertical extent, not the panel,
+            so it doesn't extend into the filter row area. */}
         <ScrollBar
           thumbHeightPct={scrollState.thumbHeightPct}
           thumbTopPct={scrollState.thumbTopPct}
           hasOverflow={scrollState.hasOverflow}
         />
-      </div>
-
-      {/* BOTTOM — filter tabs row */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 3,
-        }}
-      >
-        {FILTERS.map((f) => (
-          <FilterButton
-            key={f.id}
-            label={t(f.key).toUpperCase()}
-            active={filter === f.id}
-            onClick={() => setFilter(f.id)}
-          />
-        ))}
       </div>
     </div>
   );
@@ -374,64 +387,53 @@ function BigStatus({ accent, middle }: { accent: string; middle: string }) {
 
 /* ───────────────────────── PANEL FRAME ───────────────────────── */
 
-// Four white border bands overlaid on the panel:
-//   · top horizontal 50px-tall band (full width)
-//   · bottom horizontal 50px-tall band (full width)
-//   · left + right vertical 135px lines in the middle
+// Single-SVG tactical frame from temp/systemcable.svg.
+// Two bracket shapes (top + bottom) and two vertical side lines, all with
+// rounded line-caps. Stretches to fill whatever panel dimensions we hand it
+// via preserveAspectRatio="none".
 function PanelFrame() {
   return (
-    <>
-      {/* Top horizontal band */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: PANEL_WIDTH,
-          height: 50,
-          border: "1px solid #FFFFFF",
-          pointerEvents: "none",
-          boxSizing: "border-box",
-        }}
+    <svg
+      aria-hidden
+      viewBox="0 0 455 255"
+      preserveAspectRatio="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
+    >
+      {/* Top bracket */}
+      <path
+        d="M0.503906 50.5V0.5H454.504V50.5"
+        stroke="#FFFFFF"
+        strokeLinecap="round"
+        fill="none"
       />
-      {/* Bottom horizontal band */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          bottom: 0,
-          width: PANEL_WIDTH,
-          height: 50,
-          border: "1px solid #FFFFFF",
-          pointerEvents: "none",
-          boxSizing: "border-box",
-        }}
-      />
-      {/* Left vertical line — 135px in the middle */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 61,
-          width: 0,
-          height: 135,
-          borderLeft: "1px solid #FFFFFF",
-          pointerEvents: "none",
-        }}
+      {/* Bottom bracket */}
+      <path
+        d="M454.5 204.501L454.5 254.501L0.500004 254.501L0.499999 204.501"
+        stroke="#FFFFFF"
+        strokeLinecap="round"
+        fill="none"
       />
       {/* Right vertical line */}
-      <div
-        style={{
-          position: "absolute",
-          right: 0,
-          top: 61,
-          width: 0,
-          height: 135,
-          borderLeft: "1px solid #FFFFFF",
-          pointerEvents: "none",
-        }}
+      <path
+        d="M454.5 61.5V196.5"
+        stroke="#FFFFFF"
+        strokeLinecap="round"
+        fill="none"
       />
-    </>
+      {/* Left vertical line */}
+      <path
+        d="M0.503906 61.5V196.5"
+        stroke="#FFFFFF"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
   );
 }
 
@@ -454,9 +456,10 @@ function ScrollBar({
       style={{
         position: "absolute",
         right: 21,
-        top: 30,
+        top: 20,
         width: 4,
-        bottom: 30,
+        // Stop above the filter row so the thumb only travels the card-grid extent.
+        bottom: FILTER_BUTTON_HEIGHT + 22,
         pointerEvents: "none",
       }}
     >
@@ -513,9 +516,10 @@ function ScrollBar({
 
 /* ───────────────────────── FILTER BUTTONS ───────────────────────── */
 
-// 114×23 button: active = solid orange + 2px red bottom strip + 700 weight;
-//                inactive = bevel gradient + 400 weight.
-// Both have 2 white corner squares (top-left, bottom-right).
+// Each column-aligned filter tab matches the width of one card column.
+// Active = solid orange + 2px red bottom strip + Rajdhani 700.
+// Inactive = transparent dark + 1px white border + Rajdhani 400.
+// Both states: 2 white 3px corner squares (top-left + bottom-right) per Figma.
 function FilterButton({
   label,
   active,
@@ -532,15 +536,14 @@ function FilterButton({
       style={{
         position: "relative",
         height: FILTER_BUTTON_HEIGHT,
-        background: active
-          ? "#F05A22"
-          : "linear-gradient(302.51deg, #034DA1 -89.34%, rgba(3, 77, 161, 0) 54.67%), linear-gradient(122.48deg, rgba(240, 90, 34, 0.6) -38.43%, rgba(240, 90, 34, 0) 58.47%)",
-        border: "0.65px solid #FFFFFF",
+        background: active ? "#F05A22" : "rgba(255, 255, 255, 0.04)",
+        border: "1px solid #FFFFFF",
         color: "#FFFFFF",
         fontFamily: "var(--v1-heading)",
         fontWeight: active ? 700 : 400,
         fontSize: 13,
-        lineHeight: "17px",
+        lineHeight: 1,
+        letterSpacing: "0.12em",
         textAlign: "center",
         cursor: "pointer",
         padding: 0,
@@ -552,10 +555,10 @@ function FilterButton({
         aria-hidden
         style={{
           position: "absolute",
-          top: 0.4,
+          top: 0,
           left: 0,
-          width: 2.35,
-          height: 2.35,
+          width: 3,
+          height: 3,
           background: "#FFFFFF",
         }}
       />
@@ -566,13 +569,13 @@ function FilterButton({
           position: "absolute",
           bottom: 0,
           right: 0,
-          width: 2.35,
-          height: 2.35,
+          width: 3,
+          height: 3,
           background: "#FFFFFF",
         }}
       />
       {label}
-      {/* Active: 2px red bottom strip */}
+      {/* Active state: 2px red bottom strip sits just below the button */}
       {active && (
         <span
           aria-hidden
@@ -580,7 +583,7 @@ function FilterButton({
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: -2,
+            bottom: -3,
             height: 2,
             background: "#ED1B2E",
           }}
