@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { decodeSymbols, MORSE_ALPHABET } from "@/lib/morse";
+import { decodeSymbols } from "@/lib/morse";
 import {
   playBackspace,
   playDash,
@@ -14,6 +14,34 @@ import { useT } from "@/lib/i18n";
 
 const MAX_CHARS = 20;
 const TITLE_STRIP_HEIGHT = 47;
+
+// Native dimensions of public/textures/fullmorse.svg — every overlay coord is
+// expressed inside this frame. The dialog wraps the body in a CSS scale
+// transform so we get a kiosk-friendly footprint without breaking pixel match.
+const NATIVE_W = 833;
+const NATIVE_H = 641;
+const SCALE = 1.5;
+
+// All in-frame coordinates derived from temp/morse.css (subtracting the
+// dialog's reference offset of left=574.57 top=348.44).
+const POS = {
+  fromCountry:  { left:  87.45, top:   8.74, width: 297.31, height: 38.86 },
+  fromCity:     { left: 513.00, top:   8.74, width: 297.31, height: 38.86 },
+  toCountry:    { left:  87.45, top:  73.84, width: 297.31, height: 38.86 },
+  toCity:       { left: 513.00, top:  73.84, width: 297.31, height: 38.86 },
+  msgCanvas:    { left:  51.5,  top: 148.65, width: 745.21, height: 201.12 },
+  counter:      { left: 760.0,  top: 157.91, width:  35,    height: 14    },
+  placeholder:  { left:  51.5,  top: 220,    width: 745.21, height: 60    },
+  dotBtn:       { left:  42.75, top: 384.75, width: 144.61, height: 75.70 },
+  dashBtn:      { left: 198.21, top: 384.75, width: 144.61, height: 75.70 },
+  enterBtn:     { left:  42.75, top: 477.04, width:  93.86, height: 49.21 },
+  spaceBtn:     { left: 145.74, top: 477.04, width:  93.86, height: 49.21 },
+  backspaceBtn: { left: 248.73, top: 477.04, width:  93.86, height: 49.21 },
+  clearBtn:     { left:  42.75, top: 536.31, width:  94.24, height: 84.53 },
+  sendBtn:      { left: 148.66, top: 536.31, width: 194.32, height: 84.53 },
+} as const;
+
+type Pos = { left: number; top: number; width: number; height: number };
 
 interface MorseCodePopProps {
   cable: CableSystem | null;
@@ -120,6 +148,12 @@ export default function MorseCodePop({
 
   const canSend = decoded.trim().length > 0 && from !== "" && to !== "";
 
+  // City + country live values for each picker. The SVG bakes in English
+  // placeholders ("United States of America" / "San Luis Obispo" / etc) —
+  // our opaque overlay selects cover them entirely.
+  const fromPoint = cablePoints.find((p) => p.id === from);
+  const toPoint = cablePoints.find((p) => p.id === to);
+
   return (
     <div
       role="dialog"
@@ -129,9 +163,10 @@ export default function MorseCodePop({
         position: "fixed",
         top: "50%",
         left: "50%",
-        transform: "translate(-50%, -50%)",
+        transform: `translate(-50%, -50%) scale(${SCALE})`,
+        transformOrigin: "center center",
         zIndex: 50,
-        width: "min(1200px, 96vw)",
+        width: NATIVE_W,
         display: "flex",
         flexDirection: "column",
         gap: 6,
@@ -139,282 +174,350 @@ export default function MorseCodePop({
     >
       <TitleStrip title={t("morseCodeMessage")} onClose={onClose} />
 
-      {/* Panel body — bevelled SVG card lifted verbatim from temp/morse-card.svg
-          (orange→blue gradient stack + irregular notches on left/right edges +
-          white hairline stroke). Replaces the previous deep-bg + flat border
-          wrapper; aspectRatio locks the bevel notches to render at their
-          intended proportions regardless of dialog width. */}
+      {/* Body — fullmorse.svg pinned at native 833×641. Every interactive
+          element sits in an absolutely-positioned overlay above it. Labels,
+          glyphs, button shapes, picker decorations etc are all baked into
+          the SVG so we only render the live bits. */}
       <div
         style={{
           position: "relative",
-          aspectRatio: "833 / 641",
+          width: NATIVE_W,
+          height: NATIVE_H,
         }}
       >
-        <PanelBackground />
-
-        <div
+        {/* eslint-disable-next-line @next/next/no-img-element -- SVG doesn't
+            benefit from next/image optimization and we want a single static
+            request */}
+        <img
+          src="/textures/fullmorse.svg"
+          alt=""
+          aria-hidden
           style={{
-            position: "relative",
-            zIndex: 1,
+            position: "absolute",
+            inset: 0,
+            width: "100%",
             height: "100%",
-            padding: "20px 24px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            boxSizing: "border-box",
+            display: "block",
+            pointerEvents: "none",
+            userSelect: "none",
           }}
-        >
-          {/* From row — [label] [country picker] [location picker]. Demo: both
-              pickers bind to the same value; country vs location wiring lands
-              next session. */}
-          <PickerRow
-            label={t("from")}
-            value={from}
-            onChange={setFrom}
-            points={cablePoints}
-          />
+        />
 
-          {/* To row — same layout, separate state slot */}
-          <PickerRow
-            label={t("to")}
-            value={to}
-            onChange={setTo}
-            points={cablePoints}
-          />
+        {/* ── PICKERS ── overlay selects mask the SVG's baked-in city/country
+            text. Each is sized exactly to the picker rect; opaque navy
+            background covers the SVG decorations underneath. */}
+        <PickerOverlay
+          pos={POS.fromCountry}
+          value={from}
+          onChange={setFrom}
+          points={cablePoints}
+          renderText={(p) => p.country}
+          ariaLabel="From country"
+          placeholder={fromPoint?.country}
+        />
+        <PickerOverlay
+          pos={POS.fromCity}
+          value={from}
+          onChange={setFrom}
+          points={cablePoints}
+          renderText={(p) => p.city}
+          ariaLabel="From location"
+          placeholder={fromPoint?.city}
+        />
+        <PickerOverlay
+          pos={POS.toCountry}
+          value={to}
+          onChange={setTo}
+          points={cablePoints}
+          renderText={(p) => p.country}
+          ariaLabel="To country"
+          placeholder={toPoint?.country}
+        />
+        <PickerOverlay
+          pos={POS.toCity}
+          value={to}
+          onChange={setTo}
+          points={cablePoints}
+          renderText={(p) => p.city}
+          ariaLabel="To location"
+          placeholder={toPoint?.city}
+        />
 
-      {/* Body: keyboard column + reference column */}
-      <div
-        style={{
-          flex: 1,
-          display: "grid",
-          gridTemplateColumns: "1fr 220px",
-          gap: 16,
-        }}
-      >
-        {/* Left column: message + keys */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Message area */}
+        {/* ── LIVE MESSAGE ── covers the SVG's "Tap Dots & Dashes to Begin"
+            placeholder + decoded text. The mask matches the light-grey
+            canvas colour so an empty `decoded` reveals the SVG placeholder
+            underneath. */}
+        {decoded.length > 0 && (
           <div
-            style={{
-              background: "var(--v1-mute-2)",
-              padding: 14,
-              position: "relative",
-              minHeight: 130,
-            }}
+            style={absPos(POS.placeholder)}
           >
-            <div className="v1-h-eye" style={{ color: "var(--v1-orange)" }}>
-              {t("typeMessageHere")}
-            </div>
             <div
               style={{
-                marginTop: 12,
-                minHeight: 50,
+                position: "absolute",
+                inset: 0,
+                background: "rgba(217, 217, 217, 1)",
+              }}
+            />
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                height: "100%",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "var(--v1-display)",
-                  fontWeight: 700,
-                  fontSize: 28,
-                  letterSpacing: "0.12em",
-                  color: decoded ? "var(--v1-bg)" : "var(--v1-mute-dark)",
-                  textAlign: "center",
-                  wordBreak: "break-all",
-                }}
-              >
-                {decoded || t("tapDotsDashesBegin")}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginTop: 6,
-              }}
-            >
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span
-                  style={{
-                    fontFamily: "var(--v1-mono)",
-                    fontSize: 10,
-                    color: "var(--v1-mute-dark)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {decoded.length}/{MAX_CHARS}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--v1-mono)",
-                    fontSize: 10,
-                    color: atCap ? "var(--v1-inactive-2)" : "var(--v1-orange)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  buffer: {buffer || "·"}
-                </span>
-              </div>
-              <span
-                style={{
-                  fontFamily: "var(--v1-mono)",
-                  fontSize: 10,
-                  color: atCap ? "var(--v1-inactive-2)" : "var(--v1-mute-dark)",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {t("maximumLetter")} [{MAX_CHARS}]
-              </span>
-            </div>
-            {error && (
-              <span
-                style={{
-                  position: "absolute",
-                  right: 14,
-                  top: 14,
-                  fontFamily: "var(--v1-mono)",
-                  fontSize: 9,
-                  color: "var(--v1-inactive-2)",
-                }}
-              >
-                {error}
-              </span>
-            )}
-          </div>
-
-          {/* Row 1: DOT (orange) | DASH (orange) — primary 76px keys */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <MorseKey
-              tone="orange"
-              size="primary"
-              disabled={atCap}
-              onClick={() => append(".")}
-              glyph={<DotGlyph />}
-              label={t("dot")}
-            />
-            <MorseKey
-              tone="orange"
-              size="primary"
-              disabled={atCap}
-              onClick={() => append("-")}
-              glyph={<DashGlyph />}
-              label={t("dash")}
-            />
-          </div>
-
-          {/* Row 2: ENTER (blue) | SPACE (brown) | BACKSPACE (brown) — secondary 49px keys */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <MorseKey
-              tone="blue"
-              size="secondary"
-              disabled={atCap || buffer.length === 0}
-              onClick={commitLetter}
-              glyph={<EnterGlyph />}
-              label={t("enterLetter")}
-            />
-            <MorseKey
-              tone="brown"
-              size="secondary"
-              disabled={atCap}
-              onClick={insertSpace}
-              glyph={<SpaceGlyph />}
-              label={t("space")}
-            />
-            <MorseKey
-              tone="brown"
-              size="secondary"
-              onClick={backspace}
-              glyph={<BackspaceGlyph />}
-              label={t("backspace")}
-            />
-          </div>
-
-          {/* Row 3: CLEAR ALL (red 1fr) | SEND MESSAGE (white 2fr) — tall 85px */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10 }}>
-            <MorseKey
-              tone="red"
-              size="tall"
-              onClick={clear}
-              disabled={buffer.length === 0 && decoded.length === 0}
-              label={t("clearAll")}
-            />
-            <MorseKey
-              tone="white"
-              size="tall"
-              onClick={() => canSend && onSend(decoded.trim(), from, to)}
-              disabled={!canSend}
-              glyph={<SendGlyph />}
-              label={t("sendMessage")}
-            />
-          </div>
-        </div>
-
-        {/* Right column: Morse Code Guide — orange ribbon header on top of
-            a translucent grey panel containing a 2-col grid of blue cells,
-            each with letter + literal dot/dash glyphs (per temp/morse.css). */}
-        <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-          {/* Orange gradient title ribbon */}
-          <div
-            style={{
-              position: "relative",
-              padding: "6px 10px",
-              background:
-                "linear-gradient(90deg, #F05A22 0%, rgba(240, 90, 34, 0) 100%)",
-              borderTop: "2px solid #FFFFFF",
-              borderLeft: "4px solid #FFFFFF",
-            }}
-          >
-            <span
-              style={{
                 fontFamily: "var(--v1-heading)",
                 fontWeight: 500,
-                fontSize: 17.5,
-                lineHeight: "22px",
-                color: "#FFFFFF",
+                fontSize: 19.36,
+                color: "#1A1A1A",
+                letterSpacing: "0.08em",
+                wordBreak: "break-all",
+                textAlign: "center",
+                padding: "0 16px",
+                boxSizing: "border-box",
               }}
             >
-              Morse Code Guide
-            </span>
-          </div>
-          {/* Translucent grey body */}
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              background: "rgba(217, 217, 217, 0.63)",
-              border: "1px solid #FFFFFF",
-              padding: 8,
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 4,
-              }}
-            >
-              {MORSE_ALPHABET.map(({ char, code }) => (
-                <MorseRefCell key={char} char={char} code={code} />
-              ))}
+              {decoded}
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
+        {/* ── COUNTER ── covers SVG's baked "0/20" with live count.
+            Turns red once at cap. */}
+        <div
+          style={{
+            ...absPos(POS.counter),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            background: "rgba(217, 217, 217, 1)",
+            fontFamily: "var(--v1-mono)",
+            fontWeight: 400,
+            fontSize: 8.78,
+            lineHeight: 1,
+            color: atCap ? "#ED1B2E" : "#808080",
+            paddingRight: 2,
+            boxSizing: "border-box",
+          }}
+        >
+          {decoded.length}/{MAX_CHARS}
         </div>
+
+        {/* ── BUTTON HOTSPOTS ── transparent click targets sized exactly to
+            each SVG button shape. The SVG paints the colour, gradient,
+            glyph and label; we only catch the tap. */}
+        <Hotspot
+          pos={POS.dotBtn}
+          onClick={() => append(".")}
+          disabled={atCap}
+          ariaLabel={t("dot")}
+        />
+        <Hotspot
+          pos={POS.dashBtn}
+          onClick={() => append("-")}
+          disabled={atCap}
+          ariaLabel={t("dash")}
+        />
+        <Hotspot
+          pos={POS.enterBtn}
+          onClick={commitLetter}
+          disabled={atCap || buffer.length === 0}
+          ariaLabel={t("enterLetter")}
+        />
+        <Hotspot
+          pos={POS.spaceBtn}
+          onClick={insertSpace}
+          disabled={atCap}
+          ariaLabel={t("space")}
+        />
+        <Hotspot
+          pos={POS.backspaceBtn}
+          onClick={backspace}
+          ariaLabel={t("backspace")}
+        />
+        <Hotspot
+          pos={POS.clearBtn}
+          onClick={clear}
+          disabled={buffer.length === 0 && decoded.length === 0}
+          ariaLabel={t("clearAll")}
+        />
+        <Hotspot
+          pos={POS.sendBtn}
+          onClick={() => canSend && onSend(decoded.trim(), from, to)}
+          disabled={!canSend}
+          ariaLabel={t("sendMessage")}
+        />
+
+        {/* Tiny error toast — only visible when buffer decode fails */}
+        {error && (
+          <div
+            style={{
+              position: "absolute",
+              left: POS.msgCanvas.left,
+              top: POS.msgCanvas.top + POS.msgCanvas.height + 4,
+              fontFamily: "var(--v1-mono)",
+              fontSize: 9,
+              color: "#ED1B2E",
+            }}
+          >
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+/* ─────────────────────── absPos helper ─────────────────────── */
+function absPos(p: Pos): React.CSSProperties {
+  return {
+    position: "absolute",
+    left: p.left,
+    top: p.top,
+    width: p.width,
+    height: p.height,
+  };
+}
+
+/* ─────────────────────── PICKER OVERLAY ─────────────────────── */
+// Native <select> sized to the SVG's picker rect. Opaque navy bg covers
+// the baked-in city/country text underneath. Live label text is the
+// `placeholder` prop (rendered visually) while the select itself is
+// stretched on top to capture taps and open the dropdown.
+
+function PickerOverlay({
+  pos,
+  value,
+  onChange,
+  points,
+  renderText,
+  ariaLabel,
+  placeholder,
+}: {
+  pos: Pos;
+  value: string;
+  onChange: (id: string) => void;
+  points: LandingPoint[];
+  renderText: (p: LandingPoint) => string;
+  ariaLabel: string;
+  placeholder?: string;
+}) {
+  return (
+    <div style={absPos(pos)}>
+      {/* Opaque navy mask covers the SVG-baked picker text */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "#1B3E6D",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Visible live label */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--v1-mono)",
+          fontWeight: 500,
+          fontSize: 14.57,
+          lineHeight: 1,
+          color: "#FFFFFF",
+          pointerEvents: "none",
+          padding: "0 32px",
+          textAlign: "center",
+        }}
+      >
+        {placeholder ?? "—"}
+      </div>
+      {/* Caret — small white down-triangle on the right */}
+      <svg
+        width="15"
+        height="10"
+        viewBox="0 0 15 10"
+        aria-hidden
+        style={{
+          position: "absolute",
+          right: 10,
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+        }}
+      >
+        <polygon points="0,0 15,0 7.5,10" fill="#FFFFFF" />
+      </svg>
+      {/* Transparent select stretched over the whole picker — catches taps */}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          opacity: 0,
+          cursor: "pointer",
+          appearance: "none",
+          border: "none",
+          background: "transparent",
+        }}
+      >
+        {points.length === 0 && (
+          <option value="">—</option>
+        )}
+        {points.map((p) => (
+          <option key={p.id} value={p.id}>
+            {renderText(p)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/* ─────────────────────── HOTSPOT ─────────────────────── */
+// Transparent click target sized to one of the SVG's button shapes. The
+// SVG provides all visual chrome (gradient, glyph, label). When disabled,
+// we paint a translucent grey mask so it visually reads as inactive.
+
+function Hotspot({
+  pos,
+  onClick,
+  disabled = false,
+  ariaLabel,
+}: {
+  pos: Pos;
+  onClick: () => void;
+  disabled?: boolean;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      style={{
+        ...absPos(pos),
+        background: disabled ? "rgba(0, 0, 0, 0.45)" : "transparent",
+        border: "none",
+        borderRadius: 9.7,
+        cursor: disabled ? "not-allowed" : "pointer",
+        padding: 0,
+      }}
+    />
+  );
+}
+
 /* ───────────────────────── TITLE STRIP ───────────────────────── */
-// Shared title-strip pattern with FunFactDialog / HowToGuideDialog / CableInformation:
-// 47px tall, translucent-white gradient fill, hairline white border,
-// crosshair (+) at each of the 4 corners, title 28px Chakra Petch 500.
+// Shared title-strip pattern with FunFactDialog / HowToGuideDialog /
+// CableInformation: 47px tall, translucent-white gradient fill, hairline
+// white border, crosshair `+` at each of the 4 corners, 28px Chakra
+// Petch 500 title.
 
 function TitleStrip({
   title,
@@ -518,504 +621,5 @@ function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
         }}
       />
     </span>
-  );
-}
-
-/* ───────────────────────── PICKER ROW ───────────────────────── */
-// Per temp/morse.png + temp/morse.css: one row = [Rajdhani 500 label]
-// [country picker] [location picker]. Both pickers visually identical;
-// for now both bind to the same id slot — country vs city wiring lands
-// in the next session per user instruction ("functionise we will work in
-// another session").
-
-function PickerRow({
-  label,
-  value,
-  onChange,
-  points,
-}: {
-  label: string;
-  value: string;
-  onChange: (id: string) => void;
-  points: LandingPoint[];
-}) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "60px 1fr 1fr",
-        gap: 16,
-        alignItems: "center",
-      }}
-    >
-      <span
-        style={{
-          fontFamily: "var(--v1-heading)",
-          fontWeight: 500,
-          fontSize: 19,
-          lineHeight: "25px",
-          color: "#FFFFFF",
-        }}
-      >
-        {label}
-      </span>
-      {/* Country picker (demo: shows country half of the same selection) */}
-      <Picker
-        value={value}
-        onChange={onChange}
-        points={points}
-        renderLabel={(p) => p.country}
-        ariaLabel={`${label} country`}
-      />
-      {/* Location picker (demo: shows city half of the same selection) */}
-      <Picker
-        value={value}
-        onChange={onChange}
-        points={points}
-        renderLabel={(p) => p.city}
-        ariaLabel={`${label} location`}
-      />
-    </div>
-  );
-}
-
-/* ───────────────────────── PICKER ───────────────────────── */
-// Matches temp/morse.css "Drop Down Place" spec: blue-tint bg
-// (rgba(3,77,161,0.68)), hairline white border, centred IBM Plex Mono 14.5
-// white text, white downward caret on the right edge, and a tiny 2.9×2.9
-// white-grey square at each of the four corners.
-
-function Picker({
-  value,
-  onChange,
-  points,
-  renderLabel,
-  ariaLabel,
-}: {
-  value: string;
-  onChange: (id: string) => void;
-  points: LandingPoint[];
-  renderLabel: (p: LandingPoint) => string;
-  ariaLabel: string;
-}) {
-  return (
-    <div
-      style={{
-        position: "relative",
-        height: 39,
-        background: "rgba(3, 77, 161, 0.68)",
-        border: "0.5px solid #FFFFFF",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxSizing: "border-box",
-      }}
-    >
-      <PickerCornerDot position="tl" />
-      <PickerCornerDot position="tr" />
-      <PickerCornerDot position="bl" />
-      <PickerCornerDot position="br" />
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={ariaLabel}
-        style={{
-          width: "100%",
-          height: "100%",
-          padding: "0 32px",
-          background: "transparent",
-          color: "#FFFFFF",
-          border: "none",
-          outline: "none",
-          fontFamily: "var(--v1-mono)",
-          fontWeight: 500,
-          fontSize: 14.5,
-          textAlign: "center",
-          textAlignLast: "center",
-          appearance: "none",
-          cursor: "pointer",
-        }}
-      >
-        {points.length === 0 && (
-          <option value="" style={{ color: "#000", textAlign: "center" }}>
-            —
-          </option>
-        )}
-        {points.map((p) => (
-          <option key={p.id} value={p.id} style={{ color: "#000" }}>
-            {renderLabel(p)}
-          </option>
-        ))}
-      </select>
-      {/* Down caret */}
-      <svg
-        width="15"
-        height="10"
-        viewBox="0 0 15 10"
-        aria-hidden
-        style={{
-          position: "absolute",
-          right: 10,
-          top: "50%",
-          transform: "translateY(-50%)",
-          pointerEvents: "none",
-        }}
-      >
-        <polygon points="0,0 15,0 7.5,10" fill="#FFFFFF" />
-      </svg>
-    </div>
-  );
-}
-
-function PickerCornerDot({
-  position,
-}: {
-  position: "tl" | "tr" | "bl" | "br";
-}) {
-  const variants = {
-    tl: { top: 1, left: 1 },
-    tr: { top: 1, right: 1 },
-    bl: { bottom: 1, left: 1 },
-    br: { bottom: 1, right: 1 },
-  };
-  return (
-    <span
-      aria-hidden
-      style={{
-        position: "absolute",
-        width: 3,
-        height: 3,
-        background: "#D9D9D9",
-        pointerEvents: "none",
-        ...variants[position],
-      }}
-    />
-  );
-}
-
-/* ──────────────────── PANEL BACKGROUND ──────────────────── */
-// Bevelled morse card lifted verbatim from temp/morse-card.svg — irregular
-// silhouette with notches at the left edge (top + bottom) and right edge
-// (top, mid, bottom) plus a small inset cut at the bottom-left. Same
-// orange-down + blue-up gradient stack as the help card.
-
-function PanelBackground() {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 833 641"
-      preserveAspectRatio="none"
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-      }}
-    >
-      <defs>
-        <linearGradient
-          id="morse_card_orange"
-          x1="415.839"
-          y1="0"
-          x2="415.839"
-          y2="640.274"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0.275154" stopColor="#F05A22" />
-          <stop offset="1" stopColor="#F05A22" stopOpacity="0.4" />
-        </linearGradient>
-        <linearGradient
-          id="morse_card_blue"
-          x1="403.694"
-          y1="640.274"
-          x2="406.611"
-          y2="248.726"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="#034DA1" />
-          <stop offset="1" stopColor="#034DA1" stopOpacity="0.3" />
-        </linearGradient>
-      </defs>
-      {/* Paint order from kit: orange → blue → white stroke */}
-      <path
-        d="M832.404 65.2549L819.419 72.7529V388.428L832.404 395.925V464.754L824.045 469.581V617.528L832.404 622.354V640.561H0V622.978L9.43945 617.528V469.581L0 464.131V406.388L15.1514 397.641V81.9668L0 73.2188V0H832.404V65.2549Z"
-        fill="url(#morse_card_orange)"
-      />
-      <path
-        d="M832.404 65.2549L819.419 72.7529V388.428L832.404 395.925V464.754L824.045 469.581V617.528L832.404 622.354V640.561H0V622.978L9.43945 617.528V469.581L0 464.131V406.388L15.1514 397.641V81.9668L0 73.2188V0H832.404V65.2549Z"
-        fill="url(#morse_card_blue)"
-      />
-      <path
-        d="M832.404 65.2549L819.419 72.7529V388.428L832.404 395.925V464.754L824.045 469.581V617.528L832.404 622.354V640.561H0V622.978L9.43945 617.528V469.581L0 464.131V406.388L15.1514 397.641V81.9668L0 73.2188V0H832.404V65.2549Z"
-        stroke="white"
-        fill="none"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
-
-/* ───────────────────────── MORSE REF CELL ───────────────────────── */
-// Per temp/morse.css: 51×19 pill, rgba(3,77,161,0.82) bg, hairline white
-// border, 2px radius. Letter (Rajdhani 500, ~8.7px) on the left, then a
-// row of literal glyph shapes for each Morse symbol — small white circle
-// for a dot, small white bar for a dash.
-
-function MorseRefCell({ char, code }: { char: string; code: string }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        background: "rgba(3, 77, 161, 0.82)",
-        border: "0.5px solid #FFFFFF",
-        borderRadius: 2,
-        padding: "3px 6px",
-        minHeight: 19,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: "var(--v1-heading)",
-          fontWeight: 500,
-          fontSize: 9,
-          lineHeight: 1,
-          color: "#FFFFFF",
-          width: 8,
-        }}
-      >
-        {char}
-      </span>
-      <span
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 2,
-        }}
-      >
-        {code.split("").map((sym, i) =>
-          sym === "." ? (
-            <span
-              key={i}
-              aria-hidden
-              style={{
-                width: 3,
-                height: 3,
-                borderRadius: "50%",
-                background: "#F1F7FF",
-              }}
-            />
-          ) : (
-            <span
-              key={i}
-              aria-hidden
-              style={{
-                width: 7,
-                height: 1,
-                background: "#F1F7FF",
-              }}
-            />
-          ),
-        )}
-      </span>
-    </div>
-  );
-}
-
-/* ───────────────────────── MORSE KEY ───────────────────────── */
-// Kit-spec key buttons per temp/morse.css:
-//   tone — gradient + text color (orange/blue/brown/red/white)
-//   size — primary (76px, big glyph), secondary (49px), tall (85px)
-// All keys share 9.7px corner radius, Rajdhani 600 label.
-
-const TONE_BG: Record<string, string> = {
-  orange:
-    "linear-gradient(180deg, #F05A22 0.41%, rgba(240, 90, 34, 0.3) 118.23%)",
-  blue:
-    "linear-gradient(180deg, #034DA1 0.41%, rgba(3, 77, 161, 0.18) 83.58%)",
-  brown:
-    "linear-gradient(180deg, #833214 0.41%, rgba(131, 50, 20, 0.3) 118.23%)",
-  red:
-    "linear-gradient(180deg, #ED1B2E 0.41%, rgba(237, 27, 46, 0.3) 118.23%)",
-  white: "#FFFFFF",
-};
-const SIZE_H: Record<string, number> = {
-  primary: 76,
-  secondary: 49,
-  tall: 85,
-};
-
-function MorseKey({
-  tone,
-  size,
-  label,
-  glyph,
-  onClick,
-  disabled = false,
-}: {
-  tone: "orange" | "blue" | "brown" | "red" | "white";
-  size: "primary" | "secondary" | "tall";
-  label: string;
-  glyph?: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  const textColor = tone === "white" ? "#034DA1" : "#FFFFFF";
-  const labelSize = size === "primary" ? 14.6 : tone === "white" ? 16 : 9.7;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        height: SIZE_H[size],
-        background: TONE_BG[tone],
-        border: "none",
-        borderRadius: 9.7,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: size === "primary" ? 6 : 4,
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.4 : 1,
-        padding: 0,
-      }}
-    >
-      {glyph}
-      <span
-        style={{
-          fontFamily: "var(--v1-heading)",
-          fontWeight: 600,
-          fontSize: labelSize,
-          lineHeight: 1.2,
-          color: textColor,
-        }}
-      >
-        {label}
-      </span>
-    </button>
-  );
-}
-
-/* ─────────── KEY GLYPHS — literal dot/dash/etc per kit ─────────── */
-
-function DotGlyph() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 17,
-        height: 17,
-        borderRadius: "50%",
-        background: "#F1F7FF",
-      }}
-    />
-  );
-}
-
-function DashGlyph() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 71,
-        height: 7,
-        background: "#F1F7FF",
-      }}
-    />
-  );
-}
-
-function EnterGlyph() {
-  return (
-    <svg width="17" height="15" viewBox="0 0 17 15" aria-hidden fill="none">
-      <path
-        d="M14 1v6a2 2 0 0 1-2 2H2.5"
-        stroke="#FFFFFF"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <polyline
-        points="5,6 2,9 5,12"
-        stroke="#FFFFFF"
-        strokeWidth="1.5"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SpaceGlyph() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 36,
-        height: 6,
-        background: "#FFFFFF",
-      }}
-    />
-  );
-}
-
-function BackspaceGlyph() {
-  return (
-    <svg width="29" height="18" viewBox="0 0 29 18" aria-hidden fill="none">
-      <path
-        d="M9 1H26.5A1.18 1.18 0 0 1 27.7 2.18V15.82A1.18 1.18 0 0 1 26.5 17H9L1.5 9 9 1Z"
-        stroke="#FFFFFF"
-        strokeWidth="1.18"
-        strokeDasharray="2.5 1.5"
-        strokeLinejoin="round"
-      />
-      <line
-        x1="14"
-        y1="6"
-        x2="20"
-        y2="12"
-        stroke="#FFFFFF"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <line
-        x1="20"
-        y1="6"
-        x2="14"
-        y2="12"
-        stroke="#FFFFFF"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function SendGlyph() {
-  return (
-    <svg width="32" height="28" viewBox="0 0 32 28" aria-hidden fill="none">
-      <circle
-        cx="22.5"
-        cy="11.25"
-        r="11.25"
-        stroke="#D2E7FF"
-        strokeWidth="3.75"
-        fill="none"
-      />
-      <path
-        d="M22.5 26L22.5 8M22.5 8L15 15.5M22.5 8L30 15.5"
-        stroke="#034DA1"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
