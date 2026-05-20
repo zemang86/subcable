@@ -37,7 +37,7 @@ export default function CableInformation({
       style={{
         position: "fixed",
         bottom: 160,
-        left: 32,
+        right: 32,
         zIndex: 20,
         padding: 18,
         width: 560,

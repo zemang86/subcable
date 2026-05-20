@@ -47,8 +47,8 @@ export default function Sidebar({
     <div
       style={{
         position: "fixed",
-        top: 32,
-        left: 32,
+        top: 80,
+        right: 32,
         zIndex: 20,
         width: 460,
         display: "flex",
@@ -95,6 +95,8 @@ export default function Sidebar({
           minHeight: 254,
           maxHeight: "60vh",
           overflowY: "auto",
+          background:
+            "linear-gradient(303.52deg, #034DA1 -11.48%, rgba(3, 77, 161, 0) 82.93%), linear-gradient(123.48deg, rgba(240, 90, 34, 0.6) -7.19%, rgba(240, 90, 34, 0) 100%)",
         }}
       >
         {visible.length === 0 ? (

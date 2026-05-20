@@ -935,12 +935,12 @@ export default function GlobeScene() {
         language={language}
       />
 
-      {/* Audio mute — sits just under the CableSystem panel chrome */}
+      {/* Audio mute — sits just to the left of the CableSystem panel (now on the right) */}
       <div
         style={{
           position: "fixed",
-          top: 32,
-          left: 500,
+          top: 80,
+          right: 500,
           zIndex: 25,
         }}
       >
@@ -951,7 +951,7 @@ export default function GlobeScene() {
       <div
         style={{
           position: "fixed",
-          top: 32,
+          top: 80,
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 25,
@@ -964,12 +964,12 @@ export default function GlobeScene() {
         <CompassButton onRecenter={recenterMalaysia} />
       </div>
 
-      {/* Top-right: key statistics */}
+      {/* Top-left: key statistics (moved from right to clear CableSystem's new right anchor) */}
       <div
         style={{
           position: "fixed",
-          top: 32,
-          right: 32,
+          top: 80,
+          left: 32,
           zIndex: 20,
           display: "flex",
           flexDirection: "column",
@@ -981,12 +981,12 @@ export default function GlobeScene() {
         <KeyStatistic label="Landing Points" value={stats.points} accent="mute" />
       </div>
 
-      {/* Right edge centered: right cluster */}
+      {/* Left edge centered: action cluster (Help / Fun Fact / Morse / Reset) */}
       <div
         style={{
           position: "fixed",
           top: "50%",
-          right: 32,
+          left: 32,
           transform: "translateY(-50%)",
           zIndex: 25,
         }}
