@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cables } from "@/data/cables";
 import type { CableSystem, Filter, LandingPoint } from "@/lib/types";
 import { useT } from "@/lib/i18n";
@@ -34,6 +34,12 @@ export default function Sidebar({
 }: SidebarProps) {
   const [filter, setFilter] = useState<Filter>("all");
   const t = useT(language);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollState, setScrollState] = useState({
+    thumbHeightPct: 100,
+    thumbTopPct: 0,
+    hasOverflow: false,
+  });
 
   const visible = useMemo(() => {
     if (filter === "all") return cables;
@@ -47,6 +53,41 @@ export default function Sidebar({
 
   const activeCount = visible.filter((c) => c.status === "active").length;
   const inactiveCount = visible.length - activeCount;
+
+  const updateScrollState = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const overflow = scrollHeight > clientHeight + 1;
+    if (!overflow) {
+      setScrollState({ thumbHeightPct: 100, thumbTopPct: 0, hasOverflow: false });
+      return;
+    }
+    const thumbHeightPct = Math.max(15, (clientHeight / scrollHeight) * 100);
+    const maxScroll = scrollHeight - clientHeight;
+    const scrollRatio = maxScroll > 0 ? scrollTop / maxScroll : 0;
+    const thumbTopPct = scrollRatio * (100 - thumbHeightPct);
+    setScrollState({ thumbHeightPct, thumbTopPct, hasOverflow: true });
+  };
+
+  // Recompute on filter change (visible count changes content height)
+  useLayoutEffect(() => {
+    updateScrollState();
+  }, [visible.length]);
+
+  // Listen to scroll + resize so the thumb tracks live
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handler = () => updateScrollState();
+    el.addEventListener("scroll", handler, { passive: true });
+    const ro = new ResizeObserver(handler);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", handler);
+      ro.disconnect();
+    };
+  }, []);
 
   return (
     <div
@@ -85,6 +126,7 @@ export default function Sidebar({
 
         {/* Scroll container — inset so cards don't overlap the frame edges */}
         <div
+          ref={scrollRef}
           className="v1-cable-grid-scroll"
           style={{
             position: "absolute",
@@ -130,8 +172,12 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* Orange scroll bar — vertical line + thumb + 5px horizontal caps */}
-        <ScrollBar visibleCount={visible.length} />
+        {/* Orange scroll bar — thumb tracks the grid scroll position live */}
+        <ScrollBar
+          thumbHeightPct={scrollState.thumbHeightPct}
+          thumbTopPct={scrollState.thumbTopPct}
+          hasOverflow={scrollState.hasOverflow}
+        />
       </div>
 
       {/* BOTTOM — filter tabs row */}
@@ -366,14 +412,17 @@ function PanelFrame() {
 
 /* ───────────────────────── SCROLL BAR ───────────────────────── */
 
-// Single 4px wide orange line + thumb + 5px horizontal caps at top/bottom
-function ScrollBar({ visibleCount }: { visibleCount: number }) {
-  // Thumb height scales: 87/163 ≈ 53% in the Figma reference (for the full ~21 cables).
-  // Approximate ratio so the thumb shrinks as more cables show.
-  const rowsShown = 3;
-  const rowsTotal = Math.max(1, Math.ceil(visibleCount / 3));
-  const ratio = Math.min(1, rowsShown / rowsTotal);
-  const thumbPct = Math.max(22, Math.min(85, ratio * 100));
+// Single 4px wide orange track + thumb + 10px horizontal caps at top/bottom.
+// Thumb top/height are driven by the grid scroll container — fully live.
+function ScrollBar({
+  thumbHeightPct,
+  thumbTopPct,
+  hasOverflow,
+}: {
+  thumbHeightPct: number;
+  thumbTopPct: number;
+  hasOverflow: boolean;
+}) {
   return (
     <div
       aria-hidden
@@ -397,17 +446,20 @@ function ScrollBar({ visibleCount }: { visibleCount: number }) {
           borderLeft: "1px solid #F05A22",
         }}
       />
-      {/* Thumb — 4px wide orange section */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: 4,
-          height: `${thumbPct}%`,
-          background: "#F05A22",
-        }}
-      />
+      {/* Thumb — 4px wide orange section. Only rendered when content overflows. */}
+      {hasOverflow && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: `${thumbTopPct}%`,
+            width: 4,
+            height: `${thumbHeightPct}%`,
+            background: "#F05A22",
+            transition: "top 80ms linear",
+          }}
+        />
+      )}
       {/* Top cap — 10px horizontal stub */}
       <div
         style={{
