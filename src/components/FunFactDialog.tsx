@@ -54,73 +54,20 @@ export default function FunFactDialog({
     >
       <TitleStrip title={t("funFactTitle")} onClose={onClose} />
 
-      {/* Panel body — gradient bg matches cable-system/cable-info treatment */}
+      {/* Panel body — gradient bg matches cable-system/cable-info treatment.
+          Tactical-HUD bracket frame: top + bottom U-brackets (50px tall) +
+          left + right vertical side rails with small gaps. */}
       <div
         style={{
           position: "relative",
           background: PANEL_BG,
-          border: "1px solid rgba(255, 255, 255, 0.40)",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        {/* Top thumbnail strip */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 12,
-            padding: 22,
-            borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
-          }}
-        >
-          {PLACEHOLDER_THUMBS.map((thumb, i) => {
-            const active = activeIndex === i;
-            return (
-              <button
-                key={thumb.id}
-                type="button"
-                onClick={() => setActiveIndex(i)}
-                aria-pressed={active}
-                style={{
-                  aspectRatio: "16 / 9",
-                  background: "rgba(255, 255, 255, 0.04)",
-                  border: `${active ? 3 : 1}px solid ${active ? "var(--v1-orange)" : "rgba(255, 255, 255, 0.30)"}`,
-                  cursor: "pointer",
-                  padding: 0,
-                  overflow: "hidden",
-                  position: "relative",
-                }}
-              >
-                <img
-                  src={thumb.src}
-                  alt={thumb.label}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: 4,
-                    left: 6,
-                    fontFamily: "var(--v1-mono)",
-                    fontSize: 9,
-                    color: "var(--v1-fg)",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-                  }}
-                >
-                  {thumb.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <PanelFrame />
 
-        {/* Main player area */}
+        {/* Main player area — moved to top for touch-friendly thumb access below */}
         <div
           style={{
             aspectRatio: "16 / 9",
@@ -185,8 +132,141 @@ export default function FunFactDialog({
             {t("overview")} · {cable.shortName}
           </span>
         </div>
+
+        {/* Bottom thumbnail strip — at bottom for easier touch access */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 12,
+            padding: 22,
+            borderTop: "1px solid rgba(255, 255, 255, 0.15)",
+          }}
+        >
+          {PLACEHOLDER_THUMBS.map((thumb, i) => {
+            const active = activeIndex === i;
+            return (
+              <button
+                key={thumb.id}
+                type="button"
+                onClick={() => setActiveIndex(i)}
+                aria-pressed={active}
+                style={{
+                  aspectRatio: "16 / 9",
+                  background: "rgba(255, 255, 255, 0.04)",
+                  border: `${active ? 3 : 1}px solid ${active ? "var(--v1-orange)" : "rgba(255, 255, 255, 0.30)"}`,
+                  cursor: "pointer",
+                  padding: 0,
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
+                <img
+                  src={thumb.src}
+                  alt={thumb.label}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    bottom: 4,
+                    left: 6,
+                    fontFamily: "var(--v1-mono)",
+                    fontSize: 9,
+                    color: "var(--v1-fg)",
+                    textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+                  }}
+                >
+                  {thumb.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
+  );
+}
+
+/* ───────────────────────── PANEL FRAME ───────────────────────── */
+// Tactical-HUD bracket frame, same visual as CableInformation's PanelFrame
+// but built with absolute-positioned CSS borders so it stays pixel-perfect
+// at any fluid panel size. Top + bottom 50px U-brackets, plus left + right
+// vertical rails that stop short of the brackets to create the HUD gap.
+
+const FRAME_BRACKET_HEIGHT = 50;
+const FRAME_RAIL_INSET = 60; // rails start 60px from top/bottom (10px gap past bracket)
+
+function PanelFrame() {
+  const lineColor = "#FFFFFF";
+  return (
+    <>
+      {/* Top U bracket — top + left + right borders, no bottom */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: FRAME_BRACKET_HEIGHT,
+          borderTop: `1px solid ${lineColor}`,
+          borderLeft: `1px solid ${lineColor}`,
+          borderRight: `1px solid ${lineColor}`,
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      />
+      {/* Bottom U bracket — bottom + left + right borders, no top */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: FRAME_BRACKET_HEIGHT,
+          borderBottom: `1px solid ${lineColor}`,
+          borderLeft: `1px solid ${lineColor}`,
+          borderRight: `1px solid ${lineColor}`,
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      />
+      {/* Left vertical rail */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: FRAME_RAIL_INSET,
+          bottom: FRAME_RAIL_INSET,
+          left: 0,
+          width: 1,
+          background: lineColor,
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      />
+      {/* Right vertical rail */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: FRAME_RAIL_INSET,
+          bottom: FRAME_RAIL_INSET,
+          right: 0,
+          width: 1,
+          background: lineColor,
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      />
+    </>
   );
 }
 
