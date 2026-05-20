@@ -260,7 +260,11 @@ body {
   margin: 0;
 }
 .v1-cablecard.is-selected {
-  background: rgba(255, 255, 255, 0.56);
+  /* Force the base bevel gradient off; selected cards are translucent white
+     (per Figma temp/cablecards-active.css Rectangle 64) with a 2px orange
+     outline (Rectangle 65) — NOT a solid orange fill. */
+  background-image: none;
+  background-color: rgba(255, 255, 255, 0.56);
   border: 2px solid var(--v1-orange);
   border-radius: 3.55px;
 }
