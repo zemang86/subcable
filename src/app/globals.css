@@ -1,56 +1,92 @@
 @import "tailwindcss";
 
-/* HK Grotesk Wide — TM Global headline font, self-hosted from /public/fonts. */
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-regular.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-medium.otf") format("opentype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-bold.otf") format("opentype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-extrabold.otf") format("opentype");
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-black.otf") format("opentype");
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
+/* ───────── v1.0 — Tactical-HUD design tokens ─────────
+   Token names match docs/design_handoff_subcable_v1/styles-v1.css.
+   Type families are wired through next/font CSS variables exposed on <body>
+   in src/app/layout.tsx (--font-chakra, --font-rajdhani, …). */
 
 :root {
-  --background: #06013a;
-  --foreground: #f5f5f5;
-  --tm-cobalt: #1800e7;
-  --tm-navy: #180092;
-  --tm-dark: #06013a;
-  --tm-accent-orange: #ff5e00;
+  /* Surface */
+  --v1-bg:           #040E1F;
+  --v1-bg-deep:      #061630;
+  --v1-bg-cobalt:    #0A0449;
+  --v1-bg-line:      rgba(255, 255, 255, 0.06);
+
+  /* Primary blue */
+  --v1-blue:         #034DA1;
+  --v1-blue-2:       #0362A1;
+  --v1-blue-soft:    rgba(3, 77, 161, 0.30);
+  --v1-blue-fill:    rgba(3, 77, 161, 0.44);
+
+  /* Accent orange */
+  --v1-orange:       #F05A22;
+  --v1-orange-hot:   #FF4D00;
+  --v1-orange-60:    rgba(240, 90, 34, 0.60);
+  --v1-orange-43:    rgba(240, 90, 34, 0.43);
+  --v1-orange-40:    rgba(240, 90, 34, 0.40);
+  --v1-orange-deep:  #BC3514;
+
+  /* Status — lime/red dual state (new in v1.0) */
+  --v1-active:       #8FFF3F;
+  --v1-active-2:     #00FF4D;
+  --v1-active-bg:    #3F642E;
+  --v1-inactive:     #FF3F3F;
+  --v1-inactive-2:   #ED1B2E;
+  --v1-inactive-bg:  #642E2E;
+
+  /* Text */
+  --v1-fg:           #FFFFFF;
+  --v1-fg-cream:     #FFF6F6;
+  --v1-fg-iceblue:   #F1F7FF;
+  --v1-mute:         #C4C4C4;
+  --v1-mute-2:       #D9D9D9;
+  --v1-mute-dark:    #4E4F4E;
+
+  /* Type families — chain through next/font variables on <body> */
+  --v1-display:  var(--font-chakra),      "Chakra Petch", "Rajdhani", system-ui, sans-serif;
+  --v1-heading:  var(--font-rajdhani),    "Rajdhani", "Helvetica Neue", sans-serif;
+  --v1-mono:     var(--font-plex-mono),   "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --v1-stat:     var(--font-b612-mono),   "B612 Mono", "IBM Plex Mono", monospace;
+  --v1-pixel:    var(--font-space-mono),  "Space Mono", monospace;
+
+  /* Legacy aliases — the existing JSX uses `.font-display` and hex literals;
+     redirect both to the v1 stack so each rewrite phase can be incremental. */
+  --background: var(--v1-bg);
+  --foreground: var(--v1-fg);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-display: "HK Grotesk Wide", "Hanken Grotesk", system-ui, sans-serif;
-  --font-body: var(--font-roboto), "Roboto", system-ui, sans-serif;
+  /* Tailwind utility hooks */
+  --color-background:        var(--background);
+  --color-foreground:        var(--foreground);
+
+  --color-v1-bg:             var(--v1-bg);
+  --color-v1-bg-deep:        var(--v1-bg-deep);
+  --color-v1-bg-cobalt:      var(--v1-bg-cobalt);
+  --color-v1-blue:           var(--v1-blue);
+  --color-v1-blue-2:         var(--v1-blue-2);
+  --color-v1-orange:         var(--v1-orange);
+  --color-v1-orange-hot:     var(--v1-orange-hot);
+  --color-v1-active:         var(--v1-active);
+  --color-v1-active-2:       var(--v1-active-2);
+  --color-v1-active-bg:      var(--v1-active-bg);
+  --color-v1-inactive:       var(--v1-inactive);
+  --color-v1-inactive-2:     var(--v1-inactive-2);
+  --color-v1-inactive-bg:    var(--v1-inactive-bg);
+  --color-v1-fg:             var(--v1-fg);
+  --color-v1-fg-cream:       var(--v1-fg-cream);
+  --color-v1-fg-iceblue:     var(--v1-fg-iceblue);
+  --color-v1-mute:           var(--v1-mute);
+  --color-v1-mute-2:         var(--v1-mute-2);
+  --color-v1-mute-dark:      var(--v1-mute-dark);
+
+  /* Font utilities — `font-display`, `font-heading`, `font-mono`, `font-stat`, `font-pixel` */
+  --font-display: var(--v1-display);
+  --font-heading: var(--v1-heading);
+  --font-mono:    var(--v1-mono);
+  --font-stat:    var(--v1-stat);
+  --font-pixel:   var(--v1-pixel);
+  --font-body:    var(--v1-mono);
 }
 
 * {
@@ -63,20 +99,22 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-roboto), "Roboto", system-ui, sans-serif;
-  font-weight: 300;
+  background: var(--v1-bg);
+  color: var(--v1-fg);
+  font-family: var(--v1-mono);
+  font-weight: 400;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
 
+/* Legacy alias — many components still use .font-display.
+   Now resolves to Chakra Petch via the @theme map above. */
 .font-display {
-  font-family: "HK Grotesk Wide", "Hanken Grotesk", system-ui, sans-serif;
+  font-family: var(--v1-display);
 }
 
-/* Scrollbar styling for sidebar */
+/* Kiosk-safe scrollbar — narrow, hidden by default */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -84,11 +122,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(24, 0, 231, 0.35);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(24, 0, 231, 0.55);
+  background: rgba(255, 255, 255, 0.30);
 }
 
 /* Globe tooltip styling */
@@ -97,13 +135,139 @@ body {
   z-index: 100 !important;
 }
 
-/* Pulse animation for landing points */
+/* Pulse animation kept for legacy point pulses */
 @keyframes point-pulse {
   0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  100% { opacity: 1; }
+  50%  { opacity: 0.5; }
+}
+
+/* ───────── v1.0 utility classes (ported from styles-v1.css) ───────── */
+
+/* Tactical corner-bracket frame */
+.v1-bracket {
+  position: relative;
+}
+.v1-bracket::before,
+.v1-bracket::after,
+.v1-bracket > .bracket-tl,
+.v1-bracket > .bracket-br {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border-color: var(--v1-fg);
+  border-style: solid;
+}
+.v1-bracket::before { top: -1px; left: -1px;  border-width: 1px 0 0 1px; }
+.v1-bracket::after  { top: -1px; right: -1px; border-width: 1px 1px 0 0; }
+.v1-bracket > .bracket-tl { bottom: -1px; left: -1px;  top: auto; border-width: 0 0 1px 1px; }
+.v1-bracket > .bracket-br { bottom: -1px; right: -1px; top: auto; border-width: 0 1px 1px 0; }
+
+/* Hex / tag chip */
+.v1-tag {
+  display: inline-flex; align-items: center;
+  padding: 3px 8px;
+  font-family: var(--v1-heading); font-weight: 600;
+  font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Bevelled card — top-right corner cut */
+.v1-card-bevel {
+  --c: 16px;
+  background:
+    linear-gradient(var(--v1-blue) 22%, rgba(3, 77, 161, 0) 88%),
+    linear-gradient(var(--v1-orange-60) 0%, rgba(240, 90, 34, 0) 100%);
+  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%);
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Inverse bevel — bottom-left corner cut */
+.v1-card-bevel-bl {
+  --c: 16px;
+  background:
+    linear-gradient(var(--v1-blue) 22%, rgba(3, 77, 161, 0) 88%),
+    linear-gradient(var(--v1-orange-60) 0%, rgba(240, 90, 34, 0) 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--c) 100%, 0 calc(100% - var(--c)));
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Mini Cable Card (3×3 grid) */
+.v1-cablecard {
+  background:
+    linear-gradient(var(--v1-blue) 0%, rgba(3, 77, 161, 0) 76%),
+    linear-gradient(var(--v1-orange-60) 0%, rgba(240, 90, 34, 0) 70%);
+  border: 0.5px solid rgba(255, 255, 255, 0.65);
+  border-radius: 4px;
+  padding: 8px 10px;
+  position: relative;
+  min-height: 60px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.v1-cablecard.is-selected {
+  background: var(--v1-orange);
+  border-color: var(--v1-orange-hot);
+}
+.v1-cablecard.is-inactive { opacity: 0.85; }
+
+/* Triple concentric ring status indicator */
+.v1-status {
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1.4px solid var(--v1-active);
+  position: relative;
+}
+.v1-status::before {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 50%;
+  background: var(--v1-active-bg);
+}
+.v1-status::after {
+  content: '';
+  position: absolute; inset: 4px;
+  border-radius: 50%;
+  background: var(--v1-active);
+}
+.v1-status.inactive { border-color: var(--v1-inactive); }
+.v1-status.inactive::before { background: var(--v1-inactive-bg); }
+.v1-status.inactive::after  { background: var(--v1-inactive); }
+
+.v1-pulse { animation: v1-pulse 1.5s ease-in-out infinite; }
+@keyframes v1-pulse {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.85); }
+}
+
+/* Bottom titlebar gradient */
+.v1-titlebar {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.90) 60%, #000 100%);
+}
+
+/* Bracket frame backgrounds for content cards */
+.v1-info-frame {
+  background: linear-gradient(180deg, var(--v1-blue) 0%, rgba(3, 77, 161, 0.30) 60%, var(--v1-orange-43) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  position: relative;
+}
+
+/* Typography helpers */
+.v1-h-display { font-family: var(--v1-display); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.v1-h-heading { font-family: var(--v1-heading); font-weight: 600; letter-spacing: 0.04em; }
+.v1-h-label   { font-family: var(--v1-heading); font-weight: 500; font-size: 11px;  letter-spacing: 0.15em; text-transform: uppercase; color: var(--v1-mute); }
+.v1-h-eye     { font-family: var(--v1-heading); font-weight: 400; font-size: 10px;  letter-spacing: 0.20em; text-transform: uppercase; color: var(--v1-mute); }
+.v1-h-stat    { font-family: var(--v1-stat);    font-weight: 400; font-variant-numeric: tabular-nums; color: var(--v1-orange-hot); }
+.v1-mono      { font-family: var(--v1-mono); }
+.v1-coords    { font-family: var(--v1-pixel);   font-size: 9px;  letter-spacing: 0.04em; color: var(--v1-mute); }
+
+/* TV-wall background grid (3×3 wall divisions) */
+.v1-tv-grid {
+  background-image:
+    linear-gradient(to right,  rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: calc(100% / 3) calc(100% / 3);
 }

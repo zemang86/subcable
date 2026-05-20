@@ -69,3 +69,22 @@ export interface CableLandingStation {
   status: "existing" | "ongoing";
   cables: string[];
 }
+
+// ───────── v1.0 UI state types ─────────
+
+export type Filter = "all" | "international" | "domestic";
+
+export type Language = "en" | "bm";
+
+export type DialogId = "morse" | "funfact" | "howto" | null;
+
+export interface MorseState {
+  /** In-progress morse symbol buffer (dots and dashes). */
+  buffer: string;
+  /** Committed decoded text. */
+  text: string;
+  /** Landing-point id of the sender end. */
+  from: string;
+  /** Landing-point id of the recipient end. */
+  to: string;
+}
