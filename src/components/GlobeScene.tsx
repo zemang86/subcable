@@ -7,7 +7,7 @@ import Globe from "./GlobeWrapper";
 import Sidebar from "./Sidebar";
 import LoadingScreen from "./LoadingScreen";
 import CableInformation from "./CableInformation";
-import { BottomTitlebar } from "./BottomTitlebar";
+import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
 import { RecenterButton } from "./RecenterButton";
 import { AudioMute } from "./AudioMute";
@@ -1020,7 +1020,7 @@ export default function GlobeScene() {
       )}
 
       {/* Bottom: titlebar */}
-      <BottomTitlebar selectedCable={selectedCable} language={language} />
+      <Header selectedCable={selectedCable} language={language} />
 
       {/* Map overlay: one callout per landing point on the selected cable */}
       {selectedCable &&

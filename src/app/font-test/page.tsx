@@ -135,7 +135,7 @@ export default function FontTestPage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 28, padding: "24px 28px", border: "1px solid var(--v1-bg-line)", borderRadius: 2 }}>
           {/* Bottom-titlebar (Chakra Petch 56px) */}
           <div>
-            <div className="v1-h-eye" style={{ marginBottom: 6 }}>BottomTitlebar · Chakra Petch 56 / 700</div>
+            <div className="v1-h-eye" style={{ marginBottom: 6 }}>Header · Chakra Petch 52 / 700</div>
             <div style={{ fontFamily: "var(--v1-display)", fontWeight: 700, fontSize: 56, letterSpacing: "0.04em", textTransform: "uppercase", lineHeight: 1 }}>
               Submarine Cable Map
             </div>
