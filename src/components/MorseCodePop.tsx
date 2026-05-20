@@ -244,13 +244,13 @@ export default function MorseCodePop({
         />
 
         {/* ── LIVE MESSAGE ── covers the SVG's "Tap Dots & Dashes to Begin"
-            placeholder + decoded text. The mask matches the light-grey
-            canvas colour so an empty `decoded` reveals the SVG placeholder
-            underneath. */}
-        {decoded.length > 0 && (
-          <div
-            style={absPos(POS.placeholder)}
-          >
+            placeholder + shows decoded text plus the in-progress buffer
+            (dots/dashes typed but not yet committed via Enter Letter).
+            The mask matches the light-grey canvas colour so when both
+            decoded and buffer are empty the SVG placeholder underneath
+            remains visible. */}
+        {(decoded.length > 0 || buffer.length > 0) && (
+          <div style={absPos(POS.placeholder)}>
             <div
               style={{
                 position: "absolute",
@@ -266,10 +266,10 @@ export default function MorseCodePop({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                gap: 12,
                 fontFamily: "var(--v1-heading)",
                 fontWeight: 500,
                 fontSize: 19.36,
-                color: "#1A1A1A",
                 letterSpacing: "0.08em",
                 wordBreak: "break-all",
                 textAlign: "center",
@@ -277,7 +277,21 @@ export default function MorseCodePop({
                 boxSizing: "border-box",
               }}
             >
-              {decoded}
+              {decoded.length > 0 && (
+                <span style={{ color: "#1A1A1A" }}>{decoded}</span>
+              )}
+              {buffer.length > 0 && (
+                <span
+                  style={{
+                    color: "#F05A22",
+                    fontFamily: "var(--v1-mono)",
+                    fontWeight: 700,
+                    letterSpacing: "0.15em",
+                  }}
+                >
+                  {buffer.replace(/\./g, "·").replace(/-/g, "−")}
+                </span>
+              )}
             </div>
           </div>
         )}
