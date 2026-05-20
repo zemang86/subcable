@@ -47,10 +47,11 @@ Recent commits ahead of origin/main: `2c74062` `26458da` `ad24e3a` `c281c08` `4b
 ## 4. Panels
 
 ### Sidebar / Cable System
-- ✅ Filter tabs (Show All / International / Domestic) at 44px orange-active
-- ✅ 3×3 grid panel with bevel card
-- 🔍 **Count strip footer** ("21 Active · 1 Inactive") — verify against the v3 screenshot (`screenshots/cable-system-v3.png`)
-- ⚠️ **Cable System layout — v2/v3 screenshots** show layout iterations. Open and compare against current implementation if you want to chase any of them.
+- ✅ Filter tabs (Show All / International / Domestic) at 44px orange-active — relocated to BOTTOM, 3-col grid (M11)
+- ✅ 3×3 grid panel with bevel card — width 454px, scroll thumb (orange) on right edge (M11)
+- ✅ **Title strip on TOP** — black bg, 18px Chakra Petch Bold, 4 crosshair (+) corner markers, count chips inline-right (M11 / V3 spec)
+- ✅ **Cable System layout flipped** to match `screenshots/cable-system-v3.png` (title → grid → filters, was filters → grid → counts)
+- ✅ **CableCard bottom row** — 3 stacked metric blocks (Length+Km / Pts+Pts / RFS-month+year) replacing the inline string (M11)
 
 ### Cable Information
 - ✅ Inactive cables show DECOMMISSIONED chip

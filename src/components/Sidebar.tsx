@@ -22,6 +22,9 @@ const FILTERS: { id: Filter; key: "showAll" | "international" | "domestic" }[] =
   { id: "domestic", key: "domestic" },
 ];
 
+// Panel width per Figma V1.3 (screenshots/cable-system-v3.png), node 335:298.
+const PANEL_WIDTH = 454;
+
 export default function Sidebar({
   selectedCable,
   onSelectCable,
@@ -50,14 +53,86 @@ export default function Sidebar({
         bottom: 28,
         right: 28,
         zIndex: 20,
-        width: 460,
+        width: PANEL_WIDTH,
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 8,
       }}
     >
-      {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 6 }}>
+      {/* TOP — title strip with 4 crosshair (+) corner markers, black bg, count chips right-aligned */}
+      <TitleStrip
+        title={t("cableSystem")}
+        activeCount={activeCount}
+        activeLabel={t("active")}
+        inactiveCount={inactiveCount}
+        inactiveLabel={t("inactive")}
+      />
+
+      {/* MIDDLE — 3×N grid panel with bevel gradient + scroll thumb on right edge */}
+      <div
+        className="v1-card-bevel"
+        style={{
+          padding: 12,
+          height: 270,
+          display: "grid",
+          gridTemplateColumns: "1fr 6px",
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            minWidth: 0,
+            overflowY: "auto",
+            scrollbarWidth: "none",
+          }}
+          className="v1-cable-grid-scroll"
+        >
+          {visible.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 28,
+                color: "var(--v1-mute)",
+                fontSize: 11,
+              }}
+            >
+              No cables match.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 7,
+              }}
+            >
+              {visible.map((cable) => (
+                <CableCard
+                  key={cable.id}
+                  cable={cable}
+                  isSelected={selectedCable?.id === cable.id}
+                  onSelect={() =>
+                    onSelectCable(selectedCable?.id === cable.id ? null : cable)
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Scroll indicator track + orange thumb (visual only — content scrolls
+            independently). 38% thumb height + 6% top inset per V3 spec. */}
+        <ScrollIndicator visibleCount={visible.length} rowsShown={3} />
+      </div>
+
+      {/* BOTTOM — filter tabs as a 3-col grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 6,
+        }}
+      >
         {FILTERS.map((f) => {
           const active = filter === f.id;
           return (
@@ -72,104 +147,162 @@ export default function Sidebar({
           );
         })}
       </div>
+    </div>
+  );
+}
 
-      {/* 3-row scrollable grid — fixed at 270px so exactly 3 rows of cards
-          are visible by default; anything past that scrolls. */}
-      <div
-        className="v1-card-bevel"
+function TitleStrip({
+  title,
+  activeCount,
+  activeLabel,
+  inactiveCount,
+  inactiveLabel,
+}: {
+  title: string;
+  activeCount: number;
+  activeLabel: string;
+  inactiveCount: number;
+  inactiveLabel: string;
+}) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        padding: "12px 18px",
+        background: "#000000",
+        border: "1px solid rgba(255, 255, 255, 0.10)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+      }}
+    >
+      <CrossMark position="tl" />
+      <CrossMark position="tr" />
+      <CrossMark position="bl" />
+      <CrossMark position="br" />
+
+      <span
+        className="v1-h-display"
         style={{
-          padding: 14,
-          height: 270,
-          overflowY: "auto",
+          fontSize: 18,
+          fontFamily: "var(--v1-display)",
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
         }}
       >
-        {visible.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: 28,
-              color: "var(--v1-mute)",
-              fontSize: 11,
-            }}
-          >
-            No cables match.
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 8,
-            }}
-          >
-            {visible.map((cable) => (
-              <CableCard
-                key={cable.id}
-                cable={cable}
-                isSelected={selectedCable?.id === cable.id}
-                onSelect={() =>
-                  onSelectCable(selectedCable?.id === cable.id ? null : cable)
-                }
-              />
-            ))}
-          </div>
+        {title}
+      </span>
+      <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+        <CountChip n={activeCount} label={activeLabel} tone="active" />
+        {inactiveCount > 0 && (
+          <CountChip n={inactiveCount} label={inactiveLabel} tone="inactive" />
         )}
-      </div>
-
-      {/* Count summary strip */}
-      <div
-        className="v1-titlebar"
-        style={{
-          padding: "10px 14px",
-          background: "linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.6) 100%)",
-          border: "1px solid rgba(255, 255, 255, 0.15)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span className="v1-h-display" style={{ fontSize: 13 }}>
-          {t("cableSystem")}
-        </span>
-        <div style={{ display: "flex", gap: 14 }}>
-          <CountChip
-            label={`${activeCount} ${t("active")}`}
-            tone="active"
-          />
-          <CountChip
-            label={`${inactiveCount} ${t("inactive")}`}
-            tone="inactive"
-            hidden={inactiveCount === 0}
-          />
-        </div>
       </div>
     </div>
   );
 }
 
+function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const base = {
+    position: "absolute" as const,
+    width: 14,
+    height: 14,
+    pointerEvents: "none" as const,
+  };
+  const offsets = {
+    tl: { top: -7, left: -7 },
+    tr: { top: -7, right: -7 },
+    bl: { bottom: -7, left: -7 },
+    br: { bottom: -7, right: -7 },
+  };
+  return (
+    <span aria-hidden style={{ ...base, ...offsets[position] }}>
+      {/* vertical arm */}
+      <span
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: 0,
+          width: 1.2,
+          height: 14,
+          transform: "translateX(-50%)",
+          background: "rgba(255, 255, 255, 0.85)",
+        }}
+      />
+      {/* horizontal arm */}
+      <span
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: 0,
+          width: 14,
+          height: 1.2,
+          transform: "translateY(-50%)",
+          background: "rgba(255, 255, 255, 0.85)",
+        }}
+      />
+    </span>
+  );
+}
+
 function CountChip({
+  n,
   label,
   tone,
-  hidden = false,
 }: {
+  n: number;
   label: string;
   tone: "active" | "inactive";
-  hidden?: boolean;
 }) {
-  if (hidden) return null;
   return (
-    <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-      <StatusIndicator status={tone} pulse={tone === "active"} scale={0.7} />
+    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <StatusIndicator status={tone} pulse={tone === "active"} scale={0.95} />
       <span
         style={{
           fontFamily: "var(--v1-heading)",
-          fontSize: 11,
+          fontSize: 13,
           letterSpacing: "0.08em",
           color: tone === "active" ? "var(--v1-active)" : "var(--v1-inactive)",
         }}
       >
-        {label}
+        {n} {label}
       </span>
+    </div>
+  );
+}
+
+function ScrollIndicator({
+  visibleCount,
+  rowsShown,
+}: {
+  visibleCount: number;
+  rowsShown: number;
+}) {
+  // Thumb size scales inversely with overflow — capped between 22% and 88%.
+  const rowsTotal = Math.max(1, Math.ceil(visibleCount / 3));
+  const ratio = Math.min(1, rowsShown / rowsTotal);
+  const thumbPct = Math.max(22, Math.min(88, ratio * 100));
+  return (
+    <div
+      aria-hidden
+      style={{
+        width: 4,
+        alignSelf: "stretch",
+        background: "rgba(255, 255, 255, 0.12)",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: "6%",
+          width: 4,
+          height: `${thumbPct}%`,
+          background: "var(--v1-orange)",
+        }}
+      />
     </div>
   );
 }
