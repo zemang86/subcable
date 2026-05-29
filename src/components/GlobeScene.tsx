@@ -7,6 +7,7 @@ import Globe from "./GlobeWrapper";
 import Sidebar from "./Sidebar";
 import SystemButtons from "./SystemButtons";
 import LoadingScreen from "./LoadingScreen";
+import SplashScreen from "./SplashScreen";
 import CableInformation from "./CableInformation";
 import GeneralInformation from "./GeneralInformation";
 import { Header } from "./Header";
@@ -190,6 +191,14 @@ interface PathData {
 export default function GlobeScene() {
   const globeRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  // Intro splash: shown AFTER the loading screen finishes (isLoaded → true),
+  // held ~3.5s then faded out to reveal the globe. Order: loading → splash →
+  // globe. `splashFading` triggers the fade-out before unmount.
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
+  // Keep the loading screen mounted under the splash until the splash has
+  // fully faded in, so the #040E1F backdrop never breaks during the crossfade.
+  const [hideLoading, setHideLoading] = useState(false);
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
   const [selectedLandingPoint, setSelectedLandingPoint] =
     useState<LandingPoint | null>(null);
@@ -459,6 +468,22 @@ export default function GlobeScene() {
     return [...countriesL, ...cities];
   }, [cityLabelsData, countryLabels]);
 
+  // Splash timing: starts once the loading screen is done (isLoaded). Hold
+  // ~2.9s, fade out over 600ms, unmount at 3.5s total → then the globe shows.
+  useEffect(() => {
+    if (!isLoaded) return;
+    // Splash crossfades in over the loading screen (~600ms); once opaque,
+    // drop the loading screen. Then hold and fade out → globe.
+    const hide = setTimeout(() => setHideLoading(true), 700);
+    const fade = setTimeout(() => setSplashFading(true), 2900);
+    const done = setTimeout(() => setShowSplash(false), 3500);
+    return () => {
+      clearTimeout(hide);
+      clearTimeout(fade);
+      clearTimeout(done);
+    };
+  }, [isLoaded]);
+
   // Initial view + globe controls
   const handleGlobeReady = useCallback(() => {
     if (globeRef.current) {
@@ -476,9 +501,10 @@ export default function GlobeScene() {
         controls.touches = { ONE: 0, TWO: 2 };
       }
     }
-    // Hold the loading screen for a minimum of 1500ms even when textures are
-    // cached, so the kiosk gets a clean intro frame (§H.9).
-    setTimeout(() => setIsLoaded(true), 1500);
+    // Hold the loading screen for a minimum of 3000ms even when textures are
+    // cached, so the kiosk gets a clean intro frame (§H.9) and the loading-bar
+    // sweep (3s, see LoadingScreen.FILL_MS) plays out in full.
+    setTimeout(() => setIsLoaded(true), 3000);
   }, []);
 
   // Drive controls.autoRotate from the React state. The state itself is set
@@ -1001,7 +1027,10 @@ export default function GlobeScene() {
       className="relative w-full h-screen overflow-hidden"
       style={{ background: "var(--v1-bg)", touchAction: "none" }}
     >
-      {!isLoaded && <LoadingScreen language={language} />}
+      {!hideLoading && <LoadingScreen language={language} />}
+      {isLoaded && showSplash && (
+        <SplashScreen language={language} fadingOut={splashFading} />
+      )}
 
       <Globe
         ref={globeRef}

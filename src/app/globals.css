@@ -342,6 +342,21 @@ body {
 .v1-mono      { font-family: var(--v1-mono); }
 .v1-coords    { font-family: var(--v1-pixel);   font-size: 9px;  letter-spacing: 0.04em; color: var(--v1-mute); }
 
+/* Splash screen — gentle fade + rise in, fade out. Whole-screen opacity is
+   driven inline (JS state); this animates the inner content lift on entry. */
+@keyframes v1-splash-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading bar — white fill sweeps left→right across the dark track.
+   Animates transform (compositor thread) not width, so it keeps moving even
+   while the globe's heavy init saturates the main JS thread. */
+@keyframes v1-loadbar {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
 /* TV-wall background grid (3×3 wall divisions) */
 .v1-tv-grid {
   background-image:
