@@ -9,7 +9,8 @@ import { useState } from "react";
 //          navigation step on release (handled in parent via `onBack`).
 // AUDIO  — toggles audio on/off (`muted` + `onAudioToggle`). Resting graphic
 //          reflects state (on vs off); while held it shows the pressed graphic.
-// NARATION — function still TBD; handler is a stub for now.
+// NARATION — on/off toggle for now (local state) so the client can test the
+//          interaction. No real narration function wired behind it yet.
 //
 // All press buttons swap to a "pressed" graphic while held (pointer captured)
 // and fire their action on release.
@@ -37,6 +38,10 @@ export default function SystemButtons({
   onAudioToggle,
   onNaration,
 }: SystemButtonsProps) {
+  // Local on/off state for narration — placeholder until the real narration
+  // function is supplied. Defaults to "on" (active waves icon), matching audio.
+  const [narrationOn, setNarrationOn] = useState(true);
+
   return (
     <div
       style={{
@@ -69,10 +74,17 @@ export default function SystemButtons({
         onActivate={onAudioToggle}
       />
 
-      <IconButton
-        src="/buttons/naration.svg"
-        label="Naration"
-        onClick={onNaration}
+      {/* Naration — on/off toggle (local state) for client testing. */}
+      <PressButton
+        label={narrationOn ? "Turn narration off" : "Turn narration on"}
+        restingSrc={
+          narrationOn ? "/buttons/naration.svg" : "/buttons/narrate-off.svg"
+        }
+        pressedSrc="/buttons/narrate-onpress.svg"
+        onActivate={() => {
+          setNarrationOn((on) => !on);
+          onNaration?.();
+        }}
       />
     </div>
   );
@@ -115,30 +127,6 @@ function PressButton({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={pressed ? pressedSrc : restingSrc}
-        alt={label}
-        width={BUTTON_SIZE}
-        height={BUTTON_SIZE}
-        draggable={false}
-        style={imgStyle}
-      />
-    </button>
-  );
-}
-
-function IconButton({
-  src,
-  label,
-  onClick,
-}: {
-  src: string;
-  label: string;
-  onClick?: () => void;
-}) {
-  return (
-    <button type="button" aria-label={label} onClick={onClick} style={buttonStyle}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
         alt={label}
         width={BUTTON_SIZE}
         height={BUTTON_SIZE}
