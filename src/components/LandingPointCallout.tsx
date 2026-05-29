@@ -8,12 +8,15 @@ import {
   HUD_CENTER_Y,
   MARKER_TOP,
   PointHUD,
+  SVG_W,
 } from "./PointHUD";
 
 type LandingPointCalloutProps = {
   point: LandingPoint;
   /** Screen-space position of the landing point on the globe canvas. */
   screenPos: { x: number; y: number };
+  /** Box-centre offset from the point (px), set by the declutter pass. */
+  offset?: { dx: number; dy: number };
   /** When true, the callout fades and stops receiving pointer events. */
   hidden?: boolean;
   /** When true, dim the callout — used to background siblings while one is expanded. */
@@ -24,10 +27,15 @@ type LandingPointCalloutProps = {
   onToggleExpand?: () => void;
 };
 
-const CALLOUT_WIDTH = 210;
-const CALLOUT_BOX_HEIGHT = 58;
-const GAP_BOX_TO_HUD = 6;
-const OFFSET_FROM_POINT = CALLOUT_BOX_HEIGHT + GAP_BOX_TO_HUD + HUD_CENTER_Y;
+// Declutter geometry — shared with the layout pass in GlobeScene so the
+// collision math and the rendered boxes agree.
+export const CALLOUT_WIDTH = 210;
+export const CALLOUT_BOX_HEIGHT = 58; // nominal; the box auto-heights at render
+// At rest (no neighbours) the box centre sits this far ABOVE the point.
+export const CALLOUT_REST_RISE = 73;
+// Line stops this far short of the point so it meets the reticle, not its centre.
+const MARKER_GAP = 13;
+const CONNECTOR_THICKNESS = 1.4;
 
 // Expanded card native geometry — lifted from temp/expand-location.css.
 // 439w main panel; height is content-driven so longer descriptions don't
@@ -39,6 +47,7 @@ const EXP_STEM_THICKNESS = 2.28;
 export function LandingPointCallout({
   point,
   screenPos,
+  offset = { dx: 0, dy: -CALLOUT_REST_RISE },
   hidden = false,
   dimmed = false,
   expanded = false,
@@ -56,30 +65,68 @@ export function LandingPointCallout({
 
   const interactive = !hidden && !dimmed && Boolean(onToggleExpand);
 
+  // Everything is positioned relative to a zero-size anchor pinned at the point
+  // (screenPos). The box centre sits at `offset` from the point; the declutter
+  // pass nudges that offset in both axes. A diagonal leader line runs from the
+  // reticle to whichever box edge faces the point.
+  const { dx, dy } = offset;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist; // unit vector point → box
+  const uy = dy / dist;
+  // Line start: just outside the reticle, heading toward the box.
+  const startX = ux * MARKER_GAP;
+  const startY = uy * MARKER_GAP;
+  // Line end: where the segment from the point exits the box rectangle.
+  const sx = Math.abs(ux) < 1e-3 ? Infinity : CALLOUT_WIDTH / 2 / Math.abs(ux);
+  const sy = Math.abs(uy) < 1e-3 ? Infinity : CALLOUT_BOX_HEIGHT / 2 / Math.abs(uy);
+  const s = Math.min(sx, sy);
+  const endX = dx - ux * s;
+  const endY = dy - uy * s;
+  const lineLen = Math.max(0, Math.hypot(endX - startX, endY - startY));
+  const lineAngle = (Math.atan2(endY - startY, endX - startX) * 180) / Math.PI;
+
   return (
     <div
       style={{
         position: "absolute",
-        left: screenPos.x - CALLOUT_WIDTH / 2,
-        top: screenPos.y - OFFSET_FROM_POINT,
-        width: CALLOUT_WIDTH,
-        pointerEvents: interactive ? "auto" : "none",
+        left: screenPos.x,
+        top: screenPos.y,
+        width: 0,
+        height: 0,
+        pointerEvents: "none",
         opacity: hidden ? 0 : dimmed ? 0.28 : 1,
         filter: dimmed ? "grayscale(0.6)" : undefined,
         transition: "opacity 200ms ease, filter 200ms ease",
         zIndex: 15,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
       }}
     >
+      {/* Leader line — diagonal, from the reticle to the box's near edge */}
+      {lineLen > 0 && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: startX,
+            top: startY - CONNECTOR_THICKNESS / 2,
+            width: lineLen,
+            height: CONNECTOR_THICKNESS,
+            background: "var(--v1-orange)",
+            transformOrigin: "left center",
+            transform: `rotate(${lineAngle}deg)`,
+          }}
+        />
+      )}
+
       <button
         type="button"
         onClick={onToggleExpand}
         aria-label={`Open details for ${point.name}`}
         style={{
-          position: "relative",
-          width: "100%",
+          position: "absolute",
+          left: dx,
+          top: dy,
+          transform: "translate(-50%, -50%)",
+          width: CALLOUT_WIDTH,
           padding: "10px 14px",
           background: "rgba(188, 53, 20, 0.55)",
           color: "var(--v1-fg)",
@@ -90,6 +137,8 @@ export function LandingPointCallout({
           border: "none",
           cursor: interactive ? "pointer" : "default",
           font: "inherit",
+          pointerEvents: interactive ? "auto" : "none",
+          transition: "top 220ms ease",
         }}
       >
         <CornerBracket position="tl" />
@@ -140,10 +189,21 @@ export function LandingPointCallout({
         </div>
       </button>
 
-      <PointHUD
-        status={point.kind === "pop" ? "inactive" : "active"}
-        pulse={point.kind !== "pop"}
-      />
+      {/* Reticle marker — pinned with its centre exactly on the point */}
+      <div
+        style={{
+          position: "absolute",
+          left: -SVG_W / 2,
+          top: -HUD_CENTER_Y,
+          pointerEvents: "none",
+        }}
+      >
+        <PointHUD
+          status={point.kind === "pop" ? "inactive" : "active"}
+          pulse={point.kind !== "pop"}
+          hideLine
+        />
+      </div>
     </div>
   );
 }

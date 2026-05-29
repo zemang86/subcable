@@ -14,7 +14,12 @@ import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
 import { RecenterButton } from "./RecenterButton";
 import { RightCluster } from "./RightCluster";
-import { LandingPointCallout } from "./LandingPointCallout";
+import {
+  CALLOUT_BOX_HEIGHT,
+  CALLOUT_REST_RISE,
+  CALLOUT_WIDTH,
+  LandingPointCallout,
+} from "./LandingPointCallout";
 import HowToGuideDialog from "./HowToGuideDialog";
 import FunFactDialog from "./FunFactDialog";
 import MorseCodePop from "./MorseCodePop";
@@ -1030,6 +1035,93 @@ export default function GlobeScene() {
       .filter((p): p is LandingPoint => Boolean(p));
   }, [selectedCable]);
 
+  // Declutter pass: when zoomed out, landing-point callouts pile onto the same
+  // patch of screen. Rather than rigidly laddering them apart, run a gentle
+  // force relaxation — each box repels overlapping neighbours (in BOTH axes),
+  // a soft spring keeps it near its rest spot just above the point, and a clamp
+  // stops it straying far. Some overlap is tolerated (ALLOW_*), so dense
+  // clusters scatter a little instead of shooting off-screen.
+  const calloutLayout = useMemo(() => {
+    const W = CALLOUT_WIDTH;
+    const H = CALLOUT_BOX_HEIGHT;
+    // Closeness 0→1 as the camera zooms in (alt 1.3 → 0.25). Zoomed out we want
+    // a gentle nudge; zoomed in, geographically-close points still project to
+    // nearly the same pixel, so crank the repel/reach up to fling them apart.
+    const closeness = Math.max(0, Math.min(1, (1.3 - zoomLevel) / (1.3 - 0.25)));
+    const lerp = (a: number, b: number) => a + (b - a) * closeness;
+    // Negative ALLOW = enforce a gap (boxes fully separate); positive = tolerate
+    // overlap. Zoomed in we want them fully apart with a small gap.
+    const ALLOW_X = lerp(26, -10); // permitted overlap (−gap) before repel
+    const ALLOW_Y = lerp(14, -8);
+    const REPEL = lerp(0.35, 0.95); // fraction of penetration resolved per step
+    const SPRING = lerp(0.1, 0.03); // pull back toward rest (weaker when close)
+    const ITER = 22;
+    const MAX_OFFSET = lerp(92, 300); // clamp stray from rest
+
+    const items = cableLandingPoints
+      .map((p) => ({ id: p.id, s: calloutScreens[p.id] }))
+      .filter((it): it is { id: string; s: { x: number; y: number; visible: boolean } } =>
+        Boolean(it.s && it.s.visible),
+      )
+      .sort((a, b) => a.s.x - b.s.x);
+
+    // Rest position = box centre directly above the point. Seed a small,
+    // deterministic horizontal jitter so perfectly-stacked points break apart
+    // sideways instead of only vertically.
+    const nodes = items.map((it, i) => {
+      const hx = it.s.x;
+      const hy = it.s.y - CALLOUT_REST_RISE;
+      const seed = ((i * 53) % 11) - 5; // −5..5 px
+      return { id: it.id, hx, hy, cx: hx + seed, cy: hy };
+    });
+
+    for (let iter = 0; iter < ITER; iter++) {
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          let dxc = a.cx - b.cx;
+          let dyc = a.cy - b.cy;
+          const penX = W - ALLOW_X - Math.abs(dxc);
+          const penY = H - ALLOW_Y - Math.abs(dyc);
+          if (penX > 0 && penY > 0) {
+            if (dxc === 0 && dyc === 0) {
+              dxc = i - j; // deterministic tie-break for coincident centres
+              dyc = -1;
+            }
+            const pen = Math.min(penX, penY);
+            const len = Math.hypot(dxc, dyc) || 1;
+            const push = (REPEL * pen) / 2;
+            const nx = (dxc / len) * push;
+            const ny = (dyc / len) * push;
+            a.cx += nx;
+            a.cy += ny;
+            b.cx -= nx;
+            b.cy -= ny;
+          }
+        }
+      }
+      for (const n of nodes) {
+        n.cx += (n.hx - n.cx) * SPRING;
+        n.cy += (n.hy - n.cy) * SPRING;
+        const ox = n.cx - n.hx;
+        const oy = n.cy - n.hy;
+        const d = Math.hypot(ox, oy);
+        if (d > MAX_OFFSET) {
+          n.cx = n.hx + (ox / d) * MAX_OFFSET;
+          n.cy = n.hy + (oy / d) * MAX_OFFSET;
+        }
+      }
+    }
+
+    const layout: Record<string, { dx: number; dy: number }> = {};
+    for (const n of nodes) {
+      // Offset of the box centre relative to the POINT (rest is dy = −rise).
+      layout[n.id] = { dx: n.cx - n.hx, dy: n.cy - n.hy - CALLOUT_REST_RISE };
+    }
+    return layout;
+  }, [calloutScreens, cableLandingPoints, zoomLevel]);
+
   return (
     <div
       className="relative w-full h-screen overflow-hidden"
@@ -1161,11 +1253,13 @@ export default function GlobeScene() {
           if (!pos || !pos.visible) return null;
           const isExpanded = expandedPointId === p.id;
           const someoneExpanded = expandedPointId !== null;
+          const slot = calloutLayout[p.id];
           return (
             <LandingPointCallout
               key={p.id}
               point={p}
               screenPos={{ x: pos.x, y: pos.y }}
+              offset={slot}
               expanded={isExpanded}
               dimmed={someoneExpanded && !isExpanded}
               onToggleExpand={() =>
