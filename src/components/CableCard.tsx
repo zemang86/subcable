@@ -21,9 +21,28 @@ function parseLength(len: string): string {
   return `${m[1]} ${m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase()}`;
 }
 
-// "November 2005" → "RFS November 2005"; "2005" → "RFS 2005"
+// Full month name → 3-letter abbreviation (e.g. "November" → "Nov").
+const MONTH_ABBR: Record<string, string> = {
+  january: "Jan",
+  february: "Feb",
+  march: "Mar",
+  april: "Apr",
+  may: "May",
+  june: "Jun",
+  july: "Jul",
+  august: "Aug",
+  september: "Sep",
+  october: "Oct",
+  november: "Nov",
+  december: "Dec",
+};
+
+// "November 2005" → "RFS Nov 2005"; "2005" → "RFS 2005"
 function formatRfs(rfs: string): string {
-  return `RFS ${rfs.trim()}`;
+  const shortened = rfs
+    .trim()
+    .replace(/[A-Za-z]+/, (m) => MONTH_ABBR[m.toLowerCase()] ?? m);
+  return `RFS ${shortened}`;
 }
 
 export default function CableCard({ cable, isSelected, onSelect }: CableCardProps) {
@@ -119,23 +138,22 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
       <div
         style={{
           display: "flex",
-          gap: 6,
+          justifyContent: "space-between",
+          gap: 4,
           marginTop: "auto",
           fontFamily: "var(--v1-mono)",
           fontWeight: 300,
-          fontSize: 6.5,
+          fontSize: 5,
+          lineHeight: 1.3,
           color: text,
-          letterSpacing: "0.01em",
+          letterSpacing: "-0.01em",
           whiteSpace: "nowrap",
-          overflow: "hidden",
           minWidth: 0,
         }}
       >
         <span style={{ flexShrink: 0 }}>{parseLength(cable.length)}</span>
         <span style={{ flexShrink: 0 }}>{cable.landingPointIds.length} Points</span>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
-          {formatRfs(cable.rfs)}
-        </span>
+        <span style={{ flexShrink: 0 }}>{formatRfs(cable.rfs)}</span>
       </div>
     </button>
   );
