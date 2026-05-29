@@ -14,6 +14,7 @@ import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
 import { RecenterButton } from "./RecenterButton";
 import { RightCluster } from "./RightCluster";
+import { ClusterStem } from "./ClusterStem";
 import {
   CALLOUT_BOX_HEIGHT,
   CALLOUT_REST_RISE,
@@ -1312,6 +1313,9 @@ export default function GlobeScene() {
             />
           );
         })}
+
+      {/* Leader line from the active cluster button to its dialog title. */}
+      <ClusterStem openDialog={openDialog} viewport={dimensions} />
 
       {/* Dialogs */}
       {openDialog === "howto" && (

@@ -22,6 +22,7 @@ export function RightCluster({
       }}
     >
       <ClusterButton
+        stemId="morse"
         active={openDialog === "morse"}
         onClick={() => onOpen("morse")}
         ariaLabel="Morse Code"
@@ -29,6 +30,7 @@ export function RightCluster({
       />
 
       <ClusterButton
+        stemId="funfact"
         active={openDialog === "funfact"}
         onClick={() => onOpen("funfact")}
         ariaLabel="Information"
@@ -37,6 +39,7 @@ export function RightCluster({
       />
 
       <ClusterButton
+        stemId="howto"
         active={openDialog === "howto"}
         onClick={() => onOpen("howto")}
         ariaLabel="How to use"
@@ -47,12 +50,14 @@ export function RightCluster({
 }
 
 function ClusterButton({
+  stemId,
   active,
   onClick,
   ariaLabel,
   disabled = false,
   icon,
 }: {
+  stemId: string;
   active: boolean;
   onClick: () => void;
   ariaLabel: string;
@@ -62,6 +67,7 @@ function ClusterButton({
   return (
     <button
       type="button"
+      data-stem-btn={stemId}
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}

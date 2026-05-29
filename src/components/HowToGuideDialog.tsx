@@ -230,6 +230,7 @@ function TitleStrip({
 }) {
   return (
     <div
+      data-stem-title
       style={{
         position: "relative",
         width: "100%",
