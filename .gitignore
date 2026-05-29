@@ -51,3 +51,6 @@ next-env.d.ts
 
 # scratch / shared-UI snippets (CSS handoff drops)
 /temp/
+
+# per-developer working scratchpad (tasks/lessons.md stays tracked)
+/tasks/todo.md
