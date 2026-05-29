@@ -606,6 +606,24 @@ export default function GlobeScene() {
     [handleSelectCable],
   );
 
+  // Camera view captured when an info panel opens, so closing can glide back.
+  const prevPovRef = useRef<{
+    lat: number;
+    lng: number;
+    altitude: number;
+  } | null>(null);
+
+  // Close the expanded info panel and restore the globe to the view it had
+  // when the panel was opened (the user may have rotated/zoomed while reading).
+  const closeExpanded = useCallback(() => {
+    const prev = prevPovRef.current;
+    if (prev) {
+      globeRef.current?.pointOfView(prev, 700);
+      prevPovRef.current = null;
+    }
+    setExpandedPointId(null);
+  }, []);
+
   // Back button — pops one navigation step:
   //  1. If a landing-point callout is open (location info showing) → close it,
   //     returning to the cable network view. Same as tapping the callout.
@@ -613,12 +631,37 @@ export default function GlobeScene() {
   //     also hides the back button.
   const handleBack = useCallback(() => {
     if (expandedPointId !== null) {
-      setExpandedPointId(null);
+      closeExpanded();
       setSelectedLandingPoint(null);
     } else if (selectedCable) {
       handleSelectCable(null);
     }
-  }, [expandedPointId, selectedCable, handleSelectCable]);
+  }, [expandedPointId, selectedCable, handleSelectCable, closeExpanded]);
+
+  // Expand a landing-point callout: snapshot the current view, then simply
+  // rotate the point to the globe's centre (same altitude — no zoom). The panel
+  // anchors above that point, so it ends up centred over the globe with the
+  // marker at its bottom. closeExpanded glides back to the snapshot.
+  const handleToggleExpand = useCallback(
+    (p: LandingPoint) => {
+      if (expandedPointId === p.id) {
+        closeExpanded();
+        return;
+      }
+      const pov = globeRef.current?.pointOfView?.();
+      if (pov && !prevPovRef.current) {
+        prevPovRef.current = {
+          lat: pov.lat,
+          lng: pov.lng,
+          altitude: pov.altitude,
+        };
+      }
+      const alt = pov?.altitude ?? DEFAULT_ALT;
+      globeRef.current?.pointOfView({ lat: p.lat, lng: p.lng, altitude: alt }, 700);
+      setExpandedPointId(p.id);
+    },
+    [expandedPointId, closeExpanded],
+  );
 
   // Recenter on Malaysia (compass) — leaves selection/dialogs alone.
   const recenterMalaysia = useCallback(() => {
@@ -635,6 +678,7 @@ export default function GlobeScene() {
     setSelectedLandingPoint(null);
     setOpenDialog(null);
     setExpandedPointId(null);
+    prevPovRef.current = null;
     setAutoRotate(false);
     recenterMalaysia();
   }, [recenterMalaysia]);
@@ -1260,12 +1304,11 @@ export default function GlobeScene() {
               key={p.id}
               point={p}
               screenPos={{ x: pos.x, y: pos.y }}
+              viewport={dimensions}
               offset={slot}
               expanded={isExpanded}
               dimmed={someoneExpanded && !isExpanded}
-              onToggleExpand={() =>
-                setExpandedPointId((cur) => (cur === p.id ? null : p.id))
-              }
+              onToggleExpand={() => handleToggleExpand(p)}
             />
           );
         })}

@@ -3,18 +3,14 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import type { LandingPoint } from "@/lib/types";
-import {
-  HUD_BOTTOM_PAD,
-  HUD_CENTER_Y,
-  MARKER_TOP,
-  PointHUD,
-  SVG_W,
-} from "./PointHUD";
+import { HUD_CENTER_Y, PointHUD, SVG_W } from "./PointHUD";
 
 type LandingPointCalloutProps = {
   point: LandingPoint;
   /** Screen-space position of the landing point on the globe canvas. */
   screenPos: { x: number; y: number };
+  /** Viewport size — used by the expanded card to place its fixed panel. */
+  viewport?: { width: number; height: number };
   /** Box-centre offset from the point (px), set by the declutter pass. */
   offset?: { dx: number; dy: number };
   /** When true, the callout fades and stops receiving pointer events. */
@@ -38,15 +34,18 @@ const MARKER_GAP = 13;
 const CONNECTOR_THICKNESS = 1.4;
 
 // Expanded card native geometry — lifted from temp/expand-location.css.
-// 439w main panel; height is content-driven so longer descriptions don't
-// clip. A single 86h vertical line extends below the panel to the dot.
+// 439w main panel; height is content-driven so longer descriptions don't clip.
 const EXP_W = 439;
-const EXP_STEM_H = 86;
 const EXP_STEM_THICKNESS = 2.28;
+// The panel holds a fixed spot right of the globe centre (the globe is offset
+// left, so the rotated point lands on the left, clear of the panel). A variable
+// stem links the panel's left edge to the live marker.
+const PANEL_CENTER_FRAC = 0.56;
 
 export function LandingPointCallout({
   point,
   screenPos,
+  viewport,
   offset = { dx: 0, dy: -CALLOUT_REST_RISE },
   hidden = false,
   dimmed = false,
@@ -58,6 +57,7 @@ export function LandingPointCallout({
       <ExpandedCard
         point={point}
         screenPos={screenPos}
+        viewport={viewport}
         onClose={onToggleExpand}
       />
     );
@@ -213,10 +213,12 @@ const SHRINK_MS = 200;
 function ExpandedCard({
   point,
   screenPos,
+  viewport,
   onClose,
 }: {
   point: LandingPoint;
   screenPos: { x: number; y: number };
+  viewport?: { width: number; height: number };
   onClose?: () => void;
 }) {
   const [closing, setClosing] = useState(false);
@@ -227,28 +229,85 @@ function ExpandedCard({
     window.setTimeout(onClose, SHRINK_MS);
   };
 
-  // Anchor the wrapper so its bottom (= bottom of stem) sits at the globe
-  // point; translateY(-100%) makes this content-height agnostic.
+  // Fixed panel: holds a spot right of the globe centre and vertically centred.
+  const vw = viewport?.width ?? (typeof window !== "undefined" ? window.innerWidth : 1920);
+  const vh = viewport?.height ?? (typeof window !== "undefined" ? window.innerHeight : 1080);
+  const panelLeft = PANEL_CENTER_FRAC * vw - EXP_W / 2;
+  const panelMidY = vh / 2;
+
+  // Variable stem: from the live marker (the rotated globe point) to the panel's
+  // left-edge centre. Recomputes every frame as screenPos moves, so the link
+  // stretches/rotates with the globe while the panel stays put.
+  const sx = screenPos.x;
+  const sy = screenPos.y;
+  const dx = panelLeft - sx;
+  const dy = panelMidY - sy;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const startX = sx + ux * MARKER_GAP; // just outside the reticle
+  const startY = sy + uy * MARKER_GAP;
+  const lineLen = Math.max(0, dist - MARKER_GAP);
+  const lineAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: screenPos.x - EXP_W / 2,
-        top: screenPos.y,
-        transform: "translateY(-100%)",
-        width: EXP_W,
-        zIndex: 20,
-        pointerEvents: "auto",
-      }}
-    >
-      {/* Main panel — translucent orange fill + 4 L-corner brackets;
-          height grows with content. */}
+    <>
+      {/* Variable stem — reticle → panel left edge */}
+      {lineLen > 0 && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: startX,
+            top: startY - EXP_STEM_THICKNESS / 2,
+            width: lineLen,
+            height: EXP_STEM_THICKNESS,
+            background: "#F05A22",
+            transformOrigin: "left center",
+            transform: `rotate(${lineAngle}deg)`,
+            zIndex: 19,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {/* Reticle marker — pinned with its centre on the (rotated) globe point */}
+      <div
+        style={{
+          position: "absolute",
+          left: sx - SVG_W / 2,
+          top: sy - HUD_CENTER_Y,
+          zIndex: 20,
+          pointerEvents: "none",
+        }}
+      >
+        <PointHUD
+          status={point.kind === "pop" ? "inactive" : "active"}
+          pulse={point.kind !== "pop"}
+          hideLine
+        />
+      </div>
+
+      {/* Main panel — fixed, vertically centred, right of the globe centre. */}
+      <div
+        style={{
+          position: "absolute",
+          left: panelLeft,
+          top: panelMidY,
+          transform: "translateY(-50%)",
+          width: EXP_W,
+          zIndex: 20,
+          pointerEvents: "auto",
+        }}
+      >
+      {/* translucent orange fill + 4 L-corner brackets; height grows with copy. */}
       <button
         type="button"
         onClick={handleClose}
         aria-label={`Close details for ${point.name}`}
         className={closing ? "v1-callout-shrink" : "v1-callout-expand"}
         style={{
+          transformOrigin: "0% 50%",
           position: "relative",
           width: "100%",
           background: "rgba(240, 90, 34, 0.44)",
@@ -331,38 +390,8 @@ function ExpandedCard({
           eiusmod tempor incididunt ut labore et dolore magna aliqua.
         </div>
       </button>
-
-      {/* Stem — single vertical line centered under the panel,
-          terminating in the same reticle the small callout uses. */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          pointerEvents: "none",
-        }}
-      >
-        <div
-          aria-hidden
-          style={{
-            width: EXP_STEM_THICKNESS,
-            height: EXP_STEM_H,
-            background: "#F05A22",
-          }}
-        />
-        {/* Negative margins trim the empty top/bottom pads inside the
-            PointHUD SVG so (a) the stem connects flush to the marker
-            visual and (b) wrapper-bottom = reticle center (anchored to
-            screenPos.y by translateY(-100%)). */}
-        <div style={{ marginTop: -MARKER_TOP, marginBottom: -HUD_BOTTOM_PAD }}>
-          <PointHUD
-            status={point.kind === "pop" ? "inactive" : "active"}
-            pulse={point.kind !== "pop"}
-            hideLine
-          />
-        </div>
       </div>
-    </div>
+    </>
   );
 }
 
