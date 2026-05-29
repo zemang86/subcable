@@ -203,10 +203,12 @@ export default function Sidebar({
           ))}
         </div>
 
-        {/* Orange scroll bar — thumb tracks the grid scroll position live.
-            Bound to the scroll container's vertical extent, not the panel,
-            so it doesn't extend into the filter row area. */}
+        {/* Orange scroll bar — thumb tracks the grid scroll position live and
+            is draggable (pointer/touch) to scroll. Bound to the scroll
+            container's vertical extent, not the panel, so it doesn't extend
+            into the filter row area. */}
         <ScrollBar
+          scrollRef={scrollRef}
           thumbHeightPct={scrollState.thumbHeightPct}
           thumbTopPct={scrollState.thumbTopPct}
           hasOverflow={scrollState.hasOverflow}
@@ -441,75 +443,134 @@ function PanelFrame() {
 
 /* ───────────────────────── SCROLL BAR ───────────────────────── */
 
-// Single 4px wide orange track + thumb + 10px horizontal caps at top/bottom.
+// Single 8px wide orange track + thumb + horizontal caps at top/bottom.
 // Thumb top/height are driven by the grid scroll container — fully live.
+// The thumb is draggable (pointer + touch) and the track is tap-to-jump.
 function ScrollBar({
+  scrollRef,
   thumbHeightPct,
   thumbTopPct,
   hasOverflow,
 }: {
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   thumbHeightPct: number;
   thumbTopPct: number;
   hasOverflow: boolean;
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  // True while a drag is in progress (held in a ref so move handlers see it live).
+  const dragging = useRef(false);
+
+  // Absolute-position model: map the pointer's Y within the bar straight to a
+  // scroll position, with the thumb centred on the finger and clamped to the
+  // ends. The whole bar is the drag target, so a thin thumb is easy to grab.
+  const scrollToPointer = (clientY: number) => {
+    const el = scrollRef.current;
+    const bar = trackRef.current;
+    if (!el || !bar) return;
+    const rect = bar.getBoundingClientRect();
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll <= 0) return;
+    // Rendered thumb height (respects the 24px minimum) → leftover travel range.
+    const thumbPx = Math.max(24, (thumbHeightPct / 100) * rect.height);
+    const movable = Math.max(1, rect.height - thumbPx);
+    const ratio = (clientY - rect.top - thumbPx / 2) / movable;
+    el.scrollTop = Math.max(0, Math.min(ratio, 1)) * maxScroll;
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!hasOverflow) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragging.current = true;
+    scrollToPointer(e.clientY);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    scrollToPointer(e.clientY);
+  };
+
+  const endDrag = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    dragging.current = false;
+  };
+
   return (
     <div
-      aria-hidden
+      ref={trackRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
       style={{
+        // Wide transparent hit area filling the right gutter so the thin
+        // visual bar is easy to grab on touch. The container spans the full
+        // 34px gutter (right:6 → left edge flush with the card grid) but the
+        // visual track/thumb/caps are right-anchored at the original position.
         position: "absolute",
-        right: 21,
+        right: 6,
         top: 20,
-        width: 4,
+        width: 28,
         // Stop above the filter row so the thumb only travels the card-grid extent.
         bottom: FILTER_BUTTON_HEIGHT + 22,
-        pointerEvents: "none",
+        pointerEvents: hasOverflow ? "auto" : "none",
+        cursor: hasOverflow ? "pointer" : "default",
+        touchAction: "none",
       }}
     >
-      {/* Vertical 1px orange track line, centered in the 4px column */}
+      {/* Faint orange track — 8px, right-anchored within the hit area */}
       <div
         style={{
           position: "absolute",
-          left: 1.5,
+          right: 13,
+          width: 8,
           top: 0,
           bottom: 0,
-          width: 0,
-          borderLeft: "1px solid #F05A22",
+          background: "rgba(240, 90, 34, 0.2)",
+          pointerEvents: "none",
         }}
       />
-      {/* Thumb — 4px wide orange section. Only rendered when content overflows. */}
+      {/* Thumb — 8px wide orange section. Only rendered when content overflows. */}
       {hasOverflow && (
         <div
           style={{
             position: "absolute",
-            left: 0,
+            right: 13,
             top: `${thumbTopPct}%`,
-            width: 4,
+            width: 8,
             height: `${thumbHeightPct}%`,
+            minHeight: 24,
             background: "#F05A22",
-            transition: "top 80ms linear",
+            transition: dragging.current ? "none" : "top 80ms linear",
+            pointerEvents: "none",
           }}
         />
       )}
-      {/* Top cap — 10px horizontal stub */}
+      {/* Top cap — horizontal stub */}
       <div
         style={{
           position: "absolute",
-          left: -3,
+          right: 10,
+          width: 14,
           top: -1,
-          width: 10,
           height: 0,
           borderTop: "1px solid #F05A22",
+          pointerEvents: "none",
         }}
       />
       {/* Bottom cap */}
       <div
         style={{
           position: "absolute",
-          left: -3,
+          right: 10,
+          width: 14,
           bottom: -1,
-          width: 10,
           height: 0,
           borderTop: "1px solid #F05A22",
+          pointerEvents: "none",
         }}
       />
     </div>
