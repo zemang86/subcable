@@ -186,7 +186,7 @@ function StatCell({
         height: 66,
       }}
     >
-      {/* Card shape from Figma keystats_card.svg — chamfered bottom-left body +
+      {/* Card shape from Figma (temp/done/keystats_card.svg) — chamfered bottom-left body +
           open top-left bracket. Text paths stripped; value/label overlaid below. */}
       <svg
         aria-hidden
