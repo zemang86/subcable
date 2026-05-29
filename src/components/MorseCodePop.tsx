@@ -203,6 +203,49 @@ export default function MorseCodePop({
           }}
         />
 
+        {/* Corrected A-Z morse reference chart, overlaid 1:1 on top of the
+            baked-in chart in fullmorse.svg (same 433×249 panel, just shifted
+            origin: baked panel at +364.06/+373.67). Covers the old D/N glyphs. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/textures/morseguide.svg"
+          alt=""
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 364.06,
+            top: 373.67,
+            width: 433,
+            height: 249,
+            display: "block",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        />
+
+        {/* Updated location-selector icon, overlaid 1:1 on the baked-in pins in
+            the two city ("location") pickers. Your locationicon.svg origin maps
+            to the baked icons at left 468.3 / top 8.74 (From) & 73.84 (To). */}
+        {[POS.fromCity.top, POS.toCity.top].map((iconTop) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={iconTop}
+            src="/textures/locationicon.svg"
+            alt=""
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: 468.3,
+              top: iconTop,
+              width: 42,
+              height: 42,
+              display: "block",
+              pointerEvents: "none",
+              userSelect: "none",
+            }}
+          />
+        ))}
+
         {/* ── PICKERS ── overlay selects mask the SVG's baked-in city/country
             text. Each is sized exactly to the picker rect; opaque navy
             background covers the SVG decorations underneath. */}
@@ -292,6 +335,13 @@ export default function MorseCodePop({
                   {buffer.replace(/\./g, "·").replace(/-/g, "−")}
                 </span>
               )}
+              {/* Blinking caret — hugs the end of the text (offsets the flex
+                  gap so it sits right after the last glyph). */}
+              <span
+                aria-hidden
+                className="v1-caret"
+                style={{ height: 22, marginLeft: -8 }}
+              />
             </div>
           </div>
         )}
@@ -355,11 +405,11 @@ export default function MorseCodePop({
           disabled={buffer.length === 0 && decoded.length === 0}
           ariaLabel={t("clearAll")}
         />
-        <Hotspot
+        <SendButton
           pos={POS.sendBtn}
           onClick={() => canSend && onSend(decoded.trim(), from, to)}
           disabled={!canSend}
-          ariaLabel={t("sendMessage")}
+          label={t("sendMessage")}
         />
 
         {/* Tiny error toast — only visible when buffer decode fails */}
@@ -524,6 +574,50 @@ function Hotspot({
         padding: 0,
       }}
     />
+  );
+}
+
+/* ─────────────────────── SEND BUTTON ─────────────────────── */
+// Solid white pill (no icon) overlaying the baked-in send button art.
+// Styling from temp/sendmessage.css: white bg, ~9.7px radius, "Send Message"
+// in Rajdhani 600 / 23.6px / #034DA1. Greys out when there's nothing to send.
+
+function SendButton({
+  pos,
+  onClick,
+  disabled,
+  label,
+}: {
+  pos: Pos;
+  onClick: () => void;
+  disabled: boolean;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      style={{
+        ...absPos(pos),
+        background: disabled ? "#9AA7B6" : "#FFFFFF",
+        borderRadius: 9.71585,
+        border: "none",
+        cursor: disabled ? "not-allowed" : "pointer",
+        color: disabled ? "#5E6B7A" : "#034DA1",
+        fontFamily: "var(--v1-heading)",
+        fontWeight: 600,
+        fontSize: 23.627,
+        lineHeight: "30px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 0,
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

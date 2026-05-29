@@ -357,6 +357,20 @@ body {
   to   { transform: scaleX(1); }
 }
 
+/* Blinking text caret for the Morse message field. Hard on/off (no fade) for
+   a classic terminal-cursor feel. */
+@keyframes v1-caret-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.v1-caret {
+  display: inline-block;
+  width: 2px;
+  align-self: center;
+  background: #1A1A1A;
+  animation: v1-caret-blink 1s step-end infinite;
+}
+
 /* TV-wall background grid (3×3 wall divisions) */
 .v1-tv-grid {
   background-image:
