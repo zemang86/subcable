@@ -69,6 +69,13 @@ const POINT_RADIUS_BY_BUCKET = [0, 0, 0.06, 0.04, 0.025, 0.025] as const;
 // each zoom poll. Grows as you zoom in so the neon glow keeps constant visual
 // thickness instead of appearing to shrink.
 const GLOW_SCALE_BY_BUCKET = [1.0, 1.3, 1.7, 2.1, 2.4, 2.6] as const;
+// Horizontal placement of the globe's centre as a fraction of viewport width.
+// 0.5 = dead-centre; we push it left so the sphere sits between the left edge
+// and the Cable System panel, leaving room on the right for the panels.
+// The canvas is translated by this offset and the callout/label projections
+// add the same offset so they stay locked to the sphere.
+const GLOBE_CENTER_FRAC = 0.4;
+const globeOffsetX = (width: number) => (GLOBE_CENTER_FRAC - 0.5) * width;
 
 // City labels: one threshold instead of buckets. Above it cities vanish.
 // Below, geometry is built once and a per-frame scaler handles fade-in + a
@@ -992,6 +999,7 @@ export default function GlobeScene() {
         const renderer = globeRef.current?.renderer?.();
         if (camera && renderer) {
           const dom = renderer.domElement as HTMLCanvasElement;
+          const offX = globeOffsetX(dom.clientWidth);
           const next: Record<string, { x: number; y: number; visible: boolean }> = {};
           for (const p of points) {
             const xyz = globeRef.current.getCoords(p.lat, p.lng, 0.01);
@@ -999,7 +1007,7 @@ export default function GlobeScene() {
             // v.z > 1 = point is behind the camera (far side of the globe)
             const visible = v.z <= 1;
             next[p.id] = {
-              x: ((v.x + 1) / 2) * dom.clientWidth,
+              x: ((v.x + 1) / 2) * dom.clientWidth + offX,
               y: ((1 - v.y) / 2) * dom.clientHeight,
               visible,
             };
@@ -1032,10 +1040,16 @@ export default function GlobeScene() {
         <SplashScreen language={language} fadingOut={splashFading} />
       )}
 
-      <Globe
-        ref={globeRef}
-        width={dimensions.width}
-        height={dimensions.height}
+      <div
+        style={{
+          transform: `translateX(${globeOffsetX(dimensions.width)}px)`,
+          willChange: "transform",
+        }}
+      >
+        <Globe
+          ref={globeRef}
+          width={dimensions.width}
+          height={dimensions.height}
         globeImageUrl={WORLD_MAP_DARK_URL}
         showAtmosphere={true}
         atmosphereColor={ATMOSPHERE_COLOR}
@@ -1070,9 +1084,10 @@ export default function GlobeScene() {
         labelResolution={1}
         labelTypeFace={robotoMedium as any}
         labelIncludeDot={labelIncludeDot}
-        onGlobeReady={handleGlobeReady}
-        animateIn={true}
-      />
+          onGlobeReady={handleGlobeReady}
+          animateIn={true}
+        />
+      </div>
 
       {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
       <Sidebar
@@ -1336,7 +1351,7 @@ function CallAnimationOverlay({
       const w = dom.clientWidth;
       const h = dom.clientHeight;
       return {
-        x: ((v.x + 1) / 2) * w,
+        x: ((v.x + 1) / 2) * w + globeOffsetX(w),
         y: ((1 - v.y) / 2) * h,
       };
     };
