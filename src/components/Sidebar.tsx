@@ -55,7 +55,9 @@ export default function Sidebar({
   }, [filter]);
 
   const activeCount = visible.filter((c) => c.status === "active").length;
-  const inactiveCount = visible.length - activeCount;
+  // Count only true "inactive" cables — "planned" cables are excluded from the
+  // count per client feedback (so this reads 1, not 5).
+  const inactiveCount = visible.filter((c) => c.status === "inactive").length;
 
   const updateScrollState = () => {
     const el = scrollRef.current;
