@@ -12,7 +12,6 @@ import GeneralInformation from "./GeneralInformation";
 import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
 import { RecenterButton } from "./RecenterButton";
-import { AudioMute } from "./AudioMute";
 import { RightCluster } from "./RightCluster";
 import { LandingPointCallout } from "./LandingPointCallout";
 import HowToGuideDialog from "./HowToGuideDialog";
@@ -1055,9 +1054,15 @@ export default function GlobeScene() {
 
       {/* Left of Cable System panel: Back / Audio / Naration button column.
           Back shows only when a cable is selected. */}
-      <SystemButtons showBack={Boolean(selectedCable)} onBack={handleBack} />
+      <SystemButtons
+        showBack={Boolean(selectedCable)}
+        onBack={handleBack}
+        muted={muted}
+        onAudioToggle={() => setMuted((m) => !m)}
+      />
 
-      {/* Bottom-center: audio mute + language toggle + re-center button (Figma V1.3) */}
+      {/* Bottom-center: language toggle + re-center button (Figma V1.3).
+          Audio mute moved to the SystemButtons column beside Cable System. */}
       <div
         style={{
           position: "fixed",
@@ -1070,7 +1075,6 @@ export default function GlobeScene() {
           alignItems: "center",
         }}
       >
-        <AudioMute muted={muted} onToggle={() => setMuted((m) => !m)} />
         <LanguageToggle value={language} onChange={setLanguage} />
         <RecenterButton onRecenter={resetView} />
       </div>

@@ -5,11 +5,14 @@ import { useState } from "react";
 // Vertical button column sitting to the LEFT of the Cable System panel,
 // bottom-aligned with it. Three buttons (top → bottom): Back, Audio, Naration.
 //
-// BACK button behaviour (wired):
-//  - Hidden by default; shows only when a cable is selected (`showBack`).
-//  - While held down it swaps to the dark pressed graphic (back-onpress.svg).
-//  - On release it pops one navigation step via `onBack` (handled in parent).
-// AUDIO / NARATION: functions still TBD — handlers are stubs for now.
+// BACK   — hidden by default; shows only when a cable is selected. Pops one
+//          navigation step on release (handled in parent via `onBack`).
+// AUDIO  — toggles audio on/off (`muted` + `onAudioToggle`). Resting graphic
+//          reflects state (on vs off); while held it shows the pressed graphic.
+// NARATION — function still TBD; handler is a stub for now.
+//
+// All press buttons swap to a "pressed" graphic while held (pointer captured)
+// and fire their action on release.
 
 // Cable System panel geometry (from Sidebar.tsx): position fixed, right: 28,
 // width 454. Its left edge therefore sits at right: 28 + 454 = 482. The column
@@ -22,14 +25,16 @@ const BUTTON_SIZE = 48;
 interface SystemButtonsProps {
   showBack?: boolean;
   onBack?: () => void;
-  onAudio?: () => void;
+  muted?: boolean;
+  onAudioToggle?: () => void;
   onNaration?: () => void;
 }
 
 export default function SystemButtons({
   showBack = false,
   onBack,
-  onAudio,
+  muted = false,
+  onAudioToggle,
   onNaration,
 }: SystemButtonsProps) {
   return (
@@ -47,9 +52,23 @@ export default function SystemButtons({
     >
       {/* Back — only rendered when a cable is selected. Topmost in the column;
           collapsing it keeps Audio/Naration bottom-aligned. */}
-      {showBack && <BackButton onBack={onBack} />}
+      {showBack && (
+        <PressButton
+          label="Back"
+          restingSrc="/buttons/back.svg"
+          pressedSrc="/buttons/back-onpress.svg"
+          onActivate={onBack}
+        />
+      )}
 
-      <IconButton src="/buttons/audio.svg" label="Audio" onClick={onAudio} />
+      {/* Audio — on/off toggle. Resting icon depends on muted state. */}
+      <PressButton
+        label={muted ? "Unmute audio" : "Mute audio"}
+        restingSrc={muted ? "/buttons/audio-off.svg" : "/buttons/audio.svg"}
+        pressedSrc="/buttons/audio-onpress.svg"
+        onActivate={onAudioToggle}
+      />
+
       <IconButton
         src="/buttons/naration.svg"
         label="Naration"
@@ -59,18 +78,31 @@ export default function SystemButtons({
   );
 }
 
-function BackButton({ onBack }: { onBack?: () => void }) {
+// Button that swaps to `pressedSrc` while held and fires `onActivate` on
+// release. Pointer capture keeps the press alive even if the finger drifts;
+// leaving/cancelling aborts without firing.
+function PressButton({
+  label,
+  restingSrc,
+  pressedSrc,
+  onActivate,
+}: {
+  label: string;
+  restingSrc: string;
+  pressedSrc: string;
+  onActivate?: () => void;
+}) {
   const [pressed, setPressed] = useState(false);
 
   const release = (commit: boolean) => {
     setPressed(false);
-    if (commit) onBack?.();
+    if (commit) onActivate?.();
   };
 
   return (
     <button
       type="button"
-      aria-label="Back"
+      aria-label={label}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         setPressed(true);
@@ -82,8 +114,8 @@ function BackButton({ onBack }: { onBack?: () => void }) {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={pressed ? "/buttons/back-onpress.svg" : "/buttons/back.svg"}
-        alt="Back"
+        src={pressed ? pressedSrc : restingSrc}
+        alt={label}
         width={BUTTON_SIZE}
         height={BUTTON_SIZE}
         draggable={false}
