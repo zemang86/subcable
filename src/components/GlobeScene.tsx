@@ -125,12 +125,9 @@ const SEA_FADE_OUT_ALT = 0.3;
 const ATMOSPHERE_COLOR = V1_COLORS.atmosphere;          // #034DA1 v1-blue
 const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
 const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
-// Neon glow stack (both default + selected): a saturated colour ring hugging
-// the white-hot core, plus a wide translucent bloom that fades out softly.
-const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.6; // saturated colour glow around core
-// Wide, very translucent bloom ring beneath the others — soft outer glow that
-// fades out into the globe rather than ending in a hard edge.
-const CABLE_HALO_DEFAULT_BLOOM_ALPHA = 0.18; // wide, faint colour bloom
+// Neon glow (both default + selected): one saturated colour ring hugging the
+// white-hot core.
+const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.35; // saturated colour glow around core
 
 
 const hexToRgb = (hex: string): [number, number, number] => {
@@ -185,8 +182,8 @@ interface PathData {
   color: string;
   status: CableSystem["status"];
   // Neon glow ring index: undefined = white-hot core line,
-  // 2 = saturated colour glow hugging the core, 3 = wide translucent bloom.
-  _halo?: 2 | 3;
+  // 2 = saturated colour glow hugging the core.
+  _halo?: 2;
 }
 
 export default function GlobeScene() {
@@ -600,7 +597,7 @@ export default function GlobeScene() {
       const out: PathData[] = [];
       for (const p of pathsData) {
         if (p.status === "active" && p.color.startsWith("#")) {
-          out.push({ ...p, _halo: 3 }, { ...p, _halo: 2 }, p);
+          out.push({ ...p, _halo: 2 }, p);
         } else {
           out.push(p);
         }
@@ -615,7 +612,7 @@ export default function GlobeScene() {
     }
     const halos: PathData[] = [];
     for (const p of core) {
-      halos.push({ ...p, _halo: 3 }, { ...p, _halo: 2 });
+      halos.push({ ...p, _halo: 2 });
     }
     return [...others, ...halos, ...core];
   }, [pathsData, selectedCable]);
@@ -628,14 +625,10 @@ export default function GlobeScene() {
       if (selectedCable) {
         if (path.cableId !== selectedCable.id) return CABLE_MUTED_COLOR;
         // Selected cable gets the same neon stack, in hot red.
-        if (path._halo === 3)
-          return hexToRgba(CABLE_SELECTED_COLOR, CABLE_HALO_DEFAULT_BLOOM_ALPHA);
         if (path._halo === 2)
           return hexToRgba(CABLE_SELECTED_COLOR, CABLE_HALO_DEFAULT_OUTER_ALPHA);
         return neonCore(CABLE_SELECTED_COLOR);
       }
-      if (path._halo === 3)
-        return hexToRgba(path.color, CABLE_HALO_DEFAULT_BLOOM_ALPHA);
       if (path._halo === 2)
         return hexToRgba(path.color, CABLE_HALO_DEFAULT_OUTER_ALPHA);
       return path.color.startsWith("#") ? neonCore(path.color) : path.color;
@@ -649,12 +642,10 @@ export default function GlobeScene() {
         const isSel = path.cableId === selectedCable.id;
         if (!isSel) return 1;
         // Same neon widths as default, a touch thicker so selection reads.
-        if (path._halo === 3) return 6 * s;
-        if (path._halo === 2) return 3 * s;
+        if (path._halo === 2) return 4 * s;
         return 1.5;
       }
-      if (path._halo === 3) return 5 * s;
-      if (path._halo === 2) return 2.5 * s;
+      if (path._halo === 2) return 3.5 * s;
       return 1;
     },
     [selectedCable, zoomBucket],
