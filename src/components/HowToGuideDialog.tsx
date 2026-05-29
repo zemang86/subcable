@@ -30,7 +30,10 @@ export default function HowToGuideDialog({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 24,
+        // Reserve the right gutter for the Cable System / Cable Information
+        // panel (~454px + 28px margin) and the left gutter for the action
+        // cluster, so the centred card shifts left and never overlaps either.
+        padding: "24px 400px 24px 120px",
       }}
     >
       <div
