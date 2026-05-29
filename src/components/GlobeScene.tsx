@@ -7,6 +7,7 @@ import Globe from "./GlobeWrapper";
 import Sidebar from "./Sidebar";
 import LoadingScreen from "./LoadingScreen";
 import CableInformation from "./CableInformation";
+import GeneralInformation from "./GeneralInformation";
 import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
 import { RecenterButton } from "./RecenterButton";
@@ -1074,9 +1075,12 @@ export default function GlobeScene() {
         />
       </div>
 
-      {/* Bottom-left: CableInformation when a cable is selected */}
-      {selectedCable && (
+      {/* Right edge: CableInformation when a cable is selected, otherwise the
+          General Information panel sits in the same slot above Cable System. */}
+      {selectedCable ? (
         <CableInformation cable={selectedCable} language={language} />
+      ) : (
+        <GeneralInformation language={language} />
       )}
 
       {/* Bottom: titlebar */}
