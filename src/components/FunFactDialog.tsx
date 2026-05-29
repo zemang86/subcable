@@ -42,17 +42,28 @@ export default function FunFactDialog({
       aria-label={t("funFactTitle")}
       style={{
         position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
+        inset: 0,
         zIndex: 50,
-        width: "min(1200px, 96vw)",
         display: "flex",
-        flexDirection: "column",
-        gap: 6,
+        alignItems: "center",
+        justifyContent: "center",
+        // Reserve the right gutter for the Cable System / Cable Information
+        // panel and the left gutter for the action cluster, so the centred
+        // card shifts left and never overlaps either (mirrors HowToGuide).
+        padding: "24px 400px 24px 120px",
+        pointerEvents: "none",
       }}
     >
-      <TitleStrip title={t("funFactTitle")} onClose={onClose} />
+      <div
+        style={{
+          width: "min(1040px, 92vw)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          pointerEvents: "auto",
+        }}
+      >
+        <TitleStrip title={t("funFactTitle")} onClose={onClose} />
 
       {/* Panel body — gradient bg matches cable-system/cable-info treatment.
           Tactical-HUD bracket frame: top + bottom U-brackets (50px tall) +
@@ -71,7 +82,7 @@ export default function FunFactDialog({
         <div
           style={{
             aspectRatio: "16 / 9",
-            maxHeight: 560,
+            maxHeight: 460,
             background: "rgba(0, 0, 0, 0.50)",
             border: "1px solid rgba(255, 255, 255, 0.15)",
             margin: 22,
@@ -188,6 +199,7 @@ export default function FunFactDialog({
             );
           })}
         </div>
+      </div>
       </div>
     </div>
   );
