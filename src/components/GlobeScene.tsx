@@ -1292,8 +1292,10 @@ export default function GlobeScene() {
       <Header selectedCable={selectedCable} language={language} />
 
       {/* Map overlay: one callout per landing point on the selected cable.
-          Tapping a callout expands it; siblings dim while expanded. */}
+          Tapping a callout expands it; siblings dim while expanded.
+          Hidden during an active call so the dialing animation is unobstructed. */}
       {selectedCable &&
+        !activeCall &&
         cableLandingPoints.map((p) => {
           const pos = calloutScreens[p.id];
           if (!pos || !pos.visible) return null;
