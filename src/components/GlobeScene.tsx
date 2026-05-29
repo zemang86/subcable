@@ -1095,8 +1095,8 @@ export default function GlobeScene() {
     const lerp = (a: number, b: number) => a + (b - a) * closeness;
     // Negative ALLOW = enforce a gap (boxes fully separate); positive = tolerate
     // overlap. Zoomed in we want them fully apart with a small gap.
-    const ALLOW_X = lerp(26, -10); // permitted overlap (−gap) before repel
-    const ALLOW_Y = lerp(14, -8);
+    const ALLOW_X = lerp(26, -34); // permitted overlap (−gap) before repel; zoomed in = wider horizontal gap
+    const ALLOW_Y = lerp(14, -16);
     const REPEL = lerp(0.35, 0.95); // fraction of penetration resolved per step
     const SPRING = lerp(0.1, 0.03); // pull back toward rest (weaker when close)
     const ITER = 22;
