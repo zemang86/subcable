@@ -736,28 +736,31 @@ export default function GlobeScene() {
     return () => clearTimeout(id);
   }, [isLoaded]);
 
-  // Travelling dots — one THREE.Sphere mesh per cable segment, all animated
-  // continuously regardless of selection. Self-contained RAF; meshes share a
-  // single geometry + material to keep GPU state changes minimal.
+  // Travelling dots — a single InstancedMesh holds one dot per cable segment,
+  // all animated continuously regardless of selection. One draw call for every
+  // dot (vs a mesh-per-segment); the RAF writes each dot's transform into the
+  // shared instance matrix.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     const scene = globeRef.current.scene?.();
     if (!scene) return;
 
+    const count = dotSegments.length;
     const geo = new THREE.SphereGeometry(DOT_RADIUS, 12, 8);
     const mat = new THREE.MeshBasicMaterial({
       color: new THREE.Color(TRAVELLING_DOT_COLOR),
-      depthTest: false,
+      // depthTest on so the opaque globe occludes dots on its far side
+      // (depthTest:false made back-side dots bleed through to the front).
+      depthTest: true,
       transparent: true,
     });
-    const meshes: THREE.Mesh[] = dotSegments.map(() => {
-      const m = new THREE.Mesh(geo, mat);
-      m.renderOrder = 999;
-      m.frustumCulled = false;
-      scene.add(m);
-      return m;
-    });
+    const inst = new THREE.InstancedMesh(geo, mat, count);
+    inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    inst.renderOrder = 999;
+    inst.frustumCulled = false;
+    scene.add(inst);
 
+    const m4 = new THREE.Matrix4();
     let raf = 0;
     const start = performance.now();
     const tick = () => {
@@ -765,9 +768,14 @@ export default function GlobeScene() {
       const pov = globeRef.current?.pointOfView?.();
       const alt = pov?.altitude ?? 1;
       const scale = Math.max(0.12, Math.min(3, (1 + alt) / 2.0));
-      for (let i = 0; i < dotSegments.length; i++) {
+      for (let i = 0; i < count; i++) {
         const seg = dotSegments[i];
-        if (seg.totalKm <= 0) continue;
+        if (seg.totalKm <= 0) {
+          // Degenerate segment — scale to 0 so the instance is invisible.
+          m4.makeScale(0, 0, 0);
+          inst.setMatrixAt(i, m4);
+          continue;
+        }
         const speed = Math.min(
           DOT_SPEED_KM_PER_SEC,
           seg.totalKm / DOT_MIN_LOOP_SEC,
@@ -783,16 +791,19 @@ export default function GlobeScene() {
         const lat = a[0] + (b[0] - a[0]) * t;
         const lng = a[1] + (b[1] - a[1]) * t;
         const xyz = globeRef.current.getCoords(lat, lng, 0.005);
-        meshes[i].position.set(xyz.x, xyz.y, xyz.z);
-        meshes[i].scale.setScalar(scale);
+        m4.makeScale(scale, scale, scale);
+        m4.setPosition(xyz.x, xyz.y, xyz.z);
+        inst.setMatrixAt(i, m4);
       }
+      inst.instanceMatrix.needsUpdate = true;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
 
     return () => {
       cancelAnimationFrame(raf);
-      for (const m of meshes) scene.remove(m);
+      scene.remove(inst);
+      inst.dispose();
       geo.dispose();
       mat.dispose();
     };
@@ -1000,7 +1011,7 @@ export default function GlobeScene() {
         pathPointAlt={pathPointAlt}
         pathColor={getPathColor as any}
         pathStroke={getPathStroke as any}
-        pathResolution={0.1}
+        pathResolution={0.05}
         pathTransitionDuration={0}
         pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
