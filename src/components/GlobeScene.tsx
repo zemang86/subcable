@@ -61,6 +61,12 @@ const bucketForAltitude = (alt: number): ZoomBucket => {
   return 5;
 };
 const POINT_RADIUS_BY_BUCKET = [0, 0, 0.06, 0.04, 0.025, 0.025] as const;
+// Cable glow width multiplier per zoom bucket (0 = far, 5 = closest). Bucketed
+// rather than computed from raw altitude so the path-stroke accessor only
+// changes identity on a bucket crossing — avoids re-tessellating every path on
+// each zoom poll. Grows as you zoom in so the neon glow keeps constant visual
+// thickness instead of appearing to shrink.
+const GLOW_SCALE_BY_BUCKET = [1.0, 1.3, 1.7, 2.1, 2.4, 2.6] as const;
 
 // City labels: one threshold instead of buckets. Above it cities vanish.
 // Below, geometry is built once and a per-frame scaler handles fade-in + a
@@ -119,27 +125,37 @@ const SEA_FADE_OUT_ALT = 0.3;
 const ATMOSPHERE_COLOR = V1_COLORS.atmosphere;          // #034DA1 v1-blue
 const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
 const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
-// Outer-glow halo rings around the selected cable (kit spec: stacked
-// Gaussian blurs stdDev 3.5 + 8 — emulated in WebGL by widening
-// translucent siblings beneath the 3px hot-red core).
-const CABLE_HALO_INNER = "rgba(237, 27, 46, 0.35)"; // stroke 5px
-const CABLE_HALO_OUTER = "rgba(237, 27, 46, 0.18)"; // stroke 7px
+// Neon glow stack (both default + selected): a saturated colour ring hugging
+// the white-hot core, plus a wide translucent bloom that fades out softly.
+const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.6; // saturated colour glow around core
+// Wide, very translucent bloom ring beneath the others — soft outer glow that
+// fades out into the globe rather than ending in a hard edge.
+const CABLE_HALO_DEFAULT_BLOOM_ALPHA = 0.18; // wide, faint colour bloom
 
-// Unselected cables get a subtler per-cable halo so the line "lights up"
-// in its identity colour without competing with the selected red.
-const CABLE_HALO_DEFAULT_INNER_ALPHA = 0.28; // stroke 3px
-const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.14; // stroke 5px
 
-const hexToRgba = (hex: string, alpha: number) => {
+const hexToRgb = (hex: string): [number, number, number] => {
   const h = hex.replace("#", "");
   const full =
     h.length === 3
       ? h.split("").map((c) => c + c).join("")
       : h;
-  const r = parseInt(full.slice(0, 2), 16);
-  const g = parseInt(full.slice(2, 4), 16);
-  const b = parseInt(full.slice(4, 6), 16);
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+  ];
+};
+const hexToRgba = (hex: string, alpha: number) => {
+  const [r, g, b] = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+// Neon "hot filament" core — push the identity colour most of the way to white
+// so the centre of the line reads as a bright lit core (lightsaber style),
+// leaving the saturated colour to live in the surrounding glow.
+const neonCore = (hex: string, toward = 0.72) => {
+  const [r, g, b] = hexToRgb(hex);
+  const mix = (c: number) => Math.round(c + (255 - c) * toward);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 };
 const LANDING_POINT_DEFAULT = V1_COLORS.fg;             // white
 const LANDING_POINT_ACTIVE = V1_COLORS.active;          // #8FFF3F lime
@@ -168,10 +184,9 @@ interface PathData {
   name: string;
   color: string;
   status: CableSystem["status"];
-  // Glow ring index for the selected cable: undefined = core line,
-  // 1 = inner halo (5px / α 0.35), 2 = outer halo (7px / α 0.18).
-  // Mirrors the stacked-Gaussian effect from brand-globe-line.html.
-  _halo?: 1 | 2;
+  // Neon glow ring index: undefined = white-hot core line,
+  // 2 = saturated colour glow hugging the core, 3 = wide translucent bloom.
+  _halo?: 2 | 3;
 }
 
 export default function GlobeScene() {
@@ -585,7 +600,7 @@ export default function GlobeScene() {
       const out: PathData[] = [];
       for (const p of pathsData) {
         if (p.status === "active" && p.color.startsWith("#")) {
-          out.push({ ...p, _halo: 2 }, { ...p, _halo: 1 }, p);
+          out.push({ ...p, _halo: 3 }, { ...p, _halo: 2 }, p);
         } else {
           out.push(p);
         }
@@ -600,7 +615,7 @@ export default function GlobeScene() {
     }
     const halos: PathData[] = [];
     for (const p of core) {
-      halos.push({ ...p, _halo: 2 }, { ...p, _halo: 1 });
+      halos.push({ ...p, _halo: 3 }, { ...p, _halo: 2 });
     }
     return [...others, ...halos, ...core];
   }, [pathsData, selectedCable]);
@@ -612,32 +627,37 @@ export default function GlobeScene() {
     (path: PathData) => {
       if (selectedCable) {
         if (path.cableId !== selectedCable.id) return CABLE_MUTED_COLOR;
-        if (path._halo === 2) return CABLE_HALO_OUTER;
-        if (path._halo === 1) return CABLE_HALO_INNER;
-        return CABLE_SELECTED_COLOR;
+        // Selected cable gets the same neon stack, in hot red.
+        if (path._halo === 3)
+          return hexToRgba(CABLE_SELECTED_COLOR, CABLE_HALO_DEFAULT_BLOOM_ALPHA);
+        if (path._halo === 2)
+          return hexToRgba(CABLE_SELECTED_COLOR, CABLE_HALO_DEFAULT_OUTER_ALPHA);
+        return neonCore(CABLE_SELECTED_COLOR);
       }
+      if (path._halo === 3)
+        return hexToRgba(path.color, CABLE_HALO_DEFAULT_BLOOM_ALPHA);
       if (path._halo === 2)
         return hexToRgba(path.color, CABLE_HALO_DEFAULT_OUTER_ALPHA);
-      if (path._halo === 1)
-        return hexToRgba(path.color, CABLE_HALO_DEFAULT_INNER_ALPHA);
-      return path.color;
+      return path.color.startsWith("#") ? neonCore(path.color) : path.color;
     },
     [selectedCable],
   );
   const getPathStroke = useCallback(
     (path: PathData) => {
+      const s = GLOW_SCALE_BY_BUCKET[zoomBucket];
       if (selectedCable) {
         const isSel = path.cableId === selectedCable.id;
         if (!isSel) return 1;
-        if (path._halo === 2) return 7;
-        if (path._halo === 1) return 5;
-        return 3;
+        // Same neon widths as default, a touch thicker so selection reads.
+        if (path._halo === 3) return 6 * s;
+        if (path._halo === 2) return 3 * s;
+        return 1.5;
       }
-      if (path._halo === 2) return 5;
-      if (path._halo === 1) return 3;
+      if (path._halo === 3) return 5 * s;
+      if (path._halo === 2) return 2.5 * s;
       return 1;
     },
-    [selectedCable],
+    [selectedCable, zoomBucket],
   );
 
   // Point color: highlights cluster members of the selected cable in lime.
@@ -980,6 +1000,8 @@ export default function GlobeScene() {
         pathPointAlt={pathPointAlt}
         pathColor={getPathColor as any}
         pathStroke={getPathStroke as any}
+        pathResolution={0.1}
+        pathTransitionDuration={0}
         pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
         pointsData={pointsData}
