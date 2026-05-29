@@ -240,18 +240,19 @@ export default function GlobeScene() {
   const isIdle = useIdleAttractor(60_000);
   const t = useT(language);
 
-  // Transient hint shown when the (dimmed) Morse button is tapped without a
-  // cable selected — Morse dialling is scoped to a single cable system.
-  const [morseHint, setMorseHint] = useState(false);
-  const morseHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flashMorseHint = useCallback(() => {
-    setMorseHint(true);
-    if (morseHintTimer.current) clearTimeout(morseHintTimer.current);
-    morseHintTimer.current = setTimeout(() => setMorseHint(false), 3000);
+  // Transient hint shown when a dimmed cluster button (Morse / Fun Fact) is
+  // tapped without a cable selected — both are scoped to a single cable
+  // system. Tracks which button so the toast anchors beside it.
+  const [hintFor, setHintFor] = useState<"morse" | "funfact" | null>(null);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashClusterHint = useCallback((id: "morse" | "funfact") => {
+    setHintFor(id);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setHintFor(null), 3000);
   }, []);
   useEffect(
     () => () => {
-      if (morseHintTimer.current) clearTimeout(morseHintTimer.current);
+      if (hintTimer.current) clearTimeout(hintTimer.current);
     },
     [],
   );
@@ -1293,9 +1294,9 @@ export default function GlobeScene() {
         <RightCluster
           openDialog={openDialog}
           onOpen={(id) => {
-            // Morse dialling is scoped to one cable — block + hint if none.
-            if (id === "morse" && !selectedCable) {
-              flashMorseHint();
+            // Morse + Fun Fact are scoped to one cable — block + hint if none.
+            if ((id === "morse" || id === "funfact") && !selectedCable) {
+              flashClusterHint(id);
               return;
             }
             setOpenDialog((current) => (current === id ? null : id));
@@ -1303,16 +1304,17 @@ export default function GlobeScene() {
           cableSelected={Boolean(selectedCable)}
         />
 
-        {/* "Choose a network first" hint — anchored to the right of the Morse
-            button (the top button in the cluster). pointer-events:none so it
-            never eats touches. */}
-        {morseHint && (
+        {/* "Choose a network first" hint — anchored to the right of whichever
+            dimmed button was tapped. Cluster buttons are 76px tall with 31px
+            gaps, so centres sit at 38 (Morse) and 145 (Fun Fact).
+            pointer-events:none so it never eats touches. */}
+        {hintFor && (
           <div
             role="status"
             style={{
               position: "absolute",
               left: 76 + 16,
-              top: 38,
+              top: hintFor === "morse" ? 38 : 76 + 31 + 38,
               transform: "translateY(-50%)",
               zIndex: 26,
               pointerEvents: "none",

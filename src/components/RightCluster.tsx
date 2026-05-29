@@ -35,7 +35,7 @@ export function RightCluster({
         active={openDialog === "funfact"}
         onClick={() => onOpen("funfact")}
         ariaLabel="Information"
-        disabled={!cableSelected}
+        dimmed={!cableSelected}
         icon={<FactIcon />}
       />
 
