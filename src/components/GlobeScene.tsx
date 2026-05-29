@@ -127,7 +127,7 @@ const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
 const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
 // Neon glow (both default + selected): one saturated colour ring hugging the
 // white-hot core.
-const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.35; // saturated colour glow around core
+const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.15; // saturated colour glow around core
 
 
 const hexToRgb = (hex: string): [number, number, number] => {
