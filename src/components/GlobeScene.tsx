@@ -1142,6 +1142,7 @@ export default function GlobeScene() {
           ref={globeRef}
           width={dimensions.width}
           height={dimensions.height}
+        backgroundColor="#040E1F"
         globeImageUrl={WORLD_MAP_DARK_URL}
         showAtmosphere={true}
         atmosphereColor={ATMOSPHERE_COLOR}
