@@ -45,16 +45,25 @@ export interface ResolvedCallRoute {
 // with a short great-circle arc. Works for both real geometry (long
 // polylines from TeleGeography) and topology cables (short great-circle
 // segments from cableRoutes.ts).
-export function resolveCallRoute(): ResolvedCallRoute {
-  const fromPoint = landingPointsById[DEMO_CALL.fromId];
-  const toPoint = landingPointsById[DEMO_CALL.toId];
+// Resolve the call route for an arbitrary cable + from/to landing-point pair
+// (Model A: intra-cable dialling). The endpoints must both lie on the given
+// cable — the caller scopes the From/To pickers to the selected cable's
+// landing points, so this holds by construction. Args default to DEMO_CALL so
+// the function still produces the showcase route when called bare.
+export function resolveCallRoute(
+  cableId: string = DEMO_CALL.cableId,
+  fromId: string = DEMO_CALL.fromId,
+  toId: string = DEMO_CALL.toId,
+): ResolvedCallRoute {
+  const fromPoint = landingPointsById[fromId];
+  const toPoint = landingPointsById[toId];
   if (!fromPoint || !toPoint) {
-    throw new Error("DEMO_CALL endpoints missing from landingPoints");
+    throw new Error("Call route endpoints missing from landingPoints");
   }
   const fromCoord: [number, number] = [fromPoint.lat, fromPoint.lng];
   const toCoord: [number, number] = [toPoint.lat, toPoint.lng];
 
-  const route = cableRoutes.find((r) => r.cableId === DEMO_CALL.cableId);
+  const route = cableRoutes.find((r) => r.cableId === cableId);
   const segments = route?.segments ?? [];
 
   let body: [number, number][];
@@ -115,7 +124,7 @@ export function resolveCallRoute(): ResolvedCallRoute {
     totalKm: cumKm[cumKm.length - 1],
     fromPoint,
     toPoint,
-    cableId: DEMO_CALL.cableId,
+    cableId,
   };
 }
 

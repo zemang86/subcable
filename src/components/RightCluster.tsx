@@ -26,6 +26,7 @@ export function RightCluster({
         active={openDialog === "morse"}
         onClick={() => onOpen("morse")}
         ariaLabel="Morse Code"
+        dimmed={!cableSelected}
         icon={<MorseIcon />}
       />
 
@@ -55,6 +56,7 @@ function ClusterButton({
   onClick,
   ariaLabel,
   disabled = false,
+  dimmed = false,
   icon,
 }: {
   stemId: string;
@@ -62,8 +64,13 @@ function ClusterButton({
   onClick: () => void;
   ariaLabel: string;
   disabled?: boolean;
+  // Looks disabled (greyed, not-allowed) but stays clickable — the tap is
+  // intercepted upstream to surface a "choose a network first" hint instead
+  // of opening the dialog. Distinct from `disabled`, which is fully inert.
+  dimmed?: boolean;
   icon: React.ReactNode;
 }) {
+  const muted = disabled || dimmed;
   return (
     <button
       type="button"
@@ -79,8 +86,8 @@ function ClusterButton({
         padding: 0,
         border: "none",
         background: "transparent",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.35 : 1,
+        cursor: muted ? "not-allowed" : "pointer",
+        opacity: muted ? 0.35 : 1,
         transition: "opacity 200ms",
         overflow: "visible",
       }}

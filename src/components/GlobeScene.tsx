@@ -229,6 +229,9 @@ export default function GlobeScene() {
   const [autoRotate, setAutoRotate] = useState(false);
   const [activeCall, setActiveCall] = useState<{
     message: string;
+    cableId: string;
+    fromId: string;
+    toId: string;
     startedAt: number;
   } | null>(null);
 
@@ -236,6 +239,22 @@ export default function GlobeScene() {
   // kicks in and a "TAP ANYWHERE TO BEGIN" hint appears. Any touch dismisses.
   const isIdle = useIdleAttractor(60_000);
   const t = useT(language);
+
+  // Transient hint shown when the (dimmed) Morse button is tapped without a
+  // cable selected — Morse dialling is scoped to a single cable system.
+  const [morseHint, setMorseHint] = useState(false);
+  const morseHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashMorseHint = useCallback(() => {
+    setMorseHint(true);
+    if (morseHintTimer.current) clearTimeout(morseHintTimer.current);
+    morseHintTimer.current = setTimeout(() => setMorseHint(false), 3000);
+  }, []);
+  useEffect(
+    () => () => {
+      if (morseHintTimer.current) clearTimeout(morseHintTimer.current);
+    },
+    [],
+  );
 
   // Push mute state down to morseAudio so playDot/playMessage/etc no-op.
   useEffect(() => {
@@ -1273,11 +1292,49 @@ export default function GlobeScene() {
       >
         <RightCluster
           openDialog={openDialog}
-          onOpen={(id) =>
-            setOpenDialog((current) => (current === id ? null : id))
-          }
+          onOpen={(id) => {
+            // Morse dialling is scoped to one cable — block + hint if none.
+            if (id === "morse" && !selectedCable) {
+              flashMorseHint();
+              return;
+            }
+            setOpenDialog((current) => (current === id ? null : id));
+          }}
           cableSelected={Boolean(selectedCable)}
         />
+
+        {/* "Choose a network first" hint — anchored to the right of the Morse
+            button (the top button in the cluster). pointer-events:none so it
+            never eats touches. */}
+        {morseHint && (
+          <div
+            role="status"
+            style={{
+              position: "absolute",
+              left: 76 + 16,
+              top: 38,
+              transform: "translateY(-50%)",
+              zIndex: 26,
+              pointerEvents: "none",
+              whiteSpace: "nowrap",
+              padding: "10px 18px",
+              background: "rgba(4, 14, 31, 0.92)",
+              border: "1px solid var(--v1-orange)",
+              boxShadow: "0 4px 24px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            <span
+              className="v1-h-display"
+              style={{
+                fontSize: 14,
+                color: "var(--v1-fg)",
+                letterSpacing: "0.14em",
+              }}
+            >
+              {t("chooseNetworkFirst")}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Right edge: CableInformation when a cable is selected, otherwise the
@@ -1339,9 +1396,16 @@ export default function GlobeScene() {
           landingPoints={cableLandingPoints}
           language={language}
           onClose={() => setOpenDialog(null)}
-          onSend={(message) => {
+          onSend={(message, fromId, toId) => {
+            if (!selectedCable) return;
             setOpenDialog(null);
-            setActiveCall({ message, startedAt: performance.now() });
+            setActiveCall({
+              message,
+              cableId: selectedCable.id,
+              fromId,
+              toId,
+              startedAt: performance.now(),
+            });
           }}
         />
       )}
@@ -1349,6 +1413,9 @@ export default function GlobeScene() {
       {activeCall && (
         <CallAnimationOverlay
           message={activeCall.message}
+          cableId={activeCall.cableId}
+          fromId={activeCall.fromId}
+          toId={activeCall.toId}
           onDone={() => setActiveCall(null)}
           globeRef={globeRef}
         />
@@ -1406,10 +1473,16 @@ const CALL_RETURN_ALT = 2.2;
 
 function CallAnimationOverlay({
   message,
+  cableId,
+  fromId,
+  toId,
   onDone,
   globeRef,
 }: {
   message: string;
+  cableId: string;
+  fromId: string;
+  toId: string;
   onDone: () => void;
   globeRef: React.MutableRefObject<any>;
 }) {
@@ -1427,7 +1500,7 @@ function CallAnimationOverlay({
     const renderer = globeRef.current.renderer?.();
     if (!scene || !renderer) return;
 
-    const route = resolveCallRoute();
+    const route = resolveCallRoute(cableId, fromId, toId);
     if (route.totalKm <= 0) {
       onDone();
       return;
