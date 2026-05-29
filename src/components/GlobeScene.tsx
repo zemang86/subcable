@@ -252,7 +252,7 @@ export default function GlobeScene() {
       const status = cable?.status ?? "active";
       const colorByStatus =
         status === "retired" || status === "inactive"
-          ? "rgba(255, 255, 255, 0.18)"
+          ? V1_COLORS.mute // #C4C4C4 — dim grey, but glows like the rest
           : status === "planned"
             ? V1_COLORS.orange
             : baseColor;
@@ -591,12 +591,13 @@ export default function GlobeScene() {
   // each core sits on top of its own translucent halo.
   const renderedPaths = useMemo(() => {
     if (!selectedCable) {
-      // Nothing selected — active cables get a subtle identity-colour halo
-      // so the network reads as "lit up" rather than flat lines. Retired /
-      // inactive cables stay 1px white-18 (no halo — they should feel dim).
+      // Nothing selected — every cable gets the neon stack (white-hot core +
+      // glow ring) so the network reads consistently "lit up". Each glows in
+      // its own colour: active = identity hue, planned = orange, inactive /
+      // retired = dim grey.
       const out: PathData[] = [];
       for (const p of pathsData) {
-        if (p.status === "active" && p.color.startsWith("#")) {
+        if (p.color.startsWith("#")) {
           out.push({ ...p, _halo: 2 }, p);
         } else {
           out.push(p);
