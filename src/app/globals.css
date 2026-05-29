@@ -364,10 +364,6 @@ body {
   50%, 100% { opacity: 0; }
 }
 .v1-caret {
-  display: inline-block;
-  width: 2px;
-  align-self: center;
-  background: #1A1A1A;
   animation: v1-caret-blink 1s step-end infinite;
 }
 

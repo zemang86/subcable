@@ -286,6 +286,22 @@ export default function MorseCodePop({
           placeholder={toPoint?.city}
         />
 
+        {/* Mask out the baked-in "max letters" hint at the top-left INSIDE the
+            message canvas (the count now lives in the right-side counter). It
+            sits on the grey canvas, so a grey patch hides it cleanly. Leaves
+            the "type message" tab above it untouched. */}
+        <div
+          style={{
+            position: "absolute",
+            left: 57,
+            top: 154,
+            width: 114,
+            height: 15,
+            background: "#d6d2d2",
+            pointerEvents: "none",
+          }}
+        />
+
         {/* ── LIVE MESSAGE ── covers the SVG's "Tap Dots & Dashes to Begin"
             placeholder + shows decoded text plus the in-progress buffer
             (dots/dashes typed but not yet committed via Enter Letter).
@@ -336,11 +352,19 @@ export default function MorseCodePop({
                 </span>
               )}
               {/* Blinking caret — hugs the end of the text (offsets the flex
-                  gap so it sits right after the last glyph). */}
+                  gap so it sits right after the last glyph). Geometry is inline
+                  so it shows even if the animation class is unavailable. */}
               <span
                 aria-hidden
                 className="v1-caret"
-                style={{ height: 22, marginLeft: -8 }}
+                style={{
+                  display: "inline-block",
+                  width: 3,
+                  height: 22,
+                  marginLeft: -8,
+                  background: "#1A1A1A",
+                  alignSelf: "center",
+                }}
               />
             </div>
           </div>
@@ -351,10 +375,12 @@ export default function MorseCodePop({
         <div
           style={{
             ...absPos(POS.counter),
+            left: 615,
+            width: 181,
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-end",
-            background: "rgba(217, 217, 217, 1)",
+            background: "#d6d2d2",
             fontFamily: "var(--v1-mono)",
             fontWeight: 400,
             fontSize: 8.78,
@@ -362,9 +388,10 @@ export default function MorseCodePop({
             color: atCap ? "#ED1B2E" : "#808080",
             paddingRight: 2,
             boxSizing: "border-box",
+            whiteSpace: "nowrap",
           }}
         >
-          {decoded.length}/{MAX_CHARS}
+          Maximum Characters: {decoded.length}/{MAX_CHARS}
         </div>
 
         {/* ── BUTTON HOTSPOTS ── transparent click targets sized exactly to
