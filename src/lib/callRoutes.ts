@@ -40,16 +40,19 @@ export interface ResolvedCallRoute {
   cableId: string;
 }
 
-// Pick the cable polyline that best brackets fromPoint and toPoint, orient
-// it so the start is closer to fromPoint, then bridge any gap at each end
-// with a short great-circle arc. Works for both real geometry (long
-// polylines from TeleGeography) and topology cables (short great-circle
-// segments from cableRoutes.ts).
 // Resolve the call route for an arbitrary cable + from/to landing-point pair
 // (Model A: intra-cable dialling). The endpoints must both lie on the given
 // cable — the caller scopes the From/To pickers to the selected cable's
 // landing points, so this holds by construction. Args default to DEMO_CALL so
 // the function still produces the showcase route when called bare.
+//
+// A cable's real geometry arrives as many DISJOINT polyline fragments (SMW4 is
+// 13), and a long-haul route spans several of them in a chain. Picking a single
+// "best" fragment and great-circle-bridging the remainder is wrong for these —
+// the leftover collapses into a straight line across land (e.g. SMW4 Singapore
+// → France used to jump straight from Mumbai to Marseille across Europe). So we
+// instead STITCH the fragments into a graph and walk the shortest path from the
+// From point to the To point along the actual cable.
 export function resolveCallRoute(
   cableId: string = DEMO_CALL.cableId,
   fromId: string = DEMO_CALL.fromId,
@@ -64,54 +67,14 @@ export function resolveCallRoute(
   const toCoord: [number, number] = [toPoint.lat, toPoint.lng];
 
   const route = cableRoutes.find((r) => r.cableId === cableId);
-  const segments = route?.segments ?? [];
+  const polylines = (route?.segments ?? [])
+    .map((s) => s.coords)
+    .filter((c) => c.length >= 2);
 
-  let body: [number, number][];
-
-  if (segments.length === 0) {
-    body = greatCircle(fromCoord, toCoord, 48);
-  } else {
-    // Score every segment by how well its endpoints bracket from + to.
-    // The ideal segment minimises (dist from one end to fromCoord) +
-    // (dist from other end to toCoord).
-    let best: {
-      coords: [number, number][];
-      score: number;
-      reverse: boolean;
-    } | null = null;
-    for (const seg of segments) {
-      if (seg.coords.length < 2) continue;
-      const a = seg.coords[0];
-      const b = seg.coords[seg.coords.length - 1];
-      const fwd = haversine(a, fromCoord) + haversine(b, toCoord);
-      const rev = haversine(b, fromCoord) + haversine(a, toCoord);
-      const score = Math.min(fwd, rev);
-      if (!best || score < best.score) {
-        best = { coords: seg.coords, score, reverse: rev < fwd };
-      }
-    }
-
-    if (!best) {
-      body = greatCircle(fromCoord, toCoord, 48);
-    } else {
-      const oriented = best.reverse ? [...best.coords].reverse() : best.coords;
-      // Bridge from fromPoint → polyline start, then polyline, then
-      // polyline end → toPoint. Skip a leg if it's already < ~5 km.
-      const bridgeStart =
-        haversine(fromCoord, oriented[0]) > 5
-          ? greatCircle(fromCoord, oriented[0], 16)
-          : [fromCoord];
-      const bridgeEnd =
-        haversine(oriented[oriented.length - 1], toCoord) > 5
-          ? greatCircle(oriented[oriented.length - 1], toCoord, 16)
-          : [toCoord];
-      body = [
-        ...bridgeStart.slice(0, -1),
-        ...oriented,
-        ...bridgeEnd.slice(1),
-      ];
-    }
-  }
+  // No usable geometry → fall back to a single great-circle arc.
+  const body =
+    stitchRoute(polylines, fromCoord, toCoord) ??
+    greatCircle(fromCoord, toCoord, 48);
 
   const cumKm = [0];
   for (let i = 1; i < body.length; i++) {
@@ -159,6 +122,144 @@ function greatCircle(
     const lat = Math.atan2(z, Math.sqrt(x * x + y * y));
     const lng = Math.atan2(y, x);
     out.push([(lat * 180) / Math.PI, (lng * 180) / Math.PI]);
+  }
+  return out;
+}
+
+// Max gap (km) across which two fragment vertices are treated as the same
+// junction and stitched together. Real cable fragments meet at landing
+// stations / branching units with near-coincident vertices; 150km comfortably
+// bridges those joins without inventing shortcuts between unrelated stubs.
+const STITCH_SNAP_KM = 150;
+// Any single hop longer than this in the final path is re-sampled as a
+// great-circle arc so long ocean stretches (and small bridges) curve with the
+// globe instead of cutting a flat chord.
+const DENSIFY_OVER_KM = 200;
+
+// Build a graph over every fragment vertex (intra-fragment edges along each
+// polyline, plus near-coincident vertices of different fragments joined as
+// junctions), attach the from/to points to their single nearest vertex, and
+// return the Dijkstra shortest path from→to as a coordinate list. Returns null
+// when there is no geometry or the endpoints can't be connected, so the caller
+// can fall back to a plain great-circle arc.
+function stitchRoute(
+  polylines: [number, number][][],
+  from: [number, number],
+  to: [number, number],
+): [number, number][] | null {
+  if (polylines.length === 0) return null;
+
+  // Flatten all vertices into a single node list; remember each polyline's
+  // node indices so we can wire intra-fragment edges.
+  const nodes: [number, number][] = [];
+  const polyNodes: number[][] = [];
+  for (const coords of polylines) {
+    const ids: number[] = [];
+    for (const c of coords) {
+      ids.push(nodes.length);
+      nodes.push(c);
+    }
+    polyNodes.push(ids);
+  }
+  const FROM = nodes.length;
+  nodes.push(from);
+  const TO = nodes.length;
+  nodes.push(to);
+
+  const adj: Array<Array<[number, number]>> = nodes.map(() => []);
+  const addEdge = (a: number, b: number, w: number) => {
+    adj[a].push([b, w]);
+    adj[b].push([a, w]);
+  };
+
+  // Intra-fragment edges (consecutive vertices).
+  for (let p = 0; p < polylines.length; p++) {
+    const coords = polylines[p];
+    for (let v = 0; v + 1 < coords.length; v++) {
+      addEdge(polyNodes[p][v], polyNodes[p][v + 1], haversine(coords[v], coords[v + 1]));
+    }
+  }
+
+  // Junction edges between near-coincident vertices of DIFFERENT fragments.
+  for (let p = 0; p < polylines.length; p++) {
+    for (let v = 0; v < polylines[p].length; v++) {
+      for (let q = p + 1; q < polylines.length; q++) {
+        for (let w = 0; w < polylines[q].length; w++) {
+          const gap = haversine(polylines[p][v], polylines[q][w]);
+          if (gap <= STITCH_SNAP_KM) {
+            addEdge(polyNodes[p][v], polyNodes[q][w], gap);
+          }
+        }
+      }
+    }
+  }
+
+  // Attach from/to to their single nearest vertex only. Connecting to more
+  // than one vertex would hand Dijkstra long straight terminal edges to use as
+  // shortcuts (it would skip the cable entirely).
+  const nearestVertex = (pt: [number, number]): [number, number] => {
+    let best = -1;
+    let bestD = Infinity;
+    for (let n = 0; n < nodes.length - 2; n++) {
+      const d = haversine(pt, nodes[n]);
+      if (d < bestD) {
+        bestD = d;
+        best = n;
+      }
+    }
+    return [best, bestD];
+  };
+  const [fNode, fGap] = nearestVertex(from);
+  const [tNode, tGap] = nearestVertex(to);
+  if (fNode < 0 || tNode < 0) return null;
+  addEdge(FROM, fNode, fGap);
+  addEdge(TO, tNode, tGap);
+
+  // Dijkstra (linear scan — fine for the few hundred vertices a cable has).
+  const dist = nodes.map(() => Infinity);
+  const prev = nodes.map(() => -1);
+  const done = nodes.map(() => false);
+  dist[FROM] = 0;
+  for (;;) {
+    let u = -1;
+    let bestD = Infinity;
+    for (let n = 0; n < nodes.length; n++) {
+      if (!done[n] && dist[n] < bestD) {
+        bestD = dist[n];
+        u = n;
+      }
+    }
+    if (u === -1 || u === TO) break;
+    done[u] = true;
+    for (const [v, w] of adj[u]) {
+      if (dist[u] + w < dist[v]) {
+        dist[v] = dist[u] + w;
+        prev[v] = u;
+      }
+    }
+  }
+  if (prev[TO] === -1) return null;
+
+  // Reconstruct from→to.
+  const path: number[] = [];
+  for (let cur = TO; cur !== -1; cur = prev[cur]) path.push(cur);
+  path.reverse();
+  const raw = path.map((n) => nodes[n]);
+
+  // Smooth long hops (junction bridges, terminal gaps, coarse ocean spans)
+  // into great-circle arcs so nothing renders as a flat chord across the globe.
+  const out: [number, number][] = [raw[0]];
+  for (let i = 1; i < raw.length; i++) {
+    const a = raw[i - 1];
+    const b = raw[i];
+    const gap = haversine(a, b);
+    if (gap > DENSIFY_OVER_KM) {
+      const steps = Math.min(48, Math.max(2, Math.round(gap / 100)));
+      const arc = greatCircle(a, b, steps);
+      out.push(...arc.slice(1));
+    } else {
+      out.push(b);
+    }
   }
   return out;
 }
