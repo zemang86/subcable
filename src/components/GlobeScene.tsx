@@ -5,6 +5,7 @@ import * as THREE from "three";
 
 import Globe from "./GlobeWrapper";
 import Sidebar from "./Sidebar";
+import SystemButtons from "./SystemButtons";
 import LoadingScreen from "./LoadingScreen";
 import CableInformation from "./CableInformation";
 import GeneralInformation from "./GeneralInformation";
@@ -568,6 +569,20 @@ export default function GlobeScene() {
     [handleSelectCable],
   );
 
+  // Back button — pops one navigation step:
+  //  1. If a landing-point callout is open (location info showing) → close it,
+  //     returning to the cable network view. Same as tapping the callout.
+  //  2. Otherwise, if a cable is selected → deselect it (resets camera), which
+  //     also hides the back button.
+  const handleBack = useCallback(() => {
+    if (expandedPointId !== null) {
+      setExpandedPointId(null);
+      setSelectedLandingPoint(null);
+    } else if (selectedCable) {
+      handleSelectCable(null);
+    }
+  }, [expandedPointId, selectedCable, handleSelectCable]);
+
   // Recenter on Malaysia (compass) — leaves selection/dialogs alone.
   const recenterMalaysia = useCallback(() => {
     globeRef.current?.pointOfView(
@@ -1037,6 +1052,10 @@ export default function GlobeScene() {
         onSelectCable={handleSelectCable}
         language={language}
       />
+
+      {/* Left of Cable System panel: Back / Audio / Naration button column.
+          Back shows only when a cable is selected. */}
+      <SystemButtons showBack={Boolean(selectedCable)} onBack={handleBack} />
 
       {/* Bottom-center: audio mute + language toggle + re-center button (Figma V1.3) */}
       <div
