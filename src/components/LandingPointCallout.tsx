@@ -19,7 +19,10 @@ type LandingPointCalloutProps = {
   dimmed?: boolean;
   /** When true, render the big expanded card with thumbnail + body copy. */
   expanded?: boolean;
-  /** Toggle handler — fired on tap of the small or expanded card. */
+  /** When true, render ONLY the reticle marker (clickable) — no leader line,
+      no text box. Used when a cable is selected to mark its landing points. */
+  markerOnly?: boolean;
+  /** Toggle handler — fired on tap of the marker / small / expanded card. */
   onToggleExpand?: () => void;
 };
 
@@ -32,6 +35,8 @@ export const CALLOUT_REST_RISE = 73;
 // Line stops this far short of the point so it meets the reticle, not its centre.
 const MARKER_GAP = 13;
 const CONNECTOR_THICKNESS = 1.4;
+// Base diameter of the breathing glow halo (it scales 0.85↔1.3 via animation).
+const PING_SIZE = 52;
 
 // Expanded card native geometry — lifted from temp/expand-location.css.
 // 439w main panel; height is content-driven so longer descriptions don't clip.
@@ -50,6 +55,7 @@ export function LandingPointCallout({
   hidden = false,
   dimmed = false,
   expanded = false,
+  markerOnly = false,
   onToggleExpand,
 }: LandingPointCalloutProps) {
   if (expanded) {
@@ -64,6 +70,71 @@ export function LandingPointCallout({
   }
 
   const interactive = !hidden && !dimmed && Boolean(onToggleExpand);
+
+  // Marker-only: just the reticle pinned on the point, wrapped in a tap target
+  // (padded out to a touch-friendly hit area). No leader line, no text box.
+  if (markerOnly) {
+    const HIT = 24; // px padding around the 40px reticle → ~64px touch target
+    // Live marker (not backgrounded) gets a continuous breathing glow — a touch
+    // affordance signalling the marker can be tapped.
+    const showPing = !hidden && !dimmed;
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: screenPos.x,
+          top: screenPos.y,
+          width: 0,
+          height: 0,
+          opacity: hidden ? 0 : dimmed ? 0.28 : 1,
+          filter: dimmed ? "grayscale(0.6)" : undefined,
+          transition: "opacity 200ms ease, filter 200ms ease",
+          zIndex: 15,
+          pointerEvents: "none",
+        }}
+      >
+        {showPing && (
+          <span
+            aria-hidden
+            className="v1-marker-pulse"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: PING_SIZE,
+              height: PING_SIZE,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(0,255,77,0.95) 0%, rgba(0,255,77,0.6) 42%, rgba(0,255,77,0.12) 68%, rgba(0,255,77,0) 80%)",
+              pointerEvents: "none",
+            }}
+          />
+        )}
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={`Open details for ${point.name}`}
+          style={{
+            position: "absolute",
+            left: -SVG_W / 2 - HIT,
+            top: -HUD_CENTER_Y - HIT,
+            padding: HIT,
+            background: "transparent",
+            border: "none",
+            cursor: interactive ? "pointer" : "default",
+            pointerEvents: interactive ? "auto" : "none",
+            lineHeight: 0,
+          }}
+        >
+          <PointHUD
+            status={point.kind === "pop" ? "inactive" : "active"}
+            pulse={point.kind !== "pop"}
+            hideLine
+          />
+        </button>
+      </div>
+    );
+  }
 
   // Everything is positioned relative to a zero-size anchor pinned at the point
   // (screenPos). The box centre sits at `offset` from the point; the declutter
@@ -389,6 +460,28 @@ function ExpandedCard({
           Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
           eiusmod tempor incididunt ut labore et dolore magna aliqua.
         </div>
+
+        {/* Close affordance — the whole card closes on tap; this just makes the
+            close target obvious on a touchscreen. Decorative (parent handles
+            the tap), so it's a styled span, not a nested button. */}
+        <span
+          aria-hidden
+          style={{
+            alignSelf: "flex-end",
+            width: 40,
+            height: 40,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1.5px solid rgba(255, 255, 255, 0.7)",
+            color: "#FFFFFF",
+            fontFamily: "var(--v1-mono)",
+            fontSize: 20,
+            lineHeight: 1,
+          }}
+        >
+          ✕
+        </span>
       </button>
       </div>
     </>

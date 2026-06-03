@@ -26,7 +26,6 @@ export function RightCluster({
         active={openDialog === "morse"}
         onClick={() => onOpen("morse")}
         ariaLabel="Morse Code"
-        dimmed={!cableSelected}
         icon={<MorseIcon />}
       />
 

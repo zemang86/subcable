@@ -300,6 +300,17 @@ body {
   50%      { opacity: 0.55; transform: scale(0.85); }
 }
 
+/* Continuous "breathing" glow behind an active landing-point marker — a steady
+   pulse that signals the marker is tappable (touch affordance). It never fades
+   out; it gently swells and softens forever. Centre-anchored. */
+.v1-marker-pulse {
+  animation: v1-marker-pulse 1.8s ease-in-out infinite;
+}
+@keyframes v1-marker-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.65; }
+  50%      { transform: translate(-50%, -50%) scale(1.3);  opacity: 1; }
+}
+
 /* Expanded landing-point callout — grows up from the stem on mount,
    collapses back into the stem on close. The corner brackets are
    children, so they appear to snap into / out of place. */
