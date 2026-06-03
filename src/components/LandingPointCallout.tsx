@@ -19,7 +19,10 @@ type LandingPointCalloutProps = {
   dimmed?: boolean;
   /** When true, render the big expanded card with thumbnail + body copy. */
   expanded?: boolean;
-  /** Toggle handler — fired on tap of the small or expanded card. */
+  /** When true, render ONLY the reticle marker (clickable) — no leader line,
+      no text box. Used when a cable is selected to mark its landing points. */
+  markerOnly?: boolean;
+  /** Toggle handler — fired on tap of the marker / small / expanded card. */
   onToggleExpand?: () => void;
 };
 
@@ -50,6 +53,7 @@ export function LandingPointCallout({
   hidden = false,
   dimmed = false,
   expanded = false,
+  markerOnly = false,
   onToggleExpand,
 }: LandingPointCalloutProps) {
   if (expanded) {
@@ -64,6 +68,51 @@ export function LandingPointCallout({
   }
 
   const interactive = !hidden && !dimmed && Boolean(onToggleExpand);
+
+  // Marker-only: just the reticle pinned on the point, wrapped in a tap target
+  // (padded out to a touch-friendly hit area). No leader line, no text box.
+  if (markerOnly) {
+    const HIT = 24; // px padding around the 40px reticle → ~64px touch target
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: screenPos.x,
+          top: screenPos.y,
+          width: 0,
+          height: 0,
+          opacity: hidden ? 0 : dimmed ? 0.28 : 1,
+          filter: dimmed ? "grayscale(0.6)" : undefined,
+          transition: "opacity 200ms ease, filter 200ms ease",
+          zIndex: 15,
+          pointerEvents: "none",
+        }}
+      >
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={`Open details for ${point.name}`}
+          style={{
+            position: "absolute",
+            left: -SVG_W / 2 - HIT,
+            top: -HUD_CENTER_Y - HIT,
+            padding: HIT,
+            background: "transparent",
+            border: "none",
+            cursor: interactive ? "pointer" : "default",
+            pointerEvents: interactive ? "auto" : "none",
+            lineHeight: 0,
+          }}
+        >
+          <PointHUD
+            status={point.kind === "pop" ? "inactive" : "active"}
+            pulse={point.kind !== "pop"}
+            hideLine
+          />
+        </button>
+      </div>
+    );
+  }
 
   // Everything is positioned relative to a zero-size anchor pinned at the point
   // (screenPos). The box centre sits at `offset` from the point; the declutter

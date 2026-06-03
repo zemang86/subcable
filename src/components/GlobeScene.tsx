@@ -664,19 +664,26 @@ export default function GlobeScene() {
     [expandedPointId, closeExpanded],
   );
 
-  // Click on a globe marker: open that landing point's info directly (the
-  // expanded card), independent of cable selection. No callout swarm and no
-  // auto-selecting a cable — markers stay as the only globe decoration until
-  // one is tapped.
+  // Open a landing point's info directly (the expanded card), independent of
+  // cable selection. No auto-selecting a cable. Shared by globe-dot taps and
+  // reticle-marker taps.
+  const openLandingPoint = useCallback(
+    (lp: LandingPoint) => {
+      setSelectedLandingPoint(lp);
+      handleToggleExpand(lp);
+    },
+    [handleToggleExpand],
+  );
+
+  // Click on a globe marker dot → resolve the landing point and open its info.
   const handleGlobePointClick = useCallback(
     (point: any) => {
       const memberIds: string[] = point.memberIds || [point.id];
       const lp = landingPoints.find((p) => memberIds.includes(p.id));
       if (!lp) return;
-      setSelectedLandingPoint(lp);
-      handleToggleExpand(lp);
+      openLandingPoint(lp);
     },
-    [handleToggleExpand],
+    [openLandingPoint],
   );
 
   // Recenter on Malaysia (compass) — leaves selection/dialogs alone.
@@ -1042,16 +1049,34 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(raf);
   }, [isLoaded, allLabels]);
 
-  // Track the screen position of the currently-selected landing point so its
-  // info callout can anchor to the live marker as the globe rotates. Only the
-  // one tapped point is projected (no full-cable callout swarm). Throttled to
-  // ~30 fps via a frame-skip to avoid a 60Hz React storm.
+  // Cable-scoped landing-point list passed to MorseCodePop.
+  const cableLandingPoints = useMemo(() => {
+    if (!selectedCable) return [];
+    const lookup = new Map(landingPoints.map((p) => [p.id, p]));
+    return selectedCable.landingPointIds
+      .map((id) => lookup.get(id))
+      .filter((p): p is LandingPoint => Boolean(p));
+  }, [selectedCable]);
+
+  // Points that get an on-globe reticle marker: every landing point on the
+  // selected cable, plus whichever point is currently open (covers the case of
+  // tapping a point that isn't on the selected cable). Markers are dropped when
+  // no cable is selected and nothing is open — just the bare globe dots remain.
+  const markerPoints = useMemo(() => {
+    const map = new Map<string, LandingPoint>();
+    for (const p of cableLandingPoints) map.set(p.id, p);
+    if (selectedLandingPoint) map.set(selectedLandingPoint.id, selectedLandingPoint);
+    return [...map.values()];
+  }, [cableLandingPoints, selectedLandingPoint]);
+
+  // Track the screen position of every marked landing point so its reticle (and
+  // the open info card) anchor to the live marker as the globe rotates.
+  // Throttled to ~30 fps via a frame-skip to avoid a 60Hz React storm.
   useEffect(() => {
-    if (!isLoaded || !selectedLandingPoint || !globeRef.current) {
+    if (!isLoaded || markerPoints.length === 0 || !globeRef.current) {
       setCalloutScreens({});
       return;
     }
-    const points = [selectedLandingPoint];
     let raf = 0;
     let frame = 0;
     const tick = () => {
@@ -1064,7 +1089,7 @@ export default function GlobeScene() {
           const dom = renderer.domElement as HTMLCanvasElement;
           const offX = globeOffsetX(dom.clientWidth);
           const next: Record<string, { x: number; y: number; visible: boolean }> = {};
-          for (const p of points) {
+          for (const p of markerPoints) {
             const xyz = globeRef.current.getCoords(p.lat, p.lng, 0.01);
             const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
             // v.z > 1 = point is behind the camera (far side of the globe)
@@ -1082,16 +1107,7 @@ export default function GlobeScene() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [isLoaded, selectedLandingPoint]);
-
-  // Cable-scoped landing-point list passed to MorseCodePop.
-  const cableLandingPoints = useMemo(() => {
-    if (!selectedCable) return [];
-    const lookup = new Map(landingPoints.map((p) => [p.id, p]));
-    return selectedCable.landingPointIds
-      .map((id) => lookup.get(id))
-      .filter((p): p is LandingPoint => Boolean(p));
-  }, [selectedCable]);
+  }, [isLoaded, markerPoints]);
 
   return (
     <div
@@ -1257,26 +1273,27 @@ export default function GlobeScene() {
       {/* Bottom: titlebar */}
       <Header selectedCable={selectedCable} language={language} />
 
-      {/* Map overlay: the info card for the tapped landing point. Markers are
-          the only globe decoration until one is tapped; tapping opens this card
-          (expanded) and tapping it again / the back button closes it.
+      {/* Map overlay: a reticle marker for each landing point on the selected
+          cable (no text callout). Tapping a marker opens that point's expanded
+          info card; the open point renders the card instead of the bare marker.
           Hidden during an active call so the dialing animation is unobstructed. */}
-      {selectedLandingPoint &&
-        !activeCall &&
-        (() => {
-          const pos = calloutScreens[selectedLandingPoint.id];
+      {!activeCall &&
+        markerPoints.map((p) => {
+          const pos = calloutScreens[p.id];
           if (!pos || !pos.visible) return null;
+          const isExpanded = expandedPointId === p.id;
           return (
             <LandingPointCallout
-              key={selectedLandingPoint.id}
-              point={selectedLandingPoint}
+              key={p.id}
+              point={p}
               screenPos={{ x: pos.x, y: pos.y }}
               viewport={dimensions}
-              expanded={expandedPointId === selectedLandingPoint.id}
-              onToggleExpand={() => handleToggleExpand(selectedLandingPoint)}
+              markerOnly={!isExpanded}
+              expanded={isExpanded}
+              onToggleExpand={() => openLandingPoint(p)}
             />
           );
-        })()}
+        })}
 
       {/* Leader line from the active cluster button to its dialog title. */}
       <ClusterStem openDialog={openDialog} viewport={dimensions} />
