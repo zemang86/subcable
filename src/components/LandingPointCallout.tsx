@@ -35,6 +35,8 @@ export const CALLOUT_REST_RISE = 73;
 // Line stops this far short of the point so it meets the reticle, not its centre.
 const MARKER_GAP = 13;
 const CONNECTOR_THICKNESS = 1.4;
+// Base diameter of the breathing glow halo (it scales 0.85↔1.3 via animation).
+const PING_SIZE = 52;
 
 // Expanded card native geometry — lifted from temp/expand-location.css.
 // 439w main panel; height is content-driven so longer descriptions don't clip.
@@ -73,6 +75,9 @@ export function LandingPointCallout({
   // (padded out to a touch-friendly hit area). No leader line, no text box.
   if (markerOnly) {
     const HIT = 24; // px padding around the 40px reticle → ~64px touch target
+    // Live marker (not backgrounded) gets a continuous breathing glow — a touch
+    // affordance signalling the marker can be tapped.
+    const showPing = !hidden && !dimmed;
     return (
       <div
         style={{
@@ -88,6 +93,23 @@ export function LandingPointCallout({
           pointerEvents: "none",
         }}
       >
+        {showPing && (
+          <span
+            aria-hidden
+            className="v1-marker-pulse"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: PING_SIZE,
+              height: PING_SIZE,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(0,255,77,0.95) 0%, rgba(0,255,77,0.6) 42%, rgba(0,255,77,0.12) 68%, rgba(0,255,77,0) 80%)",
+              pointerEvents: "none",
+            }}
+          />
+        )}
         <button
           type="button"
           onClick={onToggleExpand}

@@ -1359,6 +1359,8 @@ export default function GlobeScene() {
               viewport={dimensions}
               markerOnly={!isExpanded}
               expanded={isExpanded}
+              // When one point is open, grey out the other cable markers.
+              dimmed={Boolean(expandedPointId) && !isExpanded}
               onToggleExpand={() => openLandingPoint(p)}
             />
           );
