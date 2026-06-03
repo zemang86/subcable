@@ -169,6 +169,20 @@ const LANDING_POINT_ACTIVE = V1_COLORS.active;          // #8FFF3F lime
 const LANDING_POINT_MUTED = "rgba(120, 120, 120, 0.30)";
 const TRAVELLING_DOT_COLOR = V1_COLORS.fg;              // white
 
+// Country highlight (Phase 2): when a cable is selected, the countries it lands
+// in get a flat translucent light-grey fill — no border, no pattern. Sits just
+// above the globe texture but below the cable lines so the cables stay on top.
+const COUNTRY_FILL_CAP = "rgba(232, 236, 243, 0.20)";
+const COUNTRY_FILL_SIDE = "rgba(232, 236, 243, 0.08)";
+const COUNTRY_FILL_STROKE = "rgba(0, 0, 0, 0)"; // transparent — no outline
+const COUNTRY_FILL_ALTITUDE = 0.002;
+// landingPoint.country → countries.json properties.name, where they differ.
+// (Réunion has no feature in this Natural Earth extract, so it stays unhighlighted
+// rather than wrongly lighting up mainland France.)
+const COUNTRY_NAME_ALIASES: Record<string, string> = {
+  "United States": "United States of America",
+};
+
 // Default + Malaysia-recenter coordinates.
 const DEFAULT_LAT = 5;
 const DEFAULT_LNG = 108;
@@ -1069,6 +1083,22 @@ export default function GlobeScene() {
     return [...map.values()];
   }, [cableLandingPoints, selectedLandingPoint]);
 
+  // Phase 2: GeoJSON features for the countries the selected cable lands in.
+  // Empty when no cable is selected → the polygon layer renders nothing.
+  const highlightedCountries = useMemo(() => {
+    if (cableLandingPoints.length === 0) return [];
+    const wanted = new Set(
+      cableLandingPoints.map((p) => COUNTRY_NAME_ALIASES[p.country] ?? p.country),
+    );
+    return (countries as { features: { properties?: { name?: string } }[] }).features.filter(
+      (f) => f.properties?.name && wanted.has(f.properties.name),
+    );
+  }, [cableLandingPoints]);
+
+  const countryCapColor = useCallback(() => COUNTRY_FILL_CAP, []);
+  const countrySideColor = useCallback(() => COUNTRY_FILL_SIDE, []);
+  const countryStrokeColor = useCallback(() => COUNTRY_FILL_STROKE, []);
+
   // Track the screen position of every marked landing point so its reticle (and
   // the open info card) anchor to the live marker as the globe rotates.
   // Throttled to ~30 fps via a frame-skip to avoid a 60Hz React storm.
@@ -1134,6 +1164,12 @@ export default function GlobeScene() {
         showAtmosphere={true}
         atmosphereColor={ATMOSPHERE_COLOR}
         atmosphereAltitude={0.18}
+        polygonsData={highlightedCountries}
+        polygonCapColor={countryCapColor}
+        polygonSideColor={countrySideColor}
+        polygonStrokeColor={countryStrokeColor}
+        polygonAltitude={COUNTRY_FILL_ALTITUDE}
+        polygonsTransitionDuration={300}
         pathsData={renderedPaths}
         pathPoints="coords"
         pathPointLat={pathPointLat}
