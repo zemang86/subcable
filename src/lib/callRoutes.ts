@@ -1,4 +1,5 @@
 import { cableRoutes } from "@/data/cableRoutes";
+import { cables } from "@/data/cables";
 import { landingPointsById } from "@/data/landingPoints";
 import { LandingPoint } from "@/lib/types";
 
@@ -262,4 +263,326 @@ function stitchRoute(
     }
   }
   return out;
+}
+
+// ─────────────────────── CROSS-NETWORK ROUTING (Model B) ───────────────────────
+//
+// A call may run between any two landing points in the whole network. We model
+// the network as a graph whose NODES are landing points and whose EDGES are of
+// two kinds:
+//
+//   • CABLE edges — consecutive stations along ONE cable (a topological chain,
+//     weighted by the real along-cable distance). Travelling a cable from any
+//     entry to any exit walks these and renders the cable's true geometry.
+//   • TELEPORT edges — two stations IN THE SAME COUNTRY that share no cable.
+//     This is the cross-network hand-off: when a cable reaches a country that
+//     another cable also lands in, the signal "teleports" to that other cable
+//     instead of detouring thousands of km to a physically shared splice point.
+//     Weighted by the short within-country jump distance plus a small penalty
+//     so the router doesn't teleport gratuitously when a cable would do.
+//
+// Dijkstra over this graph gives the shortest hop chain. We then collapse runs
+// of same-cable hops into single cable legs (rendered entry→exit, no back and
+// forth) and emit teleport legs between them — see resolveNetworkRoute.
+
+// Added to every teleport edge's weight. Keeps the router from chaining lots of
+// tiny country-hub hops when staying on one cable is barely longer — tuned so a
+// hand-off only happens when it meaningfully shortens the route (e.g. a cable
+// that would otherwise detour thousands of km), not for marginal gains.
+const TELEPORT_PENALTY_KM = 500;
+
+interface GraphEdge {
+  to: string;
+  weightKm: number;
+  cableId: string; // "" for teleport edges
+  kind: "cable" | "teleport";
+}
+
+let _graph: Map<string, GraphEdge[]> | null = null;
+
+// Build (once) the landing-point graph used for cross-network routing.
+//
+// A submarine cable is a LINE of stations, not a clique. We chain each cable's
+// stations in geographic order and connect only CONSECUTIVE stations. Because
+// adjacent stations sit close together, a straight-line (haversine) weight is a
+// faithful proxy for the along-cable distance between them — and it keeps the
+// build cheap (the expensive real-geometry stitch happens only for the handful
+// of legs the chosen route actually renders, in resolveNetworkRoute). The old
+// "flew everywhere" zig-zag came from haversine on LONG all-pairs edges; here we
+// only ever weight SHORT consecutive edges, so the proxy holds.
+function getNetworkGraph(): Map<string, GraphEdge[]> {
+  if (_graph) return _graph;
+  const g = new Map<string, GraphEdge[]>();
+  const addEdge = (
+    a: string,
+    b: string,
+    w: number,
+    cableId: string,
+    kind: "cable" | "teleport",
+  ) => {
+    let list = g.get(a);
+    if (!list) {
+      list = [];
+      g.set(a, list);
+    }
+    list.push({ to: b, weightKm: w, cableId, kind });
+  };
+  const co = (id: string): [number, number] => [
+    landingPointsById[id].lat,
+    landingPointsById[id].lng,
+  ];
+  for (const cable of cables) {
+    const ids = cable.landingPointIds.filter((id) => landingPointsById[id]);
+    if (ids.length < 2) continue;
+
+    // Double-sweep: from an arbitrary anchor, find the farthest station — that
+    // is a true end of the line. Ordering by distance from a MIDDLE station
+    // would tie the two sides of the cable together and scramble the chain.
+    const anchor = ids[0];
+    let end = anchor;
+    let endD = -1;
+    for (const id of ids) {
+      if (id === anchor) continue;
+      const d = haversine(co(anchor), co(id));
+      if (d > endD) {
+        endD = d;
+        end = id;
+      }
+    }
+    const ordered = ids
+      .map((id) => ({ id, d: id === end ? 0 : haversine(co(end), co(id)) }))
+      .sort((p, q) => p.d - q.d)
+      .map((p) => p.id);
+
+    // Consecutive stations only; weight = straight-line distance (good proxy
+    // for adjacent stations). Real geometry is drawn later, per chosen leg.
+    for (let i = 0; i + 1 < ordered.length; i++) {
+      const a = ordered[i];
+      const b = ordered[i + 1];
+      const w = haversine(co(a), co(b));
+      addEdge(a, b, w, cable.id, "cable");
+      addEdge(b, a, w, cable.id, "cable");
+    }
+  }
+
+  // ── Teleport edges ── group all graph nodes (cable stations) by country, then
+  // connect every same-country pair that shares NO cable. This is the country-
+  // hub hand-off: a cable reaching a country can jump to any OTHER cable landing
+  // in that country without a physical splice. Weight is the short within-
+  // country jump distance (+ penalty), so the router prefers a local hand-off
+  // over a long cable detour. Endpoints are existing nodes only (a teleport into
+  // a dead-end station you can't travel onward from is useless).
+  const byCountry = new Map<string, string[]>();
+  for (const id of g.keys()) {
+    const lp = landingPointsById[id];
+    if (!lp) continue;
+    let arr = byCountry.get(lp.country);
+    if (!arr) {
+      arr = [];
+      byCountry.set(lp.country, arr);
+    }
+    arr.push(id);
+  }
+  for (const ids of byCountry.values()) {
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = landingPointsById[ids[i]];
+        const b = landingPointsById[ids[j]];
+        // Skip if a real cable already connects them — travel it, don't teleport.
+        if (a.cableIds.some((c) => b.cableIds.includes(c))) continue;
+        const w =
+          haversine([a.lat, a.lng], [b.lat, b.lng]) + TELEPORT_PENALTY_KM;
+        addEdge(ids[i], ids[j], w, "", "teleport");
+        addEdge(ids[j], ids[i], w, "", "teleport");
+      }
+    }
+  }
+
+  _graph = g;
+  return g;
+}
+
+// Every landing point reachable from `fromId` through the real cable network
+// (BFS over the topological graph). The Morse "To" pickers use this to offer
+// ONLY destinations that genuinely have a cable path — no dead-end picks that
+// would silently fall back to a straight great-circle line.
+export function reachableFrom(fromId: string): Set<string> {
+  const g = getNetworkGraph();
+  const seen = new Set<string>([fromId]);
+  if (!g.has(fromId)) return seen;
+  const stack = [fromId];
+  while (stack.length > 0) {
+    const u = stack.pop() as string;
+    for (const e of g.get(u) ?? []) {
+      if (!seen.has(e.to)) {
+        seen.add(e.to);
+        stack.push(e.to);
+      }
+    }
+  }
+  return seen;
+}
+
+interface RouteHop {
+  fromId: string;
+  toId: string;
+  cableId: string;
+  kind: "cable" | "teleport";
+}
+
+// Dijkstra from→to over the landing-point graph. Returns the hop sequence (each
+// tagged with the cable that carries it, or marked as a teleport), or null if
+// the two points can't be connected through the network.
+function shortestHops(fromId: string, toId: string): RouteHop[] | null {
+  if (fromId === toId) return [];
+  const g = getNetworkGraph();
+  if (!g.has(fromId) || !g.has(toId)) return null;
+
+  const dist = new Map<string, number>();
+  const prev = new Map<
+    string,
+    { node: string; cableId: string; kind: "cable" | "teleport" }
+  >();
+  const visited = new Set<string>();
+  dist.set(fromId, 0);
+
+  for (;;) {
+    // Pick the unvisited node with the smallest tentative distance (linear
+    // scan — the graph has ~100 nodes, so this is plenty fast).
+    let u: string | null = null;
+    let best = Infinity;
+    for (const [node, d] of dist) {
+      if (!visited.has(node) && d < best) {
+        best = d;
+        u = node;
+      }
+    }
+    if (u === null || u === toId) break;
+    visited.add(u);
+    for (const e of g.get(u) ?? []) {
+      if (visited.has(e.to)) continue;
+      const nd = (dist.get(u) ?? Infinity) + e.weightKm;
+      if (nd < (dist.get(e.to) ?? Infinity)) {
+        dist.set(e.to, nd);
+        prev.set(e.to, { node: u, cableId: e.cableId, kind: e.kind });
+      }
+    }
+  }
+
+  if (!prev.has(toId)) return null;
+  const hops: RouteHop[] = [];
+  let cur = toId;
+  while (cur !== fromId) {
+    const p = prev.get(cur);
+    if (!p) return null;
+    hops.push({ fromId: p.node, toId: cur, cableId: p.cableId, kind: p.kind });
+    cur = p.node;
+  }
+  hops.reverse();
+  return hops;
+}
+
+// One leg of a resolved cross-network call. A CABLE leg is travelled along its
+// cable's real geometry (entry → exit, shortest path, no back-and-forth). A
+// TELEPORT leg is the country-hub hand-off jump between two cables.
+export type RouteLeg =
+  | { kind: "cable"; cableId: string; coords: [number, number][]; km: number }
+  | {
+      kind: "teleport";
+      fromId: string;
+      toId: string;
+      from: [number, number];
+      to: [number, number];
+      km: number;
+    };
+
+export interface ResolvedNetworkRoute {
+  legs: RouteLeg[];
+  cableIds: string[]; // unique cables the call rides (for highlighting)
+  totalCableKm: number; // sum of cable-leg distances (paces the pulse)
+  fromPoint: LandingPoint;
+  toPoint: LandingPoint;
+}
+
+const pathKm = (coords: [number, number][]) => {
+  let k = 0;
+  for (let i = 1; i < coords.length; i++) k += haversine(coords[i - 1], coords[i]);
+  return k;
+};
+
+// Resolve a call between ANY two landing points across the whole network. Finds
+// the shortest hop chain, then collapses it into LEGS: maximal runs of the same
+// cable become one cable leg (drawn entry→exit along the real cable), and each
+// teleport hop becomes a teleport leg. Falls back to a single great-circle leg
+// when the two points can't be connected.
+export function resolveNetworkRoute(
+  fromId: string,
+  toId: string,
+): ResolvedNetworkRoute {
+  const fromPoint = landingPointsById[fromId];
+  const toPoint = landingPointsById[toId];
+  if (!fromPoint || !toPoint) {
+    throw new Error("Network route endpoints missing from landingPoints");
+  }
+
+  const hops = shortestHops(fromId, toId);
+  const legs: RouteLeg[] = [];
+
+  if (!hops || hops.length === 0) {
+    // Same point, or no path through the network → plain great-circle leg.
+    const coords = greatCircle(
+      [fromPoint.lat, fromPoint.lng],
+      [toPoint.lat, toPoint.lng],
+      48,
+    );
+    legs.push({ kind: "cable", cableId: "", coords, km: pathKm(coords) });
+  } else {
+    let i = 0;
+    while (i < hops.length) {
+      const h = hops[i];
+      if (h.kind === "teleport") {
+        const a = landingPointsById[h.fromId];
+        const b = landingPointsById[h.toId];
+        legs.push({
+          kind: "teleport",
+          fromId: h.fromId,
+          toId: h.toId,
+          from: [a.lat, a.lng],
+          to: [b.lat, b.lng],
+          km: haversine([a.lat, a.lng], [b.lat, b.lng]),
+        });
+        i++;
+      } else {
+        // Collapse a run of consecutive same-cable hops into one leg and draw
+        // it as the direct shortest path along that cable (entry → exit).
+        const cableId = h.cableId;
+        const start = h.fromId;
+        let end = h.toId;
+        let j = i + 1;
+        while (
+          j < hops.length &&
+          hops[j].kind === "cable" &&
+          hops[j].cableId === cableId
+        ) {
+          end = hops[j].toId;
+          j++;
+        }
+        const coords = resolveCallRoute(cableId, start, end).coords;
+        legs.push({ kind: "cable", cableId, coords, km: pathKm(coords) });
+        i = j;
+      }
+    }
+  }
+
+  const cableIds = [
+    ...new Set(
+      legs.flatMap((l) => (l.kind === "cable" && l.cableId ? [l.cableId] : [])),
+    ),
+  ];
+  const totalCableKm = legs.reduce(
+    (s, l) => s + (l.kind === "cable" ? l.km : 0),
+    0,
+  );
+
+  return { legs, cableIds, totalCableKm, fromPoint, toPoint };
 }

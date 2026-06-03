@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { decodeSymbols } from "@/lib/morse";
+import { reachableFrom } from "@/lib/callRoutes";
 import {
   playBackspace,
   playDash,
@@ -9,7 +10,7 @@ import {
   playLetterCommit,
   playSpace,
 } from "@/lib/morseAudio";
-import type { CableSystem, Language, LandingPoint } from "@/lib/types";
+import type { Language, LandingPoint } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 
 const MAX_CHARS = 20;
@@ -44,7 +45,7 @@ const POS = {
 type Pos = { left: number; top: number; width: number; height: number };
 
 interface MorseCodePopProps {
-  cable: CableSystem | null;
+  /** All landing points; the pickers route across the whole network. */
   landingPoints: LandingPoint[];
   onSend: (message: string, fromId: string, toId: string) => void;
   onClose: () => void;
@@ -52,7 +53,6 @@ interface MorseCodePopProps {
 }
 
 export default function MorseCodePop({
-  cable,
   landingPoints,
   onSend,
   onClose,
@@ -60,22 +60,82 @@ export default function MorseCodePop({
 }: MorseCodePopProps) {
   const t = useT(language);
 
-  // Landing points scoped to the selected cable (resolution §H.8).
-  // When no cable is selected, the From/To pickers are empty and SEND is gated;
-  // the keyboard demo itself stays fully playable.
-  const cablePoints = useMemo(() => {
-    if (!cable) return [];
-    const lookup = new Map(landingPoints.map((p) => [p.id, p]));
-    return cable.landingPointIds
-      .map((id) => lookup.get(id))
-      .filter((p): p is LandingPoint => Boolean(p));
-  }, [cable, landingPoints]);
+  // Cross-network dialling (Model B): From/To can be any routable landing point
+  // (one that's on at least one cable). The pickers are a country → location
+  // two-step; the call resolver finds the shortest path across cables.
+  const routable = useMemo(
+    () => landingPoints.filter((p) => p.cableIds.length > 0),
+    [landingPoints],
+  );
+  const lpById = useMemo(
+    () => new Map(routable.map((p) => [p.id, p])),
+    [routable],
+  );
+  const countries = useMemo(
+    () => [...new Set(routable.map((p) => p.country))].sort(),
+    [routable],
+  );
+  const lpsIn = useCallback(
+    (country: string) => routable.filter((p) => p.country === country),
+    [routable],
+  );
+  const firstLpId = useCallback(
+    (country: string) => lpsIn(country)[0]?.id ?? "",
+    [lpsIn],
+  );
 
-  const initialFrom = cablePoints[0]?.id ?? "";
-  const initialTo = cablePoints[cablePoints.length - 1]?.id ?? initialFrom;
+  // Default to the showcase pair Kuantan → Kitaibaraki (both APCN-2 only, so the
+  // call traces one clean authentic cable). Fall back to the first Malaysia →
+  // Japan points, then to the first/last countries available.
+  const defFromCountry = countries.includes("Malaysia")
+    ? "Malaysia"
+    : countries[0] ?? "";
+  const defToCountry = countries.includes("Japan")
+    ? "Japan"
+    : countries[countries.length - 1] ?? defFromCountry;
+  const defFrom = lpById.has("kuantan") ? "kuantan" : firstLpId(defFromCountry);
+  const defTo = lpById.has("kitaibaraki")
+    ? "kitaibaraki"
+    : firstLpId(defToCountry);
 
-  const [from, setFrom] = useState(initialFrom);
-  const [to, setTo] = useState(initialTo);
+  const [from, setFrom] = useState(() => defFrom);
+  const [to, setTo] = useState(() => defTo);
+
+  // Reachability — destinations that actually have a cable path from `from`.
+  // The "To" pickers are scoped to this so the UI never offers a dead-end pick
+  // (the resolver would otherwise quietly draw a straight great-circle line).
+  const reachable = useMemo(() => reachableFrom(from), [from]);
+  const toCountries = useMemo(
+    () =>
+      [
+        ...new Set(
+          routable.filter((p) => reachable.has(p.id)).map((p) => p.country),
+        ),
+      ].sort(),
+    [routable, reachable],
+  );
+  const lpsToIn = useCallback(
+    (country: string) =>
+      routable.filter((p) => p.country === country && reachable.has(p.id)),
+    [routable, reachable],
+  );
+  const firstReachableLpId = useCallback(
+    (country: string) => lpsToIn(country)[0]?.id ?? "",
+    [lpsToIn],
+  );
+
+  // When `from` changes, the current `to` may no longer be reachable (or may now
+  // equal `from`). Snap it to the first valid destination so the route is always
+  // sendable. Prefer keeping the same country if it still has a reachable point.
+  useEffect(() => {
+    if (to !== from && to !== "" && reachable.has(to)) return;
+    const sameCountry = lpById.get(to)?.country;
+    const fallback =
+      (sameCountry && firstReachableLpId(sameCountry)) ||
+      routable.find((p) => p.id !== from && reachable.has(p.id))?.id ||
+      "";
+    setTo(fallback);
+  }, [from, to, reachable, lpById, firstReachableLpId, routable]);
   const [buffer, setBuffer] = useState("");
   const [decoded, setDecoded] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -146,13 +206,26 @@ export default function MorseCodePop({
     setError(null);
   }, []);
 
-  const canSend = decoded.trim().length > 0 && from !== "" && to !== "";
+  const canSend =
+    decoded.trim().length > 0 && from !== "" && to !== "" && from !== to;
 
   // City + country live values for each picker. The SVG bakes in English
-  // placeholders ("United States of America" / "San Luis Obispo" / etc) —
-  // our opaque overlay selects cover them entirely.
-  const fromPoint = cablePoints.find((p) => p.id === from);
-  const toPoint = cablePoints.find((p) => p.id === to);
+  // placeholders — our opaque overlay selects cover them entirely.
+  const fromPoint = lpById.get(from);
+  const toPoint = lpById.get(to);
+  const fromCountry = fromPoint?.country ?? defFromCountry;
+  const toCountry = toPoint?.country ?? defToCountry;
+
+  // Country picker swaps the whole country → jump to that country's first
+  // location; location picker just moves within the current country.
+  const onChangeFromCountry = useCallback(
+    (c: string) => setFrom(firstLpId(c)),
+    [firstLpId],
+  );
+  const onChangeToCountry = useCallback(
+    (c: string) => setTo(firstReachableLpId(c)),
+    [firstReachableLpId],
+  );
 
   return (
     <div
@@ -251,37 +324,36 @@ export default function MorseCodePop({
             background covers the SVG decorations underneath. */}
         <PickerOverlay
           pos={POS.fromCountry}
-          value={from}
-          onChange={setFrom}
-          points={cablePoints}
-          renderText={(p) => p.country}
+          value={fromCountry}
+          onChange={onChangeFromCountry}
+          options={countries.map((c) => ({ value: c, label: c }))}
           ariaLabel="From country"
-          placeholder={fromPoint?.country}
+          placeholder={fromCountry}
         />
         <PickerOverlay
           pos={POS.fromCity}
           value={from}
           onChange={setFrom}
-          points={cablePoints}
-          renderText={(p) => p.city}
+          options={lpsIn(fromCountry).map((p) => ({ value: p.id, label: p.city }))}
           ariaLabel="From location"
           placeholder={fromPoint?.city}
         />
         <PickerOverlay
           pos={POS.toCountry}
-          value={to}
-          onChange={setTo}
-          points={cablePoints}
-          renderText={(p) => p.country}
+          value={toCountry}
+          onChange={onChangeToCountry}
+          options={toCountries.map((c) => ({ value: c, label: c }))}
           ariaLabel="To country"
-          placeholder={toPoint?.country}
+          placeholder={toCountry}
         />
         <PickerOverlay
           pos={POS.toCity}
           value={to}
           onChange={setTo}
-          points={cablePoints}
-          renderText={(p) => p.city}
+          options={lpsToIn(toCountry).map((p) => ({
+            value: p.id,
+            label: p.city,
+          }))}
           ariaLabel="To location"
           placeholder={toPoint?.city}
         />
@@ -480,16 +552,14 @@ function PickerOverlay({
   pos,
   value,
   onChange,
-  points,
-  renderText,
+  options,
   ariaLabel,
   placeholder,
 }: {
   pos: Pos;
   value: string;
-  onChange: (id: string) => void;
-  points: LandingPoint[];
-  renderText: (p: LandingPoint) => string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
   ariaLabel: string;
   placeholder?: string;
 }) {
@@ -557,12 +627,10 @@ function PickerOverlay({
           background: "transparent",
         }}
       >
-        {points.length === 0 && (
-          <option value="">—</option>
-        )}
-        {points.map((p) => (
-          <option key={p.id} value={p.id}>
-            {renderText(p)}
+        {options.length === 0 && <option value="">—</option>}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
           </option>
         ))}
       </select>

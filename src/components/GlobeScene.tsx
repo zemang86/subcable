@@ -33,7 +33,10 @@ import type {
   LandingPoint,
 } from "@/lib/types";
 import { V1_COLORS, CABLE_COLORS } from "@/lib/colors";
-import { resolveCallRoute } from "@/lib/callRoutes";
+import {
+  resolveNetworkRoute,
+  type ResolvedNetworkRoute,
+} from "@/lib/callRoutes";
 import {
   playConnect,
   playDialing,
@@ -238,9 +241,7 @@ export default function GlobeScene() {
   const [autoRotate, setAutoRotate] = useState(false);
   const [activeCall, setActiveCall] = useState<{
     message: string;
-    cableId: string;
-    fromId: string;
-    toId: string;
+    route: ResolvedNetworkRoute;
     startedAt: number;
   } | null>(null);
 
@@ -720,10 +721,29 @@ export default function GlobeScene() {
     recenterMalaysia();
   }, [recenterMalaysia]);
 
+  // Cables the in-progress call rides — highlighted bright for the call's
+  // duration so the viewer sees exactly which systems carry the signal.
+  const activeCallCableIds = useMemo(
+    () => (activeCall ? new Set(activeCall.route.cableIds) : null),
+    [activeCall],
+  );
+
   // Render order: muted siblings first → halo rings → cores.
   // Later entries in pathsData paint over earlier ones in three-globe, so
   // each core sits on top of its own translucent halo.
   const renderedPaths = useMemo(() => {
+    // During a call: spotlight only the cables the call uses (neon stack),
+    // mute the rest — same layering as a selection but for a SET of cables.
+    if (activeCallCableIds) {
+      const others: PathData[] = [];
+      const core: PathData[] = [];
+      for (const p of pathsData) {
+        if (activeCallCableIds.has(p.cableId)) core.push(p);
+        else others.push(p);
+      }
+      const halos = core.map((p) => ({ ...p, _halo: 2 }) as PathData);
+      return [...others, ...halos, ...core];
+    }
     if (!selectedCable) {
       // Nothing selected — every cable gets the neon stack (white-hot core +
       // glow ring) so the network reads consistently "lit up". Each glows in
@@ -750,13 +770,20 @@ export default function GlobeScene() {
       halos.push({ ...p, _halo: 2 });
     }
     return [...others, ...halos, ...core];
-  }, [pathsData, selectedCable]);
+  }, [pathsData, selectedCable, activeCallCableIds]);
 
   // Path color: selected core → red 3px; selected halos → translucent red;
   // muted siblings (non-selected when a cable is selected) → white 30%, flat;
   // nothing selected → identity colour core + identity-colour translucent halo.
   const getPathColor = useCallback(
     (path: PathData) => {
+      // Active call: ridden cables keep their identity neon, others mute out.
+      if (activeCallCableIds) {
+        if (!activeCallCableIds.has(path.cableId)) return CABLE_MUTED_COLOR;
+        if (path._halo === 2)
+          return hexToRgba(path.color, CABLE_HALO_DEFAULT_OUTER_ALPHA);
+        return path.color.startsWith("#") ? neonCore(path.color) : path.color;
+      }
       if (selectedCable) {
         if (path.cableId !== selectedCable.id) return CABLE_MUTED_COLOR;
         // Selected cable gets the same neon stack, in hot red.
@@ -768,11 +795,16 @@ export default function GlobeScene() {
         return hexToRgba(path.color, CABLE_HALO_DEFAULT_OUTER_ALPHA);
       return path.color.startsWith("#") ? neonCore(path.color) : path.color;
     },
-    [selectedCable],
+    [selectedCable, activeCallCableIds],
   );
   const getPathStroke = useCallback(
     (path: PathData) => {
       const s = GLOW_SCALE_BY_BUCKET[zoomBucket];
+      if (activeCallCableIds) {
+        if (!activeCallCableIds.has(path.cableId)) return 1;
+        if (path._halo === 2) return 4 * s;
+        return 1.5;
+      }
       if (selectedCable) {
         const isSel = path.cableId === selectedCable.id;
         if (!isSel) return 1;
@@ -783,7 +815,7 @@ export default function GlobeScene() {
       if (path._halo === 2) return 3.5 * s;
       return 1;
     },
-    [selectedCable, zoomBucket],
+    [selectedCable, activeCallCableIds, zoomBucket],
   );
 
   // Point color: highlights cluster members of the selected cable in lime.
@@ -1253,8 +1285,9 @@ export default function GlobeScene() {
         <RightCluster
           openDialog={openDialog}
           onOpen={(id) => {
-            // Morse + Fun Fact are scoped to one cable — block + hint if none.
-            if ((id === "morse" || id === "funfact") && !selectedCable) {
+            // Fun Fact is still scoped to one cable — block + hint if none.
+            // Morse now works standalone (cross-network dialling).
+            if (id === "funfact" && !selectedCable) {
               flashClusterHint(id);
               return;
             }
@@ -1350,18 +1383,14 @@ export default function GlobeScene() {
       )}
       {openDialog === "morse" && (
         <MorseCodePop
-          cable={selectedCable}
-          landingPoints={cableLandingPoints}
+          landingPoints={landingPoints}
           language={language}
           onClose={() => setOpenDialog(null)}
           onSend={(message, fromId, toId) => {
-            if (!selectedCable) return;
             setOpenDialog(null);
             setActiveCall({
               message,
-              cableId: selectedCable.id,
-              fromId,
-              toId,
+              route: resolveNetworkRoute(fromId, toId),
               startedAt: performance.now(),
             });
           }}
@@ -1371,9 +1400,7 @@ export default function GlobeScene() {
       {activeCall && (
         <CallAnimationOverlay
           message={activeCall.message}
-          cableId={activeCall.cableId}
-          fromId={activeCall.fromId}
-          toId={activeCall.toId}
+          route={activeCall.route}
           onDone={() => setActiveCall(null)}
           globeRef={globeRef}
         />
@@ -1429,18 +1456,19 @@ const CALL_RETURN_LAT = 5;
 const CALL_RETURN_LNG = 108;
 const CALL_RETURN_ALT = 2.2;
 
+// Teleport (country-hub hand-off) tuning: how long one jump takes and how far
+// the dashed arc bows off the globe surface.
+const TELEPORT_LEG_MS = 650;
+const TELEPORT_ARC_LIFT = 0.16;
+
 function CallAnimationOverlay({
   message,
-  cableId,
-  fromId,
-  toId,
+  route,
   onDone,
   globeRef,
 }: {
   message: string;
-  cableId: string;
-  fromId: string;
-  toId: string;
+  route: ResolvedNetworkRoute;
   onDone: () => void;
   globeRef: React.MutableRefObject<any>;
 }) {
@@ -1458,8 +1486,69 @@ function CallAnimationOverlay({
     const renderer = globeRef.current.renderer?.();
     if (!scene || !renderer) return;
 
-    const route = resolveCallRoute(cableId, fromId, toId);
-    if (route.totalKm <= 0) {
+    const legs = route.legs;
+    if (legs.length === 0) {
+      onDone();
+      return;
+    }
+
+    const hav = (a: [number, number], b: [number, number]) => {
+      const R = 6371;
+      const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+      const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+      const la1 = (a[0] * Math.PI) / 180;
+      const la2 = (b[0] * Math.PI) / 180;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(x));
+    };
+
+    // Turn the route's legs into a timed sequence: cable legs are paced by
+    // distance (km / speed); each teleport leg takes a fixed quick beat and
+    // traces a dashed arc that bows off the globe surface.
+    type TimedLeg =
+      | {
+          kind: "cable";
+          coords: [number, number][];
+          cum: number[];
+          km: number;
+          dur: number;
+        }
+      | {
+          kind: "teleport";
+          arc: { lat: number; lng: number; alt: number }[];
+          dur: number;
+        };
+    const timed: TimedLeg[] = legs.map((leg) => {
+      if (leg.kind === "cable") {
+        const coords = leg.coords;
+        const cum = [0];
+        for (let i = 1; i < coords.length; i++)
+          cum.push(cum[i - 1] + hav(coords[i - 1], coords[i]));
+        const km = cum[cum.length - 1] || 0;
+        return {
+          kind: "cable",
+          coords,
+          cum,
+          km,
+          dur: Math.max(300, (km / CALL_PULSE_SPEED_KM_PER_SEC) * 1000),
+        };
+      }
+      const steps = 26;
+      const arc: { lat: number; lng: number; alt: number }[] = [];
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        arc.push({
+          lat: leg.from[0] + (leg.to[0] - leg.from[0]) * t,
+          lng: leg.from[1] + (leg.to[1] - leg.from[1]) * t,
+          alt: 0.012 + TELEPORT_ARC_LIFT * Math.sin(Math.PI * t),
+        });
+      }
+      return { kind: "teleport", arc, dur: TELEPORT_LEG_MS };
+    });
+    const totalTravelMs = timed.reduce((s, l) => s + l.dur, 0);
+    if (totalTravelMs <= 0) {
       onDone();
       return;
     }
@@ -1467,12 +1556,10 @@ function CallAnimationOverlay({
     const dialMs = 1300;
     const connectMs = 1100;
     const introMs = 800;
-    const travelMsLocal =
-      (route.totalKm / CALL_PULSE_SPEED_KM_PER_SEC) * 1000;
 
     playDialing();
 
-    const start = route.coords[0];
+    const start: [number, number] = [route.fromPoint.lat, route.fromPoint.lng];
     setTimeout(() => {
       playConnect();
       globeRef.current?.pointOfView(
@@ -1482,7 +1569,7 @@ function CallAnimationOverlay({
     }, dialMs);
 
     setTimeout(
-      () => playMessage(message, travelMsLocal),
+      () => playMessage(message, totalTravelMs),
       dialMs + connectMs + introMs,
     );
 
@@ -1510,10 +1597,34 @@ function CallAnimationOverlay({
     halo.frustumCulled = false;
     scene.add(halo);
 
+    // One dashed arc line per teleport leg — hidden until that hand-off is live.
+    const teleLines: (THREE.Line | null)[] = timed.map((l) => {
+      if (l.kind !== "teleport") return null;
+      const pts = l.arc.map((p) => {
+        const c = globeRef.current.getCoords(p.lat, p.lng, p.alt);
+        return new THREE.Vector3(c.x, c.y, c.z);
+      });
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineDashedMaterial({
+        color: new THREE.Color(V1_COLORS.orangeHot),
+        dashSize: 1.4,
+        gapSize: 0.9,
+        transparent: true,
+        depthTest: false,
+      });
+      const line = new THREE.Line(lineGeo, lineMat);
+      line.computeLineDistances();
+      line.renderOrder = 1001;
+      line.frustumCulled = false;
+      line.visible = false;
+      scene.add(line);
+      return line;
+    });
+
     let raf = 0;
     let cancelled = false;
     const preLaunchMs = dialMs + connectMs + introMs;
-    const travelMs = travelMsLocal;
+    const travelMs = totalTravelMs;
     const arriveMs = 1500;
     const returnMs = 1800;
     const startTs = performance.now();
@@ -1531,19 +1642,67 @@ function CallAnimationOverlay({
       };
     };
 
-    const sampleRoute = (dist: number) => {
-      let j = 1;
-      while (j < route.cumKm.length && route.cumKm[j] < dist) j++;
-      if (j >= route.cumKm.length) j = route.cumKm.length - 1;
-      const a = route.coords[j - 1];
-      const b = route.coords[j];
-      const legKm = route.cumKm[j] - route.cumKm[j - 1];
-      const t = legKm > 0 ? (dist - route.cumKm[j - 1]) / legKm : 0;
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as [
-        number,
-        number,
-      ];
+    // Sample the pulse position at a given travel-elapsed time: find which leg
+    // we're in, then interpolate within it (cable = by distance, teleport = by
+    // arc parameter). Returns the leg index so the caller can light its arc.
+    const sampleTravel = (te: number) => {
+      let acc = 0;
+      for (let li = 0; li < timed.length; li++) {
+        const leg = timed[li];
+        if (te < acc + leg.dur || li === timed.length - 1) {
+          const lt = leg.dur > 0 ? Math.min(1, (te - acc) / leg.dur) : 1;
+          if (leg.kind === "cable") {
+            const dist = lt * leg.km;
+            let j = 1;
+            while (j < leg.cum.length && leg.cum[j] < dist) j++;
+            if (j >= leg.cum.length) j = leg.cum.length - 1;
+            const a = leg.coords[j - 1];
+            const b = leg.coords[j];
+            const segLen = leg.cum[j] - leg.cum[j - 1];
+            const tt = segLen > 0 ? (dist - leg.cum[j - 1]) / segLen : 0;
+            return {
+              li,
+              teleport: false,
+              lat: a[0] + (b[0] - a[0]) * tt,
+              lng: a[1] + (b[1] - a[1]) * tt,
+              alt: 0.012,
+            };
+          }
+          const f = lt * (leg.arc.length - 1);
+          const k = Math.min(leg.arc.length - 1, Math.floor(f));
+          const k2 = Math.min(leg.arc.length - 1, k + 1);
+          const tt = f - k;
+          const p1 = leg.arc[k];
+          const p2 = leg.arc[k2];
+          return {
+            li,
+            teleport: true,
+            lat: p1.lat + (p2.lat - p1.lat) * tt,
+            lng: p1.lng + (p2.lng - p1.lng) * tt,
+            alt: p1.alt + (p2.alt - p1.alt) * tt,
+          };
+        }
+        acc += leg.dur;
+      }
+      return {
+        li: timed.length - 1,
+        teleport: false,
+        lat: start[0],
+        lng: start[1],
+        alt: 0.012,
+      };
     };
+
+    // Final resting position (last leg's end — could be a cable exit OR the far
+    // end of a teleport, when the destination is reached by a hand-off).
+    const endLeg = timed[timed.length - 1];
+    const endLatLng: [number, number] =
+      endLeg.kind === "cable"
+        ? endLeg.coords[endLeg.coords.length - 1]
+        : [
+            endLeg.arc[endLeg.arc.length - 1].lat,
+            endLeg.arc[endLeg.arc.length - 1].lng,
+          ];
 
     pulse.visible = false;
     halo.visible = false;
@@ -1564,19 +1723,37 @@ function CallAnimationOverlay({
           pulse.visible = true;
           halo.visible = true;
         }
-        const tt = (elapsed - preLaunchMs) / travelMs;
-        const dist = tt * route.totalKm;
-        const [lat, lng] = sampleRoute(dist);
-        const xyz = globeRef.current.getCoords(lat, lng, 0.012);
+        const s = sampleTravel(elapsed - preLaunchMs);
+        const xyz = globeRef.current.getCoords(s.lat, s.lng, s.alt);
         pulse.position.set(xyz.x, xyz.y, xyz.z);
         halo.position.set(xyz.x, xyz.y, xyz.z);
-        haloMat.opacity = 0.25 + 0.2 * Math.sin(elapsed / 120);
+
+        // Light only the arc of the teleport leg currently in progress.
+        for (let li = 0; li < teleLines.length; li++) {
+          const ln = teleLines[li];
+          if (ln) ln.visible = s.teleport && li === s.li;
+        }
+
+        if (s.teleport) {
+          // Zap emphasis: pulse swells, halo flares, dashed arc shimmers.
+          pulse.scale.setScalar(1.5);
+          halo.scale.setScalar(1.7);
+          haloMat.opacity = 0.6;
+          const ln = teleLines[s.li];
+          if (ln)
+            (ln.material as THREE.LineDashedMaterial).opacity =
+              0.55 + 0.45 * Math.sin(elapsed / 55);
+        } else {
+          pulse.scale.setScalar(1);
+          halo.scale.setScalar(1);
+          haloMat.opacity = 0.25 + 0.2 * Math.sin(elapsed / 120);
+        }
 
         const pov = globeRef.current.pointOfView?.();
         if (pov) {
           const alpha = 0.06;
-          const nextLat = pov.lat + (lat - pov.lat) * alpha;
-          const nextLng = pov.lng + (lng - pov.lng) * alpha;
+          const nextLat = pov.lat + (s.lat - pov.lat) * alpha;
+          const nextLng = pov.lng + (s.lng - pov.lng) * alpha;
           const nextAlt =
             pov.altitude + (CALL_FOLLOW_ALT - pov.altitude) * alpha;
           globeRef.current.pointOfView(
@@ -1589,8 +1766,12 @@ function CallAnimationOverlay({
         if (screen) setLabelPos(screen);
       } else if (elapsed < preLaunchMs + travelMs + arriveMs) {
         setPhase("arrive");
-        const last = route.coords[route.coords.length - 1];
-        const xyz = globeRef.current.getCoords(last[0], last[1], 0.012);
+        for (const ln of teleLines) if (ln) ln.visible = false;
+        const xyz = globeRef.current.getCoords(
+          endLatLng[0],
+          endLatLng[1],
+          0.012,
+        );
         pulse.position.set(xyz.x, xyz.y, xyz.z);
         halo.position.set(xyz.x, xyz.y, xyz.z);
         const arriveT = (elapsed - preLaunchMs - travelMs) / arriveMs;
@@ -1620,12 +1801,7 @@ function CallAnimationOverlay({
       } else {
         cancelled = true;
         cancelAnimationFrame(raf);
-        scene.remove(pulse);
-        scene.remove(halo);
-        geo.dispose();
-        mat.dispose();
-        haloGeo.dispose();
-        haloMat.dispose();
+        disposeAll();
         onDone();
         return;
       }
@@ -1634,15 +1810,25 @@ function CallAnimationOverlay({
     };
     raf = requestAnimationFrame(tick);
 
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
+    function disposeAll() {
       scene.remove(pulse);
       scene.remove(halo);
       geo.dispose();
       mat.dispose();
       haloGeo.dispose();
       haloMat.dispose();
+      for (const ln of teleLines) {
+        if (!ln) continue;
+        scene.remove(ln);
+        ln.geometry.dispose();
+        (ln.material as THREE.Material).dispose();
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      disposeAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
