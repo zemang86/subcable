@@ -460,6 +460,28 @@ function ExpandedCard({
           Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
           eiusmod tempor incididunt ut labore et dolore magna aliqua.
         </div>
+
+        {/* Close affordance — the whole card closes on tap; this just makes the
+            close target obvious on a touchscreen. Decorative (parent handles
+            the tap), so it's a styled span, not a nested button. */}
+        <span
+          aria-hidden
+          style={{
+            alignSelf: "flex-end",
+            width: 40,
+            height: 40,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1.5px solid rgba(255, 255, 255, 0.7)",
+            color: "#FFFFFF",
+            fontFamily: "var(--v1-mono)",
+            fontSize: 20,
+            lineHeight: 1,
+          }}
+        >
+          ✕
+        </span>
       </button>
       </div>
     </>
