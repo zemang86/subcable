@@ -15,12 +15,7 @@ import { LanguageToggle } from "./LanguageToggle";
 import { RecenterButton } from "./RecenterButton";
 import { RightCluster } from "./RightCluster";
 import { ClusterStem } from "./ClusterStem";
-import {
-  CALLOUT_BOX_HEIGHT,
-  CALLOUT_REST_RISE,
-  CALLOUT_WIDTH,
-  LandingPointCallout,
-} from "./LandingPointCallout";
+import { LandingPointCallout } from "./LandingPointCallout";
 import HowToGuideDialog from "./HowToGuideDialog";
 import FunFactDialog from "./FunFactDialog";
 import MorseCodePop from "./MorseCodePop";
@@ -602,23 +597,6 @@ export default function GlobeScene() {
     }
   }, []);
 
-  // Click on a globe point: pick the cluster's first landing point and open
-  // the LandingPointCallout. If the cable isn't already selected, also
-  // select its first associated cable.
-  const handleGlobePointClick = useCallback(
-    (point: any) => {
-      const memberIds: string[] = point.memberIds || [point.id];
-      const lp = landingPoints.find((p) => memberIds.includes(p.id));
-      if (!lp) return;
-      setSelectedLandingPoint(lp);
-      if (!selectedCable && lp.cableIds.length > 0) {
-        const first = cablesById[lp.cableIds[0]];
-        if (first) setSelectedCable(first);
-      }
-    },
-    [selectedCable],
-  );
-
   const handlePathClick = useCallback(
     (path: PathData) => {
       const cable = cablesById[path.cableId];
@@ -636,6 +614,7 @@ export default function GlobeScene() {
 
   // Close the expanded info panel and restore the globe to the view it had
   // when the panel was opened (the user may have rotated/zoomed while reading).
+  // Also drop the selected point so the globe falls back to markers-only.
   const closeExpanded = useCallback(() => {
     const prev = prevPovRef.current;
     if (prev) {
@@ -643,6 +622,7 @@ export default function GlobeScene() {
       prevPovRef.current = null;
     }
     setExpandedPointId(null);
+    setSelectedLandingPoint(null);
   }, []);
 
   // Back button — pops one navigation step:
@@ -682,6 +662,21 @@ export default function GlobeScene() {
       setExpandedPointId(p.id);
     },
     [expandedPointId, closeExpanded],
+  );
+
+  // Click on a globe marker: open that landing point's info directly (the
+  // expanded card), independent of cable selection. No callout swarm and no
+  // auto-selecting a cable — markers stay as the only globe decoration until
+  // one is tapped.
+  const handleGlobePointClick = useCallback(
+    (point: any) => {
+      const memberIds: string[] = point.memberIds || [point.id];
+      const lp = landingPoints.find((p) => memberIds.includes(p.id));
+      if (!lp) return;
+      setSelectedLandingPoint(lp);
+      handleToggleExpand(lp);
+    },
+    [handleToggleExpand],
   );
 
   // Recenter on Malaysia (compass) — leaves selection/dialogs alone.
@@ -1047,18 +1042,16 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(raf);
   }, [isLoaded, allLabels]);
 
-  // Track screen positions of every landing point along the selected cable.
-  // V1.3 Figma intent: when a cable is selected, every one of its landing
-  // points renders a callout simultaneously. Throttled to ~30 fps via a
-  // frame-skip to avoid a 60Hz React storm.
+  // Track the screen position of the currently-selected landing point so its
+  // info callout can anchor to the live marker as the globe rotates. Only the
+  // one tapped point is projected (no full-cable callout swarm). Throttled to
+  // ~30 fps via a frame-skip to avoid a 60Hz React storm.
   useEffect(() => {
-    if (!isLoaded || !selectedCable || !globeRef.current) {
+    if (!isLoaded || !selectedLandingPoint || !globeRef.current) {
       setCalloutScreens({});
       return;
     }
-    const points = landingPoints.filter((p) =>
-      selectedCable.landingPointIds.includes(p.id),
-    );
+    const points = [selectedLandingPoint];
     let raf = 0;
     let frame = 0;
     const tick = () => {
@@ -1089,7 +1082,7 @@ export default function GlobeScene() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [isLoaded, selectedCable]);
+  }, [isLoaded, selectedLandingPoint]);
 
   // Cable-scoped landing-point list passed to MorseCodePop.
   const cableLandingPoints = useMemo(() => {
@@ -1099,93 +1092,6 @@ export default function GlobeScene() {
       .map((id) => lookup.get(id))
       .filter((p): p is LandingPoint => Boolean(p));
   }, [selectedCable]);
-
-  // Declutter pass: when zoomed out, landing-point callouts pile onto the same
-  // patch of screen. Rather than rigidly laddering them apart, run a gentle
-  // force relaxation — each box repels overlapping neighbours (in BOTH axes),
-  // a soft spring keeps it near its rest spot just above the point, and a clamp
-  // stops it straying far. Some overlap is tolerated (ALLOW_*), so dense
-  // clusters scatter a little instead of shooting off-screen.
-  const calloutLayout = useMemo(() => {
-    const W = CALLOUT_WIDTH;
-    const H = CALLOUT_BOX_HEIGHT;
-    // Closeness 0→1 as the camera zooms in (alt 1.3 → 0.25). Zoomed out we want
-    // a gentle nudge; zoomed in, geographically-close points still project to
-    // nearly the same pixel, so crank the repel/reach up to fling them apart.
-    const closeness = Math.max(0, Math.min(1, (1.3 - zoomLevel) / (1.3 - 0.25)));
-    const lerp = (a: number, b: number) => a + (b - a) * closeness;
-    // Negative ALLOW = enforce a gap (boxes fully separate); positive = tolerate
-    // overlap. Zoomed in we want them fully apart with a small gap.
-    const ALLOW_X = lerp(26, -34); // permitted overlap (−gap) before repel; zoomed in = wider horizontal gap
-    const ALLOW_Y = lerp(14, -16);
-    const REPEL = lerp(0.35, 0.95); // fraction of penetration resolved per step
-    const SPRING = lerp(0.1, 0.03); // pull back toward rest (weaker when close)
-    const ITER = 22;
-    const MAX_OFFSET = lerp(92, 300); // clamp stray from rest
-
-    const items = cableLandingPoints
-      .map((p) => ({ id: p.id, s: calloutScreens[p.id] }))
-      .filter((it): it is { id: string; s: { x: number; y: number; visible: boolean } } =>
-        Boolean(it.s && it.s.visible),
-      )
-      .sort((a, b) => a.s.x - b.s.x);
-
-    // Rest position = box centre directly above the point. Seed a small,
-    // deterministic horizontal jitter so perfectly-stacked points break apart
-    // sideways instead of only vertically.
-    const nodes = items.map((it, i) => {
-      const hx = it.s.x;
-      const hy = it.s.y - CALLOUT_REST_RISE;
-      const seed = ((i * 53) % 11) - 5; // −5..5 px
-      return { id: it.id, hx, hy, cx: hx + seed, cy: hy };
-    });
-
-    for (let iter = 0; iter < ITER; iter++) {
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const a = nodes[i];
-          const b = nodes[j];
-          let dxc = a.cx - b.cx;
-          let dyc = a.cy - b.cy;
-          const penX = W - ALLOW_X - Math.abs(dxc);
-          const penY = H - ALLOW_Y - Math.abs(dyc);
-          if (penX > 0 && penY > 0) {
-            if (dxc === 0 && dyc === 0) {
-              dxc = i - j; // deterministic tie-break for coincident centres
-              dyc = -1;
-            }
-            const pen = Math.min(penX, penY);
-            const len = Math.hypot(dxc, dyc) || 1;
-            const push = (REPEL * pen) / 2;
-            const nx = (dxc / len) * push;
-            const ny = (dyc / len) * push;
-            a.cx += nx;
-            a.cy += ny;
-            b.cx -= nx;
-            b.cy -= ny;
-          }
-        }
-      }
-      for (const n of nodes) {
-        n.cx += (n.hx - n.cx) * SPRING;
-        n.cy += (n.hy - n.cy) * SPRING;
-        const ox = n.cx - n.hx;
-        const oy = n.cy - n.hy;
-        const d = Math.hypot(ox, oy);
-        if (d > MAX_OFFSET) {
-          n.cx = n.hx + (ox / d) * MAX_OFFSET;
-          n.cy = n.hy + (oy / d) * MAX_OFFSET;
-        }
-      }
-    }
-
-    const layout: Record<string, { dx: number; dy: number }> = {};
-    for (const n of nodes) {
-      // Offset of the box centre relative to the POINT (rest is dy = −rise).
-      layout[n.id] = { dx: n.cx - n.hx, dy: n.cy - n.hy - CALLOUT_REST_RISE };
-    }
-    return layout;
-  }, [calloutScreens, cableLandingPoints, zoomLevel]);
 
   return (
     <div
@@ -1255,9 +1161,10 @@ export default function GlobeScene() {
       />
 
       {/* Left of Cable System panel: Back / Audio / Naration button column.
-          Back shows only when a cable is selected. */}
+          Back shows when a cable is selected OR a landing-point card is open
+          (handleBack pops the open card first, then deselects the cable). */}
       <SystemButtons
-        showBack={Boolean(selectedCable)}
+        showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
         onBack={handleBack}
         muted={muted}
         onAudioToggle={() => setMuted((m) => !m)}
@@ -1350,30 +1257,26 @@ export default function GlobeScene() {
       {/* Bottom: titlebar */}
       <Header selectedCable={selectedCable} language={language} />
 
-      {/* Map overlay: one callout per landing point on the selected cable.
-          Tapping a callout expands it; siblings dim while expanded.
+      {/* Map overlay: the info card for the tapped landing point. Markers are
+          the only globe decoration until one is tapped; tapping opens this card
+          (expanded) and tapping it again / the back button closes it.
           Hidden during an active call so the dialing animation is unobstructed. */}
-      {selectedCable &&
+      {selectedLandingPoint &&
         !activeCall &&
-        cableLandingPoints.map((p) => {
-          const pos = calloutScreens[p.id];
+        (() => {
+          const pos = calloutScreens[selectedLandingPoint.id];
           if (!pos || !pos.visible) return null;
-          const isExpanded = expandedPointId === p.id;
-          const someoneExpanded = expandedPointId !== null;
-          const slot = calloutLayout[p.id];
           return (
             <LandingPointCallout
-              key={p.id}
-              point={p}
+              key={selectedLandingPoint.id}
+              point={selectedLandingPoint}
               screenPos={{ x: pos.x, y: pos.y }}
               viewport={dimensions}
-              offset={slot}
-              expanded={isExpanded}
-              dimmed={someoneExpanded && !isExpanded}
-              onToggleExpand={() => handleToggleExpand(p)}
+              expanded={expandedPointId === selectedLandingPoint.id}
+              onToggleExpand={() => handleToggleExpand(selectedLandingPoint)}
             />
           );
-        })}
+        })()}
 
       {/* Leader line from the active cluster button to its dialog title. */}
       <ClusterStem openDialog={openDialog} viewport={dimensions} />
