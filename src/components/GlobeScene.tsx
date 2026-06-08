@@ -1199,7 +1199,13 @@ export default function GlobeScene() {
 
       <div
         style={{
-          transform: `translateX(${globeOffsetX(dimensions.width)}px)`,
+          // Normally offset left to clear the right-side panels. In idle attract
+          // mode the panels are hidden, so slide the globe back to centre for a
+          // balanced screen; it eases back left on wake.
+          transform: `translateX(${
+            isIdle ? 0 : globeOffsetX(dimensions.width)
+          }px)`,
+          transition: "transform 700ms cubic-bezier(0.4, 0, 0.2, 1)",
           willChange: "transform",
         }}
       >
@@ -1254,6 +1260,11 @@ export default function GlobeScene() {
         />
       </div>
 
+      {/* Idle attract mode: hide ALL chrome so only the rotating globe + the
+          "touch anywhere to start" hint remain. Any touch wakes the attractor
+          (isIdle → false) and the panels snap back instantly. */}
+      {!isIdle && (
+        <>
       {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
       <Sidebar
         selectedCable={selectedCable}
@@ -1358,6 +1369,8 @@ export default function GlobeScene() {
 
       {/* Bottom: titlebar */}
       <Header selectedCable={selectedCable} language={language} />
+        </>
+      )}
 
       {/* Map overlay: a reticle marker for each landing point on the selected
           cable (no text callout). Tapping a marker opens that point's expanded
