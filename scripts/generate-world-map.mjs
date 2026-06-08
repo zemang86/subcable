@@ -24,7 +24,7 @@ const PRESETS = {
     stroke: "rgba(60, 70, 95, 0.45)",
   },
   dark: {
-    sea: "#0B1322",
+    sea: "#1E3A5F",
     land: "#152033",
     stroke: "rgba(150, 165, 200, 0.30)",
   },
