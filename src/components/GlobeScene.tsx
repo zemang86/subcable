@@ -124,6 +124,11 @@ const WORLD_MAP_DARK_URL = "/textures/world-mono-dark.webp";
 // Regional sharpness overlay — 4K bake over the SEA window (~1.2 km/texel vs
 // ~5 km for the global). One grid-mesh draw call, fades in at close zoom.
 const SEA_OVERLAY_DARK_URL = "/textures/world-mono-dark-sea.webp";
+
+// Starfield behind the globe (globe.gl background sphere). Baked by
+// scripts/generate-starfield.mjs on the same #040E1F as the canvas so the
+// stars sit seamlessly on the dark background.
+const STARFIELD_URL = "/textures/starfield.webp";
 const SEA_LAT_MIN = -15;
 const SEA_LAT_MAX = 25;
 const SEA_LNG_MIN = 90;
@@ -193,6 +198,13 @@ const DEFAULT_ALT = 2.2;
 const MY_LAT = 4.2105;
 const MY_LNG = 101.9758;
 const MY_ALT = 2.2;
+
+// Zoom clamps. three-globe camera distance = 100 × (1 + altitude), so these
+// bound the OrbitControls dolly: MAX caps zoom-out at ~altitude 3.4 (a touch
+// past the default 2.2 view) so the globe never shrinks to a dot in the
+// starfield; MIN floors zoom-in so the camera can't tunnel through the surface.
+const MIN_CAM_DISTANCE = 108; // ~altitude 0.08 (close detail)
+const MAX_CAM_DISTANCE = 440; // ~altitude 3.4
 
 // Tooltip styling for the built-in pointLabel / pathLabel render.
 const TOOLTIP_STYLE =
@@ -542,6 +554,10 @@ export default function GlobeScene() {
         controls.dampingFactor = 0.1;
         controls.enablePan = false;
         controls.touches = { ONE: 0, TWO: 2 };
+        // Clamp the dolly so zoom-out stops before the globe gets tiny and
+        // zoom-in can't punch through the surface.
+        controls.minDistance = MIN_CAM_DISTANCE;
+        controls.maxDistance = MAX_CAM_DISTANCE;
       }
     }
     // Hold the loading screen for a minimum of 3000ms even when textures are
@@ -1192,6 +1208,7 @@ export default function GlobeScene() {
           width={dimensions.width}
           height={dimensions.height}
         backgroundColor="#040E1F"
+        backgroundImageUrl={STARFIELD_URL}
         globeImageUrl={WORLD_MAP_DARK_URL}
         showAtmosphere={true}
         atmosphereColor={ATMOSPHERE_COLOR}
