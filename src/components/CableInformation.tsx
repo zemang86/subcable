@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n";
 interface CableInformationProps {
   cable: CableSystem;
   language?: Language;
+  className?: string;
 }
 
 const PANEL_WIDTH = 454;
@@ -29,6 +30,7 @@ function splitValueUnit(raw: string | undefined, fallbackUnit?: string): {
 export default function CableInformation({
   cable,
   language = "en",
+  className,
 }: CableInformationProps) {
   const t = useT(language);
   const inactive = cable.status !== "active";
@@ -41,6 +43,7 @@ export default function CableInformation({
 
   return (
     <div
+      className={className}
       style={{
         position: "fixed",
         // Stacked above the Cable System panel on the right edge.

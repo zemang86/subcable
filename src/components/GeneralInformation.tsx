@@ -5,6 +5,7 @@ import { useT } from "@/lib/i18n";
 
 interface GeneralInformationProps {
   language?: Language;
+  className?: string;
 }
 
 const PANEL_WIDTH = 454;
@@ -17,11 +18,13 @@ const ORANGE_MID = "#F05A22";
 
 export default function GeneralInformation({
   language = "en",
+  className,
 }: GeneralInformationProps) {
   const t = useT(language);
 
   return (
     <div
+      className={className}
       style={{
         position: "fixed",
         // Occupies the same slot as CableInformation — shown when no cable is

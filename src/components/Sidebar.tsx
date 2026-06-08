@@ -13,6 +13,7 @@ interface SidebarProps {
   /** Kept for legacy compatibility with GlobeScene; unused inside the v1 CableSystem panel. */
   onPointClick?: (point: LandingPoint) => void;
   language?: Language;
+  className?: string;
 }
 
 const FILTERS: { id: Filter; key: "showAll" | "international" | "domestic" }[] = [
@@ -34,6 +35,7 @@ export default function Sidebar({
   selectedCable,
   onSelectCable,
   language = "en",
+  className,
 }: SidebarProps) {
   const [filter, setFilter] = useState<Filter>("all");
   const t = useT(language);
@@ -96,6 +98,7 @@ export default function Sidebar({
 
   return (
     <div
+      className={className}
       style={{
         position: "fixed",
         bottom: 28,

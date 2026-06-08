@@ -4,18 +4,20 @@ import { useT } from "@/lib/i18n";
 type HeaderProps = {
   selectedCable: CableSystem | null;
   language: Language;
+  className?: string;
 };
 
 // Top "Header" strip per Figma V1.3.
 // Frame 2008×120 at (18, 12) at the kiosk tile (2049×1150). Rendered with
 // right:23 so the strip stretches with viewport width; height stays fixed.
-export function Header({ selectedCable, language }: HeaderProps) {
+export function Header({ selectedCable, language, className }: HeaderProps) {
   const t = useT(language);
   const typeLabel =
     selectedCable?.classification === "domestic" ? "DOM" : "INT";
 
   return (
     <div
+      className={className}
       style={{
         position: "absolute",
         top: 12,

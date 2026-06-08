@@ -29,6 +29,7 @@ interface SystemButtonsProps {
   muted?: boolean;
   onAudioToggle?: () => void;
   onNaration?: () => void;
+  className?: string;
 }
 
 export default function SystemButtons({
@@ -37,6 +38,7 @@ export default function SystemButtons({
   muted = false,
   onAudioToggle,
   onNaration,
+  className,
 }: SystemButtonsProps) {
   // Local on/off state for narration — placeholder until the real narration
   // function is supplied. Defaults to "on" (active waves icon), matching audio.
@@ -44,6 +46,7 @@ export default function SystemButtons({
 
   return (
     <div
+      className={className}
       style={{
         position: "fixed",
         bottom: PANEL_RIGHT,

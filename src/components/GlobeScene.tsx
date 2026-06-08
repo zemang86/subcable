@@ -1265,110 +1265,133 @@ export default function GlobeScene() {
           (isIdle → false) and the panels snap back instantly. */}
       {!isIdle && (
         <>
-      {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
-      <Sidebar
-        selectedCable={selectedCable}
-        onSelectCable={handleSelectCable}
-        language={language}
-      />
+          {/* Each panel slides in from its nearest edge on wake (v1-enter-*),
+              applied straight to the panel's own element so it stays fully
+              interactive — no overlay wrappers. */}
 
-      {/* Left of Cable System panel: Back / Audio / Naration button column.
-          Back shows when a cable is selected OR a landing-point card is open
-          (handleBack pops the open card first, then deselects the cable). */}
-      <SystemButtons
-        showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
-        onBack={handleBack}
-        muted={muted}
-        onAudioToggle={() => setMuted((m) => !m)}
-      />
+          {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
+          <Sidebar
+            className="v1-enter-right"
+            selectedCable={selectedCable}
+            onSelectCable={handleSelectCable}
+            language={language}
+          />
 
-      {/* Bottom-center: language toggle + re-center button (Figma V1.3).
-          Audio mute moved to the SystemButtons column beside Cable System. */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 30,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 25,
-          display: "flex",
-          gap: 14,
-          alignItems: "center",
-        }}
-      >
-        <LanguageToggle value={language} onChange={setLanguage} />
-        <RecenterButton onRecenter={resetView} />
-      </div>
+          {/* Left of Cable System panel: Back / Audio / Naration button column.
+              Back shows when a cable is selected OR a landing-point card is open
+              (handleBack pops the open card first, then deselects the cable). */}
+          <SystemButtons
+            className="v1-enter-right v1-delay-1"
+            showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
+            onBack={handleBack}
+            muted={muted}
+            onAudioToggle={() => setMuted((m) => !m)}
+          />
 
-      {/* Left edge centered: action cluster (Morse / Fun Fact / Help) */}
-      <div
-        style={{
-          position: "fixed",
-          top: "50%",
-          left: 26,
-          transform: "translateY(-50%)",
-          zIndex: 25,
-        }}
-      >
-        <RightCluster
-          openDialog={openDialog}
-          onOpen={(id) => {
-            // Fun Fact is still scoped to one cable — block + hint if none.
-            // Morse now works standalone (cross-network dialling).
-            if (id === "funfact" && !selectedCable) {
-              flashClusterHint(id);
-              return;
-            }
-            setOpenDialog((current) => (current === id ? null : id));
-          }}
-          cableSelected={Boolean(selectedCable)}
-        />
+          {/* Right edge: CableInformation when a cable is selected, otherwise
+              the General Information panel sits in the same slot. */}
+          {selectedCable ? (
+            <CableInformation
+              className="v1-enter-right v1-delay-2"
+              cable={selectedCable}
+              language={language}
+            />
+          ) : (
+            <GeneralInformation
+              className="v1-enter-right v1-delay-2"
+              language={language}
+            />
+          )}
 
-        {/* "Choose a network first" hint — anchored to the right of whichever
-            dimmed button was tapped. Cluster buttons are 76px tall with 31px
-            gaps, so centres sit at 38 (Morse) and 145 (Fun Fact).
-            pointer-events:none so it never eats touches. */}
-        {hintFor && (
+          {/* Left edge centered: action cluster (Morse / Fun Fact / Help). The
+              outer div holds the fixed centring transform; the inner div carries
+              the slide-in animation so the two transforms don't collide. */}
           <div
-            role="status"
             style={{
-              position: "absolute",
-              left: 76 + 16,
-              top: hintFor === "morse" ? 38 : 76 + 31 + 38,
+              position: "fixed",
+              top: "50%",
+              left: 26,
               transform: "translateY(-50%)",
-              zIndex: 26,
-              pointerEvents: "none",
-              whiteSpace: "nowrap",
-              padding: "10px 18px",
-              background: "rgba(4, 14, 31, 0.92)",
-              border: "1px solid var(--v1-orange)",
-              boxShadow: "0 4px 24px rgba(0, 0, 0, 0.5)",
+              zIndex: 25,
             }}
           >
-            <span
-              className="v1-h-display"
-              style={{
-                fontSize: 14,
-                color: "var(--v1-fg)",
-                letterSpacing: "0.14em",
-              }}
-            >
-              {t("chooseNetworkFirst")}
-            </span>
+            <div className="v1-enter-left">
+              <RightCluster
+                openDialog={openDialog}
+                onOpen={(id) => {
+                  // Fun Fact is still scoped to one cable — block + hint if none.
+                  // Morse now works standalone (cross-network dialling).
+                  if (id === "funfact" && !selectedCable) {
+                    flashClusterHint(id);
+                    return;
+                  }
+                  setOpenDialog((current) => (current === id ? null : id));
+                }}
+                cableSelected={Boolean(selectedCable)}
+              />
+
+              {/* "Choose a network first" hint — anchored to the right of
+                  whichever dimmed button was tapped. Cluster buttons are 76px
+                  tall with 31px gaps, so centres sit at 38 (Morse) and 145 (Fun
+                  Fact). pointer-events:none so it never eats touches. */}
+              {hintFor && (
+                <div
+                  role="status"
+                  style={{
+                    position: "absolute",
+                    left: 76 + 16,
+                    top: hintFor === "morse" ? 38 : 76 + 31 + 38,
+                    transform: "translateY(-50%)",
+                    zIndex: 26,
+                    pointerEvents: "none",
+                    whiteSpace: "nowrap",
+                    padding: "10px 18px",
+                    background: "rgba(4, 14, 31, 0.92)",
+                    border: "1px solid var(--v1-orange)",
+                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.5)",
+                  }}
+                >
+                  <span
+                    className="v1-h-display"
+                    style={{
+                      fontSize: 14,
+                      color: "var(--v1-fg)",
+                      letterSpacing: "0.14em",
+                    }}
+                  >
+                    {t("chooseNetworkFirst")}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Right edge: CableInformation when a cable is selected, otherwise the
-          General Information panel sits in the same slot above Cable System. */}
-      {selectedCable ? (
-        <CableInformation cable={selectedCable} language={language} />
-      ) : (
-        <GeneralInformation language={language} />
-      )}
+          {/* Bottom: titlebar */}
+          <Header
+            className="v1-enter-bottom v1-delay-1"
+            selectedCable={selectedCable}
+            language={language}
+          />
 
-      {/* Bottom: titlebar */}
-      <Header selectedCable={selectedCable} language={language} />
+          {/* Bottom-center: language toggle + re-center button (Figma V1.3).
+              Outer div centres; inner div animates (avoids transform clash). */}
+          <div
+            style={{
+              position: "fixed",
+              bottom: 30,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 25,
+            }}
+          >
+            <div
+              className="v1-enter-bottom v1-delay-3"
+              style={{ display: "flex", gap: 14, alignItems: "center" }}
+            >
+              <LanguageToggle value={language} onChange={setLanguage} />
+              <RecenterButton onRecenter={resetView} />
+            </div>
+          </div>
         </>
       )}
 
