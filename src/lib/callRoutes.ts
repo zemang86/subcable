@@ -39,6 +39,11 @@ export interface ResolvedCallRoute {
   fromPoint: LandingPoint;
   toPoint: LandingPoint;
   cableId: string;
+  // True when the cable's real geometry couldn't draw this leg (endpoint not
+  // covered, or fragments don't connect) and we fell back to a plain great-
+  // circle arc. Such a leg may cut straight across land, so the network graph
+  // refuses to offer it as a routable hop.
+  fellBack: boolean;
 }
 
 // Resolve the call route for an arbitrary cable + from/to landing-point pair
@@ -73,9 +78,8 @@ export function resolveCallRoute(
     .filter((c) => c.length >= 2);
 
   // No usable geometry → fall back to a single great-circle arc.
-  const body =
-    stitchRoute(polylines, fromCoord, toCoord) ??
-    greatCircle(fromCoord, toCoord, 48);
+  const stitched = stitchRoute(polylines, fromCoord, toCoord);
+  const body = stitched ?? greatCircle(fromCoord, toCoord, 48);
 
   const cumKm = [0];
   for (let i = 1; i < body.length; i++) {
@@ -89,6 +93,7 @@ export function resolveCallRoute(
     fromPoint,
     toPoint,
     cableId,
+    fellBack: stitched === null,
   };
 }
 
@@ -132,6 +137,15 @@ function greatCircle(
 // stations / branching units with near-coincident vertices; 150km comfortably
 // bridges those joins without inventing shortcuts between unrelated stubs.
 const STITCH_SNAP_KM = 150;
+// If a from/to point sits farther than this from the cable's NEAREST stored
+// vertex, the cable's imported geometry simply doesn't cover that station (e.g.
+// FLAG lists Shanghai/Geoje/Tokyo as landings but its polylines stop at the
+// Malacca Strait, ~3,400–5,000km away). Stitching such a point in makes the
+// route dive across a whole continent to reach a distant fragment and come
+// back. Real landings sit within ~285km of their geometry (p90 ≈ 31km), so this
+// cleanly separates "covered" from "not covered" — when a point isn't covered
+// we bail to a direct great-circle between the two landing points instead.
+const ATTACH_LIMIT_KM = 400;
 // Any single hop longer than this in the final path is re-sampled as a
 // great-circle arc so long ocean stretches (and small bridges) curve with the
 // globe instead of cutting a flat chord.
@@ -213,6 +227,9 @@ function stitchRoute(
   const [fNode, fGap] = nearestVertex(from);
   const [tNode, tGap] = nearestVertex(to);
   if (fNode < 0 || tNode < 0) return null;
+  // This cable's geometry doesn't reach one of the endpoints — don't stitch a
+  // continent-spanning detour to a far fragment; let the caller draw a direct arc.
+  if (fGap > ATTACH_LIMIT_KM || tGap > ATTACH_LIMIT_KM) return null;
   addEdge(FROM, fNode, fGap);
   addEdge(TO, tNode, tGap);
 
@@ -289,7 +306,15 @@ function stitchRoute(
 // tiny country-hub hops when staying on one cable is barely longer — tuned so a
 // hand-off only happens when it meaningfully shortens the route (e.g. a cable
 // that would otherwise detour thousands of km), not for marginal gains.
-const TELEPORT_PENALTY_KM = 500;
+const TELEPORT_PENALTY_KM = 150;
+
+// A teleport models a cable-to-cable hand-off at a shared COUNTRY HUB — two
+// stations close enough to be the same metro/landing region. Beyond this radius
+// the two stations are really separate regions of a big country (Hawaii vs New
+// York; Medan vs Jakarta), and a "teleport" between them is a fake trans-
+// continental jump. Cap it so only genuine hub hand-offs survive; far-apart
+// same-country points must connect by riding a real cable instead.
+const TELEPORT_MAX_KM = 700;
 
 interface GraphEdge {
   to: string;
@@ -331,9 +356,17 @@ function getNetworkGraph(): Map<string, GraphEdge[]> {
     landingPointsById[id].lat,
     landingPointsById[id].lng,
   ];
+  // Every station that belongs to a real (≥2-landing) cable chain. These are the
+  // teleport candidates below — even one whose every cable hop got dropped above
+  // (e.g. FLAG's uncovered East-Asia stations) is still a real network station
+  // and must stay reachable via a same-country hand-off. Planned single-landing
+  // cables (one isolated station) are deliberately excluded, so they stay
+  // un-offered exactly as before.
+  const chained = new Set<string>();
   for (const cable of cables) {
     const ids = cable.landingPointIds.filter((id) => landingPointsById[id]);
     if (ids.length < 2) continue;
+    for (const id of ids) chained.add(id);
 
     // Double-sweep: from an arbitrary anchor, find the farthest station — that
     // is a true end of the line. Ordering by distance from a MIDDLE station
@@ -354,12 +387,19 @@ function getNetworkGraph(): Map<string, GraphEdge[]> {
       .sort((p, q) => p.d - q.d)
       .map((p) => p.id);
 
-    // Consecutive stations only; weight = straight-line distance (good proxy
-    // for adjacent stations). Real geometry is drawn later, per chosen leg.
+    // Consecutive stations only. A hop is offered ONLY if the cable can actually
+    // draw it from real geometry — if resolveCallRoute falls back to a great-
+    // circle (an endpoint isn't covered by this cable's polylines, or the
+    // fragments don't connect), the hop would render as a chord across land, so
+    // we drop it and let Dijkstra route around via cables/teleports that CAN
+    // draw the span. Weight = the real along-cable distance (not the straight-
+    // line proxy), so the router's cost matches what actually gets drawn.
     for (let i = 0; i + 1 < ordered.length; i++) {
       const a = ordered[i];
       const b = ordered[i + 1];
-      const w = haversine(co(a), co(b));
+      const drawn = resolveCallRoute(cable.id, a, b);
+      if (drawn.fellBack) continue;
+      const w = drawn.totalKm;
       addEdge(a, b, w, cable.id, "cable");
       addEdge(b, a, w, cable.id, "cable");
     }
@@ -370,10 +410,11 @@ function getNetworkGraph(): Map<string, GraphEdge[]> {
   // hub hand-off: a cable reaching a country can jump to any OTHER cable landing
   // in that country without a physical splice. Weight is the short within-
   // country jump distance (+ penalty), so the router prefers a local hand-off
-  // over a long cable detour. Endpoints are existing nodes only (a teleport into
-  // a dead-end station you can't travel onward from is useless).
+  // over a long cable detour. Candidates are all real cable-chain stations (see
+  // `chained`) — including ones whose own cable hops were dropped, so they can
+  // still be reached through a country-hub hand-off.
   const byCountry = new Map<string, string[]>();
-  for (const id of g.keys()) {
+  for (const id of chained) {
     const lp = landingPointsById[id];
     if (!lp) continue;
     let arr = byCountry.get(lp.country);
@@ -390,8 +431,11 @@ function getNetworkGraph(): Map<string, GraphEdge[]> {
         const b = landingPointsById[ids[j]];
         // Skip if a real cable already connects them — travel it, don't teleport.
         if (a.cableIds.some((c) => b.cableIds.includes(c))) continue;
-        const w =
-          haversine([a.lat, a.lng], [b.lat, b.lng]) + TELEPORT_PENALTY_KM;
+        const gap = haversine([a.lat, a.lng], [b.lat, b.lng]);
+        // Beyond the hub radius this isn't a hand-off, it's a fake cross-country
+        // jump — let a real cable carry the distance instead.
+        if (gap > TELEPORT_MAX_KM) continue;
+        const w = gap + TELEPORT_PENALTY_KM;
         addEdge(ids[i], ids[j], w, "", "teleport");
         addEdge(ids[j], ids[i], w, "", "teleport");
       }
