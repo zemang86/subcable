@@ -336,6 +336,56 @@ body {
 .v1-delay-2 { animation-delay: 130ms; }
 .v1-delay-3 { animation-delay: 190ms; }
 
+/* ───────── Underwater attract mode (see UnderwaterOverlay.tsx) ───────── */
+/* God-ray beams gently sway side to side. */
+.v1-uw-ray {
+  animation-name: v1-uw-ray;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+@keyframes v1-uw-ray {
+  from { transform: rotate(var(--rot, -8deg)) translateX(-3%); opacity: 0.5; }
+  to   { transform: rotate(var(--rot, -8deg)) translateX(3%);  opacity: 1; }
+}
+.v1-uw-caustic { animation: v1-uw-caustic 17s ease-in-out infinite; }
+.v1-uw-caustic--2 { animation-duration: 23s; animation-direction: reverse; }
+@keyframes v1-uw-caustic {
+  0%, 100% { transform: translate(-3%, -2%) scale(1);    opacity: 0.55; }
+  50%      { transform: translate(4%, 3%)   scale(1.22); opacity: 1; }
+}
+.v1-uw-bubble {
+  animation-name: v1-uw-bubble;
+  animation-timing-function: ease-in;
+  animation-iteration-count: infinite;
+}
+@keyframes v1-uw-bubble {
+  0%   { transform: translateY(0) translateX(0) scale(0.7); opacity: 0; }
+  12%  { opacity: 0.85; }
+  85%  { opacity: 0.7; }
+  100% {
+    transform: translateY(-116vh) translateX(var(--sway, 20px)) scale(1.05);
+    opacity: 0;
+  }
+}
+
+/* Surfacing — the whole water layer slides DOWN off-screen (level drops, globe
+   rises out), led by the bright waterline. Pure transform so it's composited on
+   the GPU (no per-frame re-raster of the blurred layers → smooth). Both share
+   the same curve/duration so the surface line rides the top edge of the water. */
+.v1-uw-recede {
+  animation: v1-uw-drop 1150ms cubic-bezier(0.5, 0, 0.25, 1) forwards;
+  will-change: transform;
+}
+.v1-uw-waterline {
+  animation: v1-uw-drop 1150ms cubic-bezier(0.5, 0, 0.25, 1) forwards;
+  will-change: transform;
+}
+@keyframes v1-uw-drop {
+  from { transform: translateY(0); }
+  to   { transform: translateY(106vh); }
+}
+
 /* Expanded landing-point callout — grows up from the stem on mount,
    collapses back into the stem on close. The corner brackets are
    children, so they appear to snap into / out of place. */

@@ -16,6 +16,7 @@ import { RecenterButton } from "./RecenterButton";
 import { RightCluster } from "./RightCluster";
 import { ClusterStem } from "./ClusterStem";
 import { LandingPointCallout } from "./LandingPointCallout";
+import { UnderwaterOverlay } from "./UnderwaterOverlay";
 import HowToGuideDialog from "./HowToGuideDialog";
 import FunFactDialog from "./FunFactDialog";
 import MorseCodePop from "./MorseCodePop";
@@ -296,6 +297,23 @@ export default function GlobeScene() {
     } else {
       setAutoRotate(false);
     }
+  }, [isIdle]);
+
+  // Underwater attract mode: while idle the globe sits under a "submerged"
+  // overlay; on wake it plays the "rising out of the water" beat (the waterline
+  // recedes top-down) before the chrome is revealed. `surfacing` is that
+  // transient phase — must match the .v1-uw-recede duration in globals.css.
+  const SURFACE_MS = 1150;
+  const [surfacing, setSurfacing] = useState(false);
+  const wasIdleRef = useRef(isIdle);
+  useEffect(() => {
+    if (wasIdleRef.current && !isIdle) {
+      setSurfacing(true);
+      const id = setTimeout(() => setSurfacing(false), SURFACE_MS);
+      wasIdleRef.current = isIdle;
+      return () => clearTimeout(id);
+    }
+    wasIdleRef.current = isIdle;
   }, [isIdle]);
 
   // Resize handler
@@ -1203,7 +1221,7 @@ export default function GlobeScene() {
           // mode the panels are hidden, so slide the globe back to centre for a
           // balanced screen; it eases back left on wake.
           transform: `translateX(${
-            isIdle ? 0 : globeOffsetX(dimensions.width)
+            isIdle || surfacing ? 0 : globeOffsetX(dimensions.width)
           }px)`,
           transition: "transform 700ms cubic-bezier(0.4, 0, 0.2, 1)",
           willChange: "transform",
@@ -1263,7 +1281,7 @@ export default function GlobeScene() {
       {/* Idle attract mode: hide ALL chrome so only the rotating globe + the
           "touch anywhere to start" hint remain. Any touch wakes the attractor
           (isIdle → false) and the panels snap back instantly. */}
-      {!isIdle && (
+      {!isIdle && !surfacing && (
         <>
           {/* Each panel slides in from its nearest edge on wake (v1-enter-*),
               applied straight to the panel's own element so it stays fully
@@ -1459,6 +1477,12 @@ export default function GlobeScene() {
           onDone={() => setActiveCall(null)}
           globeRef={globeRef}
         />
+      )}
+
+      {/* Underwater attract overlay — submerged look while idle; the waterline
+          recedes during `surfacing`, then it unmounts. */}
+      {isLoaded && (isIdle || surfacing) && (
+        <UnderwaterOverlay surfacing={surfacing} />
       )}
 
       {/* Idle attractor hint — overlays everything else, pointer-events: none
