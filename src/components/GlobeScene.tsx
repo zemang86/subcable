@@ -1604,10 +1604,12 @@ export default function GlobeScene() {
 }
 
 // ───────── BrandingFlash ─────────
-// Splash-style title card ("Submarine Cable Map" / "Brought to you by" / TM
-// logo) shown over the emerging globe. Fades itself in on mount; when `leaving`
-// goes true it fades out and calls `onGone` so the parent can unmount it. No
-// backdrop — the text floats over the globe (soft shadows keep it legible).
+// Title card ("Submarine Cable Map" / "Brought to you by" / TM logo / HUD
+// tagline) shown over the emerging globe. Each line rises + fades in staggered
+// (v1-brand-rise); the title carries an ice-blue gradient + one-time shine. A
+// soft scrim lifts it off the busy globe and the project's `+` corner
+// crosshairs frame it. When `leaving` goes true the whole card fades out and
+// calls `onGone` so the parent can unmount it.
 function BrandingFlash({
   language,
   leaving,
@@ -1618,11 +1620,6 @@ function BrandingFlash({
   onGone: () => void;
 }) {
   const t = useT(language);
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
   return (
     <div
       style={{
@@ -1630,57 +1627,146 @@ function BrandingFlash({
         inset: 0,
         zIndex: 45,
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         pointerEvents: "none",
-        opacity: shown && !leaving ? 1 : 0,
+        // Children stagger IN on their own; the container only drives fade-OUT.
+        opacity: leaving ? 0 : 1,
         transition: "opacity 700ms ease",
       }}
       onTransitionEnd={() => {
         if (leaving) onGone();
       }}
     >
-      <span
+      {/* Scrim — soft dark halo so the white text reads off the globe. */}
+      <div
+        aria-hidden
         style={{
-          fontFamily: "var(--v1-display)",
-          fontWeight: 700,
-          fontSize: "clamp(40px, 6.4vw, 88px)",
-          lineHeight: 1.1,
-          color: "#FFFFFF",
-          textAlign: "center",
-          textShadow: "0 4px 34px rgba(0, 0, 0, 0.65)",
+          position: "absolute",
+          width: "min(120vw, 1100px)",
+          height: "min(80vh, 620px)",
+          background:
+            "radial-gradient(ellipse at center, rgba(2,8,20,0.62) 0%, rgba(2,8,20,0.34) 46%, transparent 72%)",
         }}
-      >
-        {t("submarineCableMap")}
-      </span>
-      <span
-        style={{
-          marginTop: "clamp(20px, 2.6vw, 40px)",
-          fontFamily: "var(--v1-mono)",
-          fontWeight: 400,
-          fontSize: "clamp(15px, 1.6vw, 30px)",
-          color: "#FFFFFF",
-          textAlign: "center",
-          textShadow: "0 2px 18px rgba(0, 0, 0, 0.7)",
-        }}
-      >
-        {t("broughtToYouBy")}
-      </span>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/tm-logo.png"
-        alt="Telekom Malaysia"
-        style={{
-          marginTop: "clamp(18px, 2vw, 32px)",
-          width: "clamp(120px, 11vw, 200px)",
-          height: "auto",
-          userSelect: "none",
-          filter: "drop-shadow(0 4px 22px rgba(0, 0, 0, 0.55))",
-        }}
-        draggable={false}
       />
+
+      {/* Framed card — `+` corner crosshairs (project title-strip convention). */}
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "clamp(30px, 4vw, 60px) clamp(40px, 6vw, 96px)",
+          border: "1px solid rgba(255, 255, 255, 0.16)",
+        }}
+      >
+        {(["tl", "tr", "bl", "br"] as const).map((pos) => (
+          <BrandCross key={pos} position={pos} />
+        ))}
+
+        <span
+          className="v1-brand-title"
+          style={{
+            fontFamily: "var(--v1-display)",
+            fontWeight: 700,
+            fontSize: "clamp(40px, 6.4vw, 88px)",
+            lineHeight: 1.1,
+            textAlign: "center",
+          }}
+        >
+          {t("submarineCableMap")}
+        </span>
+
+        <span
+          className="v1-brand-rise"
+          style={{
+            animationDelay: "150ms",
+            marginTop: "clamp(20px, 2.6vw, 40px)",
+            fontFamily: "var(--v1-mono)",
+            fontWeight: 400,
+            fontSize: "clamp(15px, 1.6vw, 30px)",
+            color: "#FFFFFF",
+            textAlign: "center",
+            textShadow: "0 2px 18px rgba(0, 0, 0, 0.7)",
+          }}
+        >
+          {t("broughtToYouBy")}
+        </span>
+
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/tm-logo.png"
+          alt="Telekom Malaysia"
+          className="v1-brand-rise"
+          style={{
+            animationDelay: "300ms",
+            marginTop: "clamp(18px, 2vw, 32px)",
+            width: "clamp(120px, 11vw, 200px)",
+            height: "auto",
+            userSelect: "none",
+            filter: "drop-shadow(0 4px 22px rgba(0, 0, 0, 0.55))",
+          }}
+          draggable={false}
+        />
+
+        <span
+          className="v1-brand-rise"
+          style={{
+            animationDelay: "440ms",
+            marginTop: "clamp(16px, 1.8vw, 28px)",
+            fontFamily: "var(--v1-mono)",
+            fontWeight: 400,
+            fontSize: "clamp(10px, 0.95vw, 15px)",
+            letterSpacing: "0.34em",
+            textTransform: "uppercase",
+            color: "rgba(184, 230, 255, 0.78)",
+            textAlign: "center",
+            textShadow: "0 2px 14px rgba(0, 0, 0, 0.7)",
+          }}
+        >
+          {t("globalSubmarineNetwork")}
+        </span>
+      </div>
     </div>
+  );
+}
+
+// 8×8 `+` corner crosshair for the branding frame (project title-strip
+// convention — see CableInformation's CrossMark).
+function BrandCross({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const variants = {
+    tl: { top: -4, left: -4 },
+    tr: { top: -4, right: -4 },
+    bl: { bottom: -4, left: -4 },
+    br: { bottom: -4, right: -4 },
+  } as const;
+  return (
+    <span
+      aria-hidden
+      style={{ position: "absolute", width: 8, height: 8, ...variants[position] }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 0,
+          width: 8,
+          height: 0,
+          borderTop: "2px solid #FFFFFF",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 3,
+          width: 0,
+          height: 8,
+          borderLeft: "2px solid #FFFFFF",
+        }}
+      />
+    </span>
   );
 }
 
