@@ -315,6 +315,11 @@ const TELEPORT_PENALTY_KM = 150;
 // continental jump. Cap it so only genuine hub hand-offs survive; far-apart
 // same-country points must connect by riding a real cable instead.
 const TELEPORT_MAX_KM = 700;
+// Wider cap used ONLY by the rescue pass (see getNetworkGraph) to reconnect a
+// component that would otherwise be orphaned. Sized to admit a national cross-
+// coast hand-off (France's Plerin↔Toulon ≈903km) but still exclude the genuine
+// trans-continental fakes (US San-Luis↔New-York ≈4,137km).
+const RESCUE_MAX_KM = 1000;
 
 interface GraphEdge {
   to: string;
@@ -438,6 +443,58 @@ function getNetworkGraph(): Map<string, GraphEdge[]> {
         const w = gap + TELEPORT_PENALTY_KM;
         addEdge(ids[i], ids[j], w, "", "teleport");
         addEdge(ids[j], ids[i], w, "", "teleport");
+      }
+    }
+  }
+
+  // ── Rescue pass ── A few stations form a cluster cut off from the main network
+  // because their only same-country neighbour sits just beyond TELEPORT_MAX_KM —
+  // notably the FLAG-Atlantic island (US-East NY · France-Plerin · UK), whose
+  // sole bridge is France's own cross-coast hand-off Plerin↔Toulon (~903km, France
+  // is ~900km coast-to-coast). Reconnect each orphaned component to the MAIN one
+  // via the shortest same-country hand-off it has, allowing up to RESCUE_MAX_KM.
+  // Only bridges that actually join a different component to the main network are
+  // added, so already-connected stations never gain a redundant long sea-hop.
+  const compOf = new Map<string, number>();
+  let nComp = 0;
+  for (const start of g.keys()) {
+    if (compOf.has(start)) continue;
+    const id = nComp++;
+    compOf.set(start, id);
+    const stack = [start];
+    while (stack.length) {
+      const u = stack.pop() as string;
+      for (const e of g.get(u) ?? []) {
+        if (!compOf.has(e.to)) {
+          compOf.set(e.to, id);
+          stack.push(e.to);
+        }
+      }
+    }
+  }
+  if (nComp > 1) {
+    const size = new Array(nComp).fill(0);
+    for (const id of compOf.values()) size[id]++;
+    let mainComp = 0;
+    for (let i = 1; i < nComp; i++) if (size[i] > size[mainComp]) mainComp = i;
+    for (const ids of byCountry.values()) {
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const ci = compOf.get(ids[i]);
+          const cj = compOf.get(ids[j]);
+          // Only a hand-off that bridges a non-main component to the main one.
+          if (ci === cj || (ci !== mainComp && cj !== mainComp)) continue;
+          const a = landingPointsById[ids[i]];
+          const b = landingPointsById[ids[j]];
+          if (a.cableIds.some((c) => b.cableIds.includes(c))) continue;
+          const gap = haversine([a.lat, a.lng], [b.lat, b.lng]);
+          // Only the over-cap-but-still-national band — short pairs were already
+          // wired above; anything past RESCUE_MAX_KM is too far to be a hand-off.
+          if (gap <= TELEPORT_MAX_KM || gap > RESCUE_MAX_KM) continue;
+          const w = gap + TELEPORT_PENALTY_KM;
+          addEdge(ids[i], ids[j], w, "", "teleport");
+          addEdge(ids[j], ids[i], w, "", "teleport");
+        }
       }
     }
   }
