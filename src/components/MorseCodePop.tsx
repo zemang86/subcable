@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { decodeSymbols } from "@/lib/morse";
-import { sensiblyReachableFrom } from "@/lib/callRoutes";
+import { dialablePoints, sensiblyReachableFrom } from "@/lib/callRoutes";
 import {
   playBackspace,
   playDash,
@@ -60,13 +60,15 @@ export default function MorseCodePop({
 }: MorseCodePopProps) {
   const t = useT(language);
 
-  // Cross-network dialling (Model B): From/To can be any routable landing point
-  // (one that's on at least one cable). The pickers are a country → location
-  // two-step; the call resolver finds the shortest path across cables.
-  const routable = useMemo(
-    () => landingPoints.filter((p) => p.cableIds.length > 0),
-    [landingPoints],
-  );
+  // Cross-network dialling (Model B): From/To can be any DIALABLE landing point —
+  // on a cable AND able to reach at least one other station. Scoping to
+  // dialablePoints() (not just "has a cable") keeps graph-isolated stations
+  // (planned single-landing cables, single-cable tips like Estepona/Dakar) out of
+  // BOTH pickers, so a user can never select a dead-end origin with no destinations.
+  const routable = useMemo(() => {
+    const dialable = dialablePoints();
+    return landingPoints.filter((p) => dialable.has(p.id));
+  }, [landingPoints]);
   const lpById = useMemo(
     () => new Map(routable.map((p) => [p.id, p])),
     [routable],

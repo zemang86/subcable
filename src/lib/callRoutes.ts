@@ -524,6 +524,25 @@ export function reachableFrom(fromId: string): Set<string> {
   return seen;
 }
 
+let _dialable: Set<string> | null = null;
+
+// Landing points that can actually place a call — those that reach at least one
+// OTHER station through the network. Excludes graph-isolated stations: planned
+// single-landing cables (SMW6/Morib, ALC & CANDLE/Sedili) and single-cable tips
+// whose only same-country neighbour is beyond the rescue range (Estepona, Dakar).
+// The Make-a-Call pickers scope BOTH From and To to these, so a user can never
+// land on a dead-end origin with an empty destination list. Cached (graph-derived).
+export function dialablePoints(): Set<string> {
+  if (_dialable) return _dialable;
+  const g = getNetworkGraph();
+  const out = new Set<string>();
+  for (const id of g.keys()) {
+    if (reachableFrom(id).size > 1) out.add(id);
+  }
+  _dialable = out;
+  return out;
+}
+
 // A destination is "sensibly" reachable when its drawn route isn't an absurd
 // detour. Some cross-network pairs are only connectable the long way around —
 // Marseille→Lisbon has no Mediterranean cable in the dataset (only a path around
