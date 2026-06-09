@@ -196,6 +196,9 @@ const COUNTRY_NAME_ALIASES: Record<string, string> = {
 const DEFAULT_LAT = 5;
 const DEFAULT_LNG = 108;
 const DEFAULT_ALT = 2.2;
+// Idle attract mode pulls the camera back so the globe sits smaller/further in
+// the underwater scene (kept under MAX_CAM_DISTANCE's altitude ~3.4 cap).
+const IDLE_ALT = 3.3;
 const MY_LAT = 4.2105;
 const MY_LNG = 101.9758;
 const MY_ALT = 2.2;
@@ -299,19 +302,47 @@ export default function GlobeScene() {
     }
   }, [isIdle]);
 
+  // Dolly the camera back when idle (globe sits smaller/further in the scene).
+  // The zoom back IN is deliberately deferred to AFTER the emerge — see the
+  // surfacing effect — so the globe surfaces at its far size, then zooms in.
+  // Only altitude is passed so the current lat/lng (idle rotation) is kept.
+  useEffect(() => {
+    const g = globeRef.current;
+    if (!g || !isLoaded) return;
+    if (isIdle) g.pointOfView({ altitude: IDLE_ALT }, 1200);
+  }, [isIdle, isLoaded]);
+
   // Underwater attract mode: while idle the globe sits under a "submerged"
   // overlay; on wake it plays the "rising out of the water" beat (the waterline
   // recedes top-down) before the chrome is revealed. `surfacing` is that
   // transient phase — must match the .v1-uw-recede duration in globals.css.
   const SURFACE_MS = 1150;
   const [surfacing, setSurfacing] = useState(false);
+  // Branding card ("Submarine Cable Map / by TM") surfaces mid-emerge and bows
+  // out once the panels have settled. `brandingOn` mounts it; `brandingLeaving`
+  // triggers its fade-out (it unmounts itself when the fade finishes).
+  const [brandingOn, setBrandingOn] = useState(false);
+  const [brandingLeaving, setBrandingLeaving] = useState(false);
   const wasIdleRef = useRef(isIdle);
   useEffect(() => {
     if (wasIdleRef.current && !isIdle) {
       setSurfacing(true);
-      const id = setTimeout(() => setSurfacing(false), SURFACE_MS);
+      setBrandingLeaving(false);
+      const idEnd = setTimeout(() => {
+        setSurfacing(false);
+        // Globe surfaces at its far size, THEN zooms in once the water's gone.
+        globeRef.current?.pointOfView({ altitude: DEFAULT_ALT }, 900);
+      }, SURFACE_MS);
+      // Fade the card in halfway through the emerge; start its fade-out a beat
+      // after the chrome has finished entering (~SURFACE_MS + entrance).
+      const idIn = setTimeout(() => setBrandingOn(true), SURFACE_MS * 0.5);
+      const idOut = setTimeout(() => setBrandingLeaving(true), SURFACE_MS + 2500);
       wasIdleRef.current = isIdle;
-      return () => clearTimeout(id);
+      return () => {
+        clearTimeout(idEnd);
+        clearTimeout(idIn);
+        clearTimeout(idOut);
+      };
     }
     wasIdleRef.current = isIdle;
   }, [isIdle]);
@@ -1219,14 +1250,21 @@ export default function GlobeScene() {
         style={{
           // Normally offset left to clear the right-side panels. In idle attract
           // mode the panels are hidden, so slide the globe back to centre for a
-          // balanced screen; it eases back left on wake.
+          // balanced screen; it eases back left on wake. It's also blurred while
+          // idle (submerged feel) and sharpens as it surfaces.
           transform: `translateX(${
             isIdle || surfacing ? 0 : globeOffsetX(dimensions.width)
           }px)`,
-          transition: "transform 700ms cubic-bezier(0.4, 0, 0.2, 1)",
+          filter: isIdle ? "blur(3px)" : "none",
+          transition:
+            "transform 700ms cubic-bezier(0.4, 0, 0.2, 1), filter 800ms ease",
           willChange: "transform",
         }}
       >
+        <div
+          className={surfacing ? "v1-globe-breach" : undefined}
+          style={{ willChange: "transform" }}
+        >
         <Globe
           ref={globeRef}
           width={dimensions.width}
@@ -1276,6 +1314,7 @@ export default function GlobeScene() {
           onGlobeReady={handleGlobeReady}
           animateIn={true}
         />
+        </div>
       </div>
 
       {/* Idle attract mode: hide ALL chrome so only the rotating globe + the
@@ -1485,6 +1524,18 @@ export default function GlobeScene() {
         <UnderwaterOverlay surfacing={surfacing} />
       )}
 
+      {/* Branding card that surfaces with the globe and fades once UI settles. */}
+      {brandingOn && (
+        <BrandingFlash
+          language={language}
+          leaving={brandingLeaving}
+          onGone={() => {
+            setBrandingOn(false);
+            setBrandingLeaving(false);
+          }}
+        />
+      )}
+
       {/* Idle attractor hint — overlays everything else, pointer-events: none
           so any touch hits the layer underneath and useIdleAttractor wakes. */}
       {isIdle && isLoaded && (
@@ -1518,6 +1569,87 @@ export default function GlobeScene() {
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+// ───────── BrandingFlash ─────────
+// Splash-style title card ("Submarine Cable Map" / "Brought to you by" / TM
+// logo) shown over the emerging globe. Fades itself in on mount; when `leaving`
+// goes true it fades out and calls `onGone` so the parent can unmount it. No
+// backdrop — the text floats over the globe (soft shadows keep it legible).
+function BrandingFlash({
+  language,
+  leaving,
+  onGone,
+}: {
+  language: Language;
+  leaving: boolean;
+  onGone: () => void;
+}) {
+  const t = useT(language);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 45,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: "none",
+        opacity: shown && !leaving ? 1 : 0,
+        transition: "opacity 700ms ease",
+      }}
+      onTransitionEnd={() => {
+        if (leaving) onGone();
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--v1-display)",
+          fontWeight: 700,
+          fontSize: "clamp(40px, 6.4vw, 88px)",
+          lineHeight: 1.1,
+          color: "#FFFFFF",
+          textAlign: "center",
+          textShadow: "0 4px 34px rgba(0, 0, 0, 0.65)",
+        }}
+      >
+        {t("submarineCableMap")}
+      </span>
+      <span
+        style={{
+          marginTop: "clamp(20px, 2.6vw, 40px)",
+          fontFamily: "var(--v1-mono)",
+          fontWeight: 400,
+          fontSize: "clamp(15px, 1.6vw, 30px)",
+          color: "#FFFFFF",
+          textAlign: "center",
+          textShadow: "0 2px 18px rgba(0, 0, 0, 0.7)",
+        }}
+      >
+        {t("broughtToYouBy")}
+      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/tm-logo.png"
+        alt="Telekom Malaysia"
+        style={{
+          marginTop: "clamp(18px, 2vw, 32px)",
+          width: "clamp(120px, 11vw, 200px)",
+          height: "auto",
+          userSelect: "none",
+          filter: "drop-shadow(0 4px 22px rgba(0, 0, 0, 0.55))",
+        }}
+        draggable={false}
+      />
     </div>
   );
 }
