@@ -309,6 +309,10 @@ export default function GlobeScene() {
       setSelectedCable(null);
       setSelectedLandingPoint(null);
       setExpandedPointId(null);
+      // If idle re-triggers mid-emerge, drop any lingering branding card so it
+      // doesn't hang over the underwater scene.
+      setBrandingOn(false);
+      setBrandingLeaving(false);
     } else {
       setAutoRotate(false);
     }
@@ -330,17 +334,23 @@ export default function GlobeScene() {
   // transient phase — must match the .v1-uw-recede duration in globals.css.
   const SURFACE_MS = 1150;
   const [surfacing, setSurfacing] = useState(false);
-  // Branding card ("Submarine Cable Map / by TM") surfaces mid-emerge and bows
-  // out once the panels have settled. `brandingOn` mounts it; `brandingLeaving`
-  // triggers its fade-out (it unmounts itself when the fade finishes).
+  // Branding card ("Submarine Cable Map / by TM") surfaces mid-emerge, holds
+  // through the camera fly-in, then bows out — and ONLY once it's fully gone do
+  // the panels/HUD slide in (gated by `chromeReady`). `brandingOn` mounts the
+  // card; `brandingLeaving` triggers its fade-out (it unmounts when done).
   const [brandingOn, setBrandingOn] = useState(false);
   const [brandingLeaving, setBrandingLeaving] = useState(false);
+  // Chrome (panels + HUD) is held back during the whole emerge + branding beat
+  // on a wake-from-idle, then revealed. Defaults true so the very first load
+  // (no emerge) shows chrome immediately.
+  const [chromeReady, setChromeReady] = useState(true);
   const wasIdleRef = useRef(isIdle);
   const arrivalSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (wasIdleRef.current && !isIdle) {
       setSurfacing(true);
       setBrandingLeaving(false);
+      setChromeReady(false); // hold the panels/HUD until the card is gone
       const idEnd = setTimeout(() => {
         setSurfacing(false);
         // Globe surfaces at its far size, THEN the camera flies in: sweep toward
@@ -360,15 +370,20 @@ export default function GlobeScene() {
           }, ARRIVAL_MS);
         }
       }, SURFACE_MS);
-      // Fade the card in halfway through the emerge; start its fade-out a beat
-      // after the chrome has finished entering (~SURFACE_MS + entrance).
+      // Fade the card in halfway through the emerge, hold through the fly-in,
+      // then bow it out. Reveal the chrome only after its 700ms fade completes.
       const idIn = setTimeout(() => setBrandingOn(true), SURFACE_MS * 0.5);
       const idOut = setTimeout(() => setBrandingLeaving(true), SURFACE_MS + 2500);
+      const idChrome = setTimeout(
+        () => setChromeReady(true),
+        SURFACE_MS + 2500 + 700,
+      );
       wasIdleRef.current = isIdle;
       return () => {
         clearTimeout(idEnd);
         clearTimeout(idIn);
         clearTimeout(idOut);
+        clearTimeout(idChrome);
       };
     }
     wasIdleRef.current = isIdle;
@@ -1348,9 +1363,9 @@ export default function GlobeScene() {
       </div>
 
       {/* Idle attract mode: hide ALL chrome so only the rotating globe + the
-          "touch anywhere to start" hint remain. Any touch wakes the attractor
-          (isIdle → false) and the panels snap back instantly. */}
-      {!isIdle && !surfacing && (
+          "touch anywhere to start" hint remain. On wake the panels are held
+          back (chromeReady) until the branding card has fully bowed out. */}
+      {!isIdle && !surfacing && chromeReady && (
         <>
           {/* Each panel slides in from its nearest edge on wake (v1-enter-*),
               applied straight to the panel's own element so it stays fully
@@ -1650,7 +1665,8 @@ function BrandingFlash({
         }}
       />
 
-      {/* Framed card — `+` corner crosshairs (project title-strip convention). */}
+      {/* Framed card — frosted glass panel with `+` corner crosshairs (project
+          title-strip convention). Square corners keep the crosshairs aligned. */}
       <div
         style={{
           position: "relative",
@@ -1658,7 +1674,12 @@ function BrandingFlash({
           flexDirection: "column",
           alignItems: "center",
           padding: "clamp(30px, 4vw, 60px) clamp(40px, 6vw, 96px)",
-          border: "1px solid rgba(255, 255, 255, 0.16)",
+          border: "1px solid rgba(255, 255, 255, 0.22)",
+          background: "rgba(8, 18, 33, 0.30)",
+          backdropFilter: "blur(16px) saturate(1.15)",
+          WebkitBackdropFilter: "blur(16px) saturate(1.15)",
+          boxShadow:
+            "0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
         }}
       >
         {(["tl", "tr", "bl", "br"] as const).map((pos) => (
