@@ -91,8 +91,8 @@ export default function SplashScreen({
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/logo-tm-global.png"
-          alt="TM Global"
+          src="/tm-logo.png"
+          alt="Telekom Malaysia"
           style={{
             marginTop: "clamp(18px, 2vw, 32px)",
             width: "clamp(120px, 11vw, 200px)",
