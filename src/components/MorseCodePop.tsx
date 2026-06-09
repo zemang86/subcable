@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { decodeSymbols } from "@/lib/morse";
-import { reachableFrom } from "@/lib/callRoutes";
+import { sensiblyReachableFrom } from "@/lib/callRoutes";
 import {
   playBackspace,
   playDash,
@@ -101,10 +101,11 @@ export default function MorseCodePop({
   const [from, setFrom] = useState(() => defFrom);
   const [to, setTo] = useState(() => defTo);
 
-  // Reachability — destinations that actually have a cable path from `from`.
-  // The "To" pickers are scoped to this so the UI never offers a dead-end pick
-  // (the resolver would otherwise quietly draw a straight great-circle line).
-  const reachable = useMemo(() => reachableFrom(from), [from]);
+  // Reachability — destinations reachable from `from` by a SENSIBLE route (no
+  // dead-end picks, and no absurd around-the-globe detour for pairs the cable
+  // data can only connect the long way). The "To" pickers are scoped to this so
+  // every route the user can dial both draws cleanly and looks right.
+  const reachable = useMemo(() => sensiblyReachableFrom(from), [from]);
   const toCountries = useMemo(
     () =>
       [

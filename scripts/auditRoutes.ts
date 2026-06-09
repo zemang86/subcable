@@ -4,7 +4,7 @@
  *       npx tsx scripts/auditRoutes.ts --csv      (full per-pair CSV to stdout)
  */
 import { readFileSync } from "node:fs";
-import { resolveNetworkRoute, reachableFrom, type RouteLeg } from "@/lib/callRoutes";
+import { resolveNetworkRoute, sensiblyReachableFrom, type RouteLeg } from "@/lib/callRoutes";
 import { landingPoints, landingPointsById } from "@/data/landingPoints";
 
 type LL = [number, number]; // [lat,lng]
@@ -91,7 +91,7 @@ const rows: Row[] = [];
 const reachCounts: Record<string, number> = {};
 
 for (const from of ids) {
-  const reach = reachableFrom(from);
+  const reach = sensiblyReachableFrom(from);
   reachCounts[from] = reach.size;
   for (const to of reach) {
     if (to === from) continue;

@@ -467,6 +467,45 @@ export function reachableFrom(fromId: string): Set<string> {
   return seen;
 }
 
+// A destination is "sensibly" reachable when its drawn route isn't an absurd
+// detour. Some cross-network pairs are only connectable the long way around —
+// Marseille→Lisbon has no Mediterranean cable in the dataset (only a path around
+// Africa); Cochin→Colombo is 517km apart but the cables only link them via a
+// 5,000km out-and-back. Both still pass reachableFrom (a path exists) but would
+// animate a pulse looping the globe, so we drop them here and the "To" picker
+// offers only routes that look right.
+//
+// Kept when EITHER the route is within SENSIBLE_RATIO_MAX× the straight line, OR
+// it adds less than SENSIBLE_EXTRA_KM of absolute distance (a short hop wandering
+// a couple hundred km is fine — its ratio is just noisy). A pair must fail BOTH
+// to be dropped. From Malaysian origins this drops nothing; it only trims
+// far-flung origin→destination pairs the data can't route directly.
+const SENSIBLE_RATIO_MAX = 4.5;
+const SENSIBLE_EXTRA_KM = 350;
+
+export function sensiblyReachableFrom(fromId: string): Set<string> {
+  const out = new Set<string>([fromId]);
+  const fp = landingPointsById[fromId];
+  if (!fp) return out;
+  for (const to of reachableFrom(fromId)) {
+    if (to === fromId) continue;
+    const tp = landingPointsById[to];
+    if (!tp) continue;
+    const straight = haversine([fp.lat, fp.lng], [tp.lat, tp.lng]);
+    const drawnKm = resolveNetworkRoute(fromId, to).legs.reduce(
+      (s, l) => s + l.km,
+      0,
+    );
+    if (
+      drawnKm - straight <= SENSIBLE_EXTRA_KM ||
+      drawnKm <= straight * SENSIBLE_RATIO_MAX
+    ) {
+      out.add(to);
+    }
+  }
+  return out;
+}
+
 interface RouteHop {
   fromId: string;
   toId: string;
