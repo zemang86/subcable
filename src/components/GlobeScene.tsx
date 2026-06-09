@@ -203,6 +203,13 @@ const MY_LAT = 4.2105;
 const MY_LNG = 101.9758;
 const MY_ALT = 2.2;
 
+// Cinematic arrival after the emerge: the camera flies in toward the Malaysia
+// hero region, overshooting slightly closer than the resting view, then eases
+// back out to settle — so it reads as "arriving at" the subject, not a dolly.
+const ARRIVAL_OVERSHOOT_ALT = 1.92;
+const ARRIVAL_MS = 1300;
+const ARRIVAL_SETTLE_MS = 650;
+
 // Zoom clamps. three-globe camera distance = 100 × (1 + altitude), so these
 // bound the OrbitControls dolly: MAX caps zoom-out at ~altitude 3.4 (a touch
 // past the default 2.2 view) so the globe never shrinks to a dot in the
@@ -292,6 +299,11 @@ export default function GlobeScene() {
   // doesn't end up rendered behind a modal nobody is around to dismiss.
   useEffect(() => {
     if (isIdle) {
+      // Cancel any pending arrival-settle so it can't fight the idle zoom-out.
+      if (arrivalSettleRef.current) {
+        clearTimeout(arrivalSettleRef.current);
+        arrivalSettleRef.current = null;
+      }
       setAutoRotate(true);
       setOpenDialog(null);
       setSelectedCable(null);
@@ -324,14 +336,29 @@ export default function GlobeScene() {
   const [brandingOn, setBrandingOn] = useState(false);
   const [brandingLeaving, setBrandingLeaving] = useState(false);
   const wasIdleRef = useRef(isIdle);
+  const arrivalSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (wasIdleRef.current && !isIdle) {
       setSurfacing(true);
       setBrandingLeaving(false);
       const idEnd = setTimeout(() => {
         setSurfacing(false);
-        // Globe surfaces at its far size, THEN zooms in once the water's gone.
-        globeRef.current?.pointOfView({ altitude: DEFAULT_ALT }, 900);
+        // Globe surfaces at its far size, THEN the camera flies in: sweep toward
+        // the Malaysia hero region while zooming PAST the resting view (a slight
+        // overshoot), then ease back out to settle — a cinematic arrival.
+        const g = globeRef.current;
+        if (g) {
+          g.pointOfView(
+            { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: ARRIVAL_OVERSHOOT_ALT },
+            ARRIVAL_MS,
+          );
+          arrivalSettleRef.current = setTimeout(() => {
+            globeRef.current?.pointOfView(
+              { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
+              ARRIVAL_SETTLE_MS,
+            );
+          }, ARRIVAL_MS);
+        }
       }, SURFACE_MS);
       // Fade the card in halfway through the emerge; start its fade-out a beat
       // after the chrome has finished entering (~SURFACE_MS + entrance).
@@ -1247,11 +1274,14 @@ export default function GlobeScene() {
       )}
 
       <div
+        className={surfacing ? "v1-globe-defocus" : undefined}
         style={{
           // Normally offset left to clear the right-side panels. In idle attract
           // mode the panels are hidden, so slide the globe back to centre for a
           // balanced screen; it eases back left on wake. It's also blurred while
-          // idle (submerged feel) and sharpens as it surfaces.
+          // idle (submerged feel) and pulls INTO focus as it surfaces — the
+          // .v1-globe-defocus rack-focus animation overrides this blur while it
+          // plays, timed to the breach.
           transform: `translateX(${
             isIdle || surfacing ? 0 : globeOffsetX(dimensions.width)
           }px)`,

@@ -13,6 +13,12 @@ import { useMemo } from "react";
 
 const BUBBLE_COUNT = 14;
 const RAY_COUNT = 5;
+const SPLASH_COUNT = 26; // droplets flung off the globe as it breaches
+const RUSH_COUNT = 18; // fast bubbles rushing up as the globe surfaces
+// Screen anchor for the surface break — the globe sits centred during the
+// emerge, and the receding waterline passes its middle ~half-way through.
+const BREACH_TOP = "50vh";
+const BREACH_LEFT = "50vw";
 
 export function UnderwaterOverlay({ surfacing }: { surfacing: boolean }) {
   const bubbles = useMemo(
@@ -45,6 +51,46 @@ export function UnderwaterOverlay({ surfacing }: { surfacing: boolean }) {
       }),
     [],
   );
+
+  // Spray droplets — flung outward in a ring at the breach apex (~half-way).
+  const splash = useMemo(
+    () =>
+      Array.from({ length: SPLASH_COUNT }, (_, i) => {
+        const r = (n: number) => (Math.sin(i * 53.13 + n * 19.7) + 1) / 2;
+        const angle = (i / SPLASH_COUNT) * Math.PI * 2 + (r(1) - 0.5) * 0.5;
+        const dist = 13 + r(2) * 20; // vmin outward throw
+        return {
+          dx: Math.cos(angle) * dist, // vmin
+          dy: Math.sin(angle) * dist, // vmin
+          size: 4 + r(3) * 7, // px
+          delay: 430 + r(4) * 70, // ms — peaks with the breach, done before 1150
+        };
+      }),
+    [],
+  );
+
+  // Fast bubbles rushing up the full height as the globe surfaces.
+  const rush = useMemo(
+    () =>
+      Array.from({ length: RUSH_COUNT }, (_, i) => {
+        const r = (n: number) => (Math.sin(i * 27.61 + n * 33.3) + 1) / 2;
+        return {
+          left: 3 + r(1) * 94, // vw
+          size: 6 + r(2) * 15, // px
+          dur: 620 + r(3) * 330, // ms — finishes inside the 1150ms emerge
+          delay: r(4) * 180, // ms
+          sway: (r(5) - 0.5) * 120, // px
+        };
+      }),
+    [],
+  );
+
+  // Expanding shockwave rings from the breach point.
+  const rings = [
+    { size: 34, delay: 360 },
+    { size: 50, delay: 470 },
+    { size: 66, delay: 580 },
+  ];
 
   return (
     <>
@@ -176,6 +222,91 @@ export function UnderwaterOverlay({ surfacing }: { surfacing: boolean }) {
             filter: "blur(0.5px)",
           }}
         />
+      )}
+
+      {/* SURFACE BREAK — only during the emerge: a fast bubble rush, an
+          expanding shockwave ring, and a ring of spray flung off the breach. */}
+      {surfacing && (
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 14,
+            pointerEvents: "none",
+            overflow: "hidden",
+          }}
+        >
+          {/* Fast bubble rush. */}
+          {rush.map((b, i) => (
+            <span
+              key={`rush-${i}`}
+              className="v1-uw-rush"
+              style={
+                {
+                  position: "absolute",
+                  bottom: "-6vh",
+                  left: `${b.left}vw`,
+                  width: b.size,
+                  height: b.size,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.95) 0%, rgba(195,236,255,0.55) 40%, rgba(150,215,255,0.18) 72%, transparent 80%)",
+                  boxShadow: "0 0 6px rgba(180,235,255,0.45)",
+                  animationDuration: `${b.dur}ms`,
+                  animationDelay: `${b.delay}ms`,
+                  "--sway": `${b.sway}px`,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+
+          {/* Shockwave rings. */}
+          {rings.map((ring, i) => (
+            <div
+              key={`ring-${i}`}
+              className="v1-ripple-ring"
+              style={{
+                position: "absolute",
+                top: BREACH_TOP,
+                left: BREACH_LEFT,
+                width: `${ring.size}vmin`,
+                height: `${ring.size}vmin`,
+                borderRadius: "50%",
+                border: "2px solid rgba(190,238,255,0.85)",
+                boxShadow:
+                  "0 0 24px rgba(150,225,255,0.5), inset 0 0 18px rgba(150,225,255,0.35)",
+                animationDelay: `${ring.delay}ms`,
+              }}
+            />
+          ))}
+
+          {/* Spray droplets. */}
+          {splash.map((d, i) => (
+            <span
+              key={`drop-${i}`}
+              className="v1-splash-drop"
+              style={
+                {
+                  position: "absolute",
+                  top: BREACH_TOP,
+                  left: BREACH_LEFT,
+                  width: d.size,
+                  height: d.size,
+                  marginLeft: -d.size / 2,
+                  marginTop: -d.size / 2,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.98) 0%, rgba(205,240,255,0.7) 45%, rgba(150,215,255,0.25) 75%, transparent 82%)",
+                  boxShadow: "0 0 7px rgba(195,238,255,0.55)",
+                  animationDelay: `${d.delay}ms`,
+                  "--dx": `${d.dx}vmin`,
+                  "--dy": `${d.dy}vmin`,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </div>
       )}
     </>
   );
