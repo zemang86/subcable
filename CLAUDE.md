@@ -58,9 +58,9 @@ electron/
 - `output: "export"` works with both Vercel and Electron
 
 ### Desktop (Electron)
-- GitHub Actions builds macOS DMG + Windows exe on every push to `main`
+- GitHub Actions builds the Windows exe on every push to `main` (CI no longer builds the macOS DMG — kiosk target is Windows; run `npm run electron:build` locally for a DMG)
 - Download installers from GitHub Actions artifacts tab (requires GitHub login, expires 90 days)
-- For permanent distribution, create a GitHub Release and attach the .dmg/.exe files
+- For permanent distribution, create a GitHub Release and attach the .exe file
 - No code signing configured (internal distribution)
 - Config in `electron-builder.yml`
 - CI workflow: `.github/workflows/build.yml`
