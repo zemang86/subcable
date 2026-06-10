@@ -45,9 +45,23 @@ const TRACE_GHOST = 0.06; // brightness of the not-yet-energized line
 // "Fully energized" sentinel — far beyond any cable's real length.
 const ENERGIZED = 1e9;
 
+// ── Dormant network + wake-up boot ──
+// While the kiosk idles "docked" (and through the emerge + branding beat)
+// the whole network sleeps at the ghost level; when the branding card bows
+// out, a one-shot circuit-trace runs on EVERY cable at once — the grid
+// powers on tip-to-tail out of the dark. Each cable's front is scaled to
+// its own route length, so all routes complete together.
+const BOOT_DURATION_SEC = 2.4;
+// "Everything ahead of the front" sentinel — ghosts the entire line.
+const DORMANT = -1e9;
+
 export interface CableFlowState {
   selectedCableId: string | null;
   callCableIds: Set<string> | null;
+  /** Ghost the whole network (idle dock / emerge / branding hold). */
+  dormant: boolean;
+  /** performance.now() timestamp of the wake-up power-on; 0 = never. */
+  bootAt: number;
 }
 
 // Minimal structural view of three-globe internals we rely on.
@@ -188,9 +202,19 @@ export function attachCableFlow(
   let traceSegs: number[] = [];
   const segLens: number[] = [];
 
+  // Wake-up boot scratch — per-cable this time, since every route traces at
+  // once. The inner offset arrays alloc per frame, but only for the boot's
+  // 2.4s window.
+  let bootMats: PatchableMaterial[] = [];
+  let bootSegs: number[] = [];
+  let bootCables: string[] = [];
+  const bootLens = new Map<string, number[]>();
+  const bootOffs = new Map<string, number[]>();
+  const bootFront = new Map<string, number>();
+
   const tick = (now: number) => {
     const flowTime = ((now - start) / 1000) * FLOW_SPEED;
-    const { selectedCableId, callCableIds } = getState();
+    const { selectedCableId, callCableIds, dormant, bootAt } = getState();
 
     if (selectedCableId !== lastSelected) {
       lastSelected = selectedCableId;
@@ -199,9 +223,16 @@ export function attachCableFlow(
     const traceT = traceStart ? (now - traceStart) / 1000 : Infinity;
     // An active call takes over the cable styling — skip the trace there.
     // During the pre-launch delay (traceT < 0) the line holds at ghost.
-    const tracing = !callCableIds && traceT < TRACE_DURATION_SEC;
+    const tracing = !callCableIds && !dormant && traceT < TRACE_DURATION_SEC;
     let traceCount = 0;
     segLens.length = 0;
+
+    // A selection mid-boot hands over to the ordinary selection trace.
+    const bootT = bootAt ? (now - bootAt) / 1000 : Infinity;
+    const booting =
+      !callCableIds && !dormant && !selectedCableId && bootT < BOOT_DURATION_SEC;
+    let bootCount = 0;
+    bootLens.clear();
 
     scene.traverse((obj) => {
       const group = obj as PathGroup;
@@ -228,7 +259,25 @@ export function attachCableFlow(
       mat.uniforms.flowTime.value = flowTime;
 
       const segIndex = datum?._segIndex;
-      if (tracing && cableId === selectedCableId && segIndex !== undefined) {
+      if (dormant && !callCableIds) {
+        mat.uniforms.energizeFront.value = DORMANT;
+      } else if (booting && cableId !== undefined && segIndex !== undefined) {
+        // Defer like the selection trace, but grouped per cable.
+        bootMats[bootCount] = mat;
+        bootSegs[bootCount] = segIndex;
+        bootCables[bootCount] = cableId;
+        bootCount++;
+        let lens = bootLens.get(cableId);
+        if (!lens) {
+          lens = [];
+          bootLens.set(cableId, lens);
+        }
+        lens[segIndex] = (line.geometry.userData.flowSegLen as number) || 0;
+      } else if (
+        tracing &&
+        cableId === selectedCableId &&
+        segIndex !== undefined
+      ) {
         // Defer the uniform — the front position needs every segment's
         // length first (offsets accumulate in _segIndex order).
         traceMats[traceCount] = mat;
@@ -257,9 +306,38 @@ export function attachCableFlow(
           front - offsets[traceSegs[i]];
       }
     }
+    if (bootCount > 0) {
+      const x = Math.max(0, Math.min(1, bootT / BOOT_DURATION_SEC));
+      const eased = 1 - Math.pow(1 - x, 3);
+      // Per-cable cumulative offsets + a front scaled to that cable's
+      // length, so short island hops and long trunks land together.
+      for (const [cid, lens] of bootLens) {
+        let total = 0;
+        const offs: number[] = [];
+        for (let i = 0; i < lens.length; i++) {
+          offs[i] = total;
+          total += lens[i] || 0;
+        }
+        bootOffs.set(cid, offs);
+        bootFront.set(cid, eased * (total + TRACE_HEAD_UNITS));
+      }
+      for (let i = 0; i < bootCount; i++) {
+        const offs = bootOffs.get(bootCables[i]);
+        const front = bootFront.get(bootCables[i]);
+        bootMats[i].uniforms.energizeFront.value =
+          front !== undefined && offs
+            ? front - (offs[bootSegs[i]] || 0)
+            : ENERGIZED;
+      }
+      bootOffs.clear();
+      bootFront.clear();
+    }
     // Drop material refs so disposed lines aren't retained between frames.
     traceMats.length = 0;
     traceSegs.length = 0;
+    bootMats.length = 0;
+    bootSegs.length = 0;
+    bootCables.length = 0;
 
     raf = requestAnimationFrame(tick);
   };
@@ -269,5 +347,8 @@ export function attachCableFlow(
     cancelAnimationFrame(raf);
     traceMats = [];
     traceSegs = [];
+    bootMats = [];
+    bootSegs = [];
+    bootCables = [];
   };
 }

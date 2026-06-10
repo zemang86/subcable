@@ -387,6 +387,14 @@ export default function GlobeScene() {
     setAudioMuted(muted);
   }, [muted]);
 
+  // The cable network sleeps (ghosted by cableFlow) from the moment the
+  // kiosk goes idle until the post-branding power-on — explicit state, not
+  // derived, so it spans the whole idle → emerge → fly-in → branding chain
+  // without flickering awake between phases. `cableBootAt` is the timestamp
+  // of the all-cables wake-up trace (0 = never fired).
+  const [networkDormant, setNetworkDormant] = useState(false);
+  const [cableBootAt, setCableBootAt] = useState(0);
+
   // Idle → enable auto-rotate and close any open dialog so the attractor
   // doesn't end up rendered behind a modal nobody is around to dismiss.
   useEffect(() => {
@@ -394,6 +402,9 @@ export default function GlobeScene() {
       // Cancel any in-flight camera move + pending arrival-settle so neither
       // fights the idle zoom-out.
       cancelFly();
+      // The network goes to sleep with the kiosk; it stays ghosted until
+      // the post-branding power-on fires on the next wake.
+      setNetworkDormant(true);
       setAutoRotate(true);
       setOpenDialog(null);
       setSelectedCable(null);
@@ -433,6 +444,12 @@ export default function GlobeScene() {
   // on a wake-from-idle, then revealed. Defaults true so the very first load
   // (no emerge) shows chrome immediately.
   const [chromeReady, setChromeReady] = useState(true);
+  // Chrome boot sequence on wake: panels mount in subsystem order (Header →
+  // Sidebar/system buttons → info panel → cluster/controls), each replaying
+  // its slide-in + materialize animations. 4 = fully booted — the default,
+  // so the very first load (no emerge) shows everything at once.
+  const BOOT_STEP_MS = 180;
+  const [bootStage, setBootStage] = useState(4);
   const wasIdleRef = useRef(isIdle);
   useEffect(() => {
     if (wasIdleRef.current && !isIdle) {
@@ -458,13 +475,29 @@ export default function GlobeScene() {
           }, ARRIVAL_MS);
         }
       }, SURFACE_MS);
-      // Fade the card in halfway through the emerge, hold through the fly-in,
-      // then bow it out. Reveal the chrome only after its 700ms fade completes.
-      const idIn = setTimeout(() => setBrandingOn(true), SURFACE_MS * 0.5);
-      const idOut = setTimeout(() => setBrandingLeaving(true), SURFACE_MS + 2500);
-      const idChrome = setTimeout(
-        () => setChromeReady(true),
-        SURFACE_MS + 2500 + 700,
+      // The branding card waits for the globe to be fully parked — emerge
+      // done, x-offset slide complete, both fly-in legs landed — so the
+      // splash/bounce beat plays unobstructed. Then: card holds, bows out
+      // (network power-on fires with it), and the chrome boots last.
+      const brandIn = SURFACE_MS + ARRIVAL_MS + ARRIVAL_SETTLE_MS;
+      const brandOut = brandIn + 2500;
+      const idIn = setTimeout(() => setBrandingOn(true), brandIn);
+      const idOut = setTimeout(() => {
+        setBrandingLeaving(true);
+        // Card bows out → power the network back on: cableFlow runs a
+        // one-shot circuit-trace on every cable simultaneously.
+        setNetworkDormant(false);
+        setCableBootAt(performance.now());
+      }, brandOut);
+      const idChrome = setTimeout(() => {
+        setChromeReady(true);
+        setBootStage(1); // chrome boots in subsystem order from here
+      }, brandOut + 700);
+      const idStages = [2, 3, 4].map((stage, i) =>
+        setTimeout(
+          () => setBootStage(stage),
+          brandOut + 700 + (i + 1) * BOOT_STEP_MS,
+        ),
       );
       wasIdleRef.current = isIdle;
       return () => {
@@ -472,6 +505,7 @@ export default function GlobeScene() {
         clearTimeout(idIn);
         clearTimeout(idOut);
         clearTimeout(idChrome);
+        idStages.forEach(clearTimeout);
       };
     }
     wasIdleRef.current = isIdle;
@@ -1004,13 +1038,17 @@ export default function GlobeScene() {
   const flowStateRef = useRef<CableFlowState>({
     selectedCableId: null,
     callCableIds: null,
+    dormant: false,
+    bootAt: 0,
   });
   useEffect(() => {
     flowStateRef.current = {
       selectedCableId: selectedCable?.id ?? null,
       callCableIds: activeCallCableIds,
+      dormant: networkDormant,
+      bootAt: cableBootAt,
     };
-  }, [selectedCable, activeCallCableIds]);
+  }, [selectedCable, activeCallCableIds, networkDormant, cableBootAt]);
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     const scene = globeRef.current.scene?.();
@@ -1524,27 +1562,31 @@ export default function GlobeScene() {
               interactive — no overlay wrappers. */}
 
           {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
-          <Sidebar
-            className="v1-enter-right"
-            selectedCable={selectedCable}
-            onSelectCable={handleSelectCable}
-            language={language}
-          />
+          {bootStage >= 2 && (
+            <Sidebar
+              className="v1-enter-right"
+              selectedCable={selectedCable}
+              onSelectCable={handleSelectCable}
+              language={language}
+            />
+          )}
 
           {/* Left of Cable System panel: Back / Audio / Naration button column.
               Back shows when a cable is selected OR a landing-point card is open
               (handleBack pops the open card first, then deselects the cable). */}
-          <SystemButtons
-            className="v1-enter-right v1-delay-1"
-            showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
-            onBack={handleBack}
-            muted={muted}
-            onAudioToggle={() => setMuted((m) => !m)}
-          />
+          {bootStage >= 2 && (
+            <SystemButtons
+              className="v1-enter-right v1-delay-1"
+              showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
+              onBack={handleBack}
+              muted={muted}
+              onAudioToggle={() => setMuted((m) => !m)}
+            />
+          )}
 
           {/* Right edge: CableInformation when a cable is selected, otherwise
               the General Information panel sits in the same slot. */}
-          {selectedCable ? (
+          {bootStage < 3 ? null : selectedCable ? (
             <CableInformation
               className="v1-enter-right v1-delay-2"
               cable={selectedCable}
@@ -1560,6 +1602,7 @@ export default function GlobeScene() {
           {/* Left edge centered: action cluster (Morse / Fun Fact / Help). The
               outer div holds the fixed centring transform; the inner div carries
               the slide-in animation so the two transforms don't collide. */}
+          {bootStage >= 4 && (
           <div
             style={{
               position: "fixed",
@@ -1619,16 +1662,20 @@ export default function GlobeScene() {
               )}
             </div>
           </div>
+          )}
 
-          {/* Bottom: titlebar */}
-          <Header
-            className="v1-enter-bottom v1-delay-1"
-            selectedCable={selectedCable}
-            language={language}
-          />
+          {/* Bottom: titlebar — first subsystem online. */}
+          {bootStage >= 1 && (
+            <Header
+              className="v1-enter-bottom v1-delay-1"
+              selectedCable={selectedCable}
+              language={language}
+            />
+          )}
 
           {/* Bottom-center: language toggle + re-center button (Figma V1.3).
               Outer div centres; inner div animates (avoids transform clash). */}
+          {bootStage >= 4 && (
           <div
             style={{
               position: "fixed",
@@ -1646,6 +1693,7 @@ export default function GlobeScene() {
               <RecenterButton onRecenter={resetView} />
             </div>
           </div>
+          )}
         </>
       )}
 
