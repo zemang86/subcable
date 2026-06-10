@@ -82,6 +82,25 @@ const GLOW_SCALE_BY_BUCKET = [1.0, 1.3, 1.7, 2.1, 2.4, 2.6] as const;
 // add the same offset so they stay locked to the sphere.
 const GLOBE_CENTER_FRAC = 0.4;
 const globeOffsetX = (width: number) => (GLOBE_CENTER_FRAC - 0.5) * width;
+// The translate above would drag the canvas edge into view and expose a bare
+// strip of page background (right edge when offset, left edge when idle slides
+// back to centre). So the canvas is oversized by the offset amount on BOTH
+// sides and statically shifted left by one bleed — its edges stay off-screen
+// at every point of the idle⇄active slide, and the globe lands on exactly the
+// same screen position as before. Projections map canvas→viewport with
+// `globeProjectionOffsetX`.
+const GLOBE_BLEED_FRAC = Math.abs(GLOBE_CENTER_FRAC - 0.5);
+const globeBleedX = (width: number) => GLOBE_BLEED_FRAC * width;
+const globeCanvasWidth = (width: number) =>
+  width + 2 * globeBleedX(width);
+// canvasX → viewportX for the non-idle pose (static -bleed shift + offset
+// translate). Takes the CANVAS width since projection code reads the renderer
+// DOM element (always current), not the React dimensions state (stale-closure
+// prone inside long-lived rAF loops).
+const globeProjectionOffsetX = (canvasWidth: number) => {
+  const viewportWidth = canvasWidth / (1 + 2 * GLOBE_BLEED_FRAC);
+  return globeOffsetX(viewportWidth) - globeBleedX(viewportWidth);
+};
 
 // City labels: one threshold instead of buckets. Above it cities vanish.
 // Below, geometry is built once and a per-frame scaler handles fade-in + a
@@ -1410,7 +1429,7 @@ export default function GlobeScene() {
         const renderer = globeRef.current?.renderer?.();
         if (camera && renderer) {
           const dom = renderer.domElement as HTMLCanvasElement;
-          const offX = globeOffsetX(dom.clientWidth);
+          const offX = globeProjectionOffsetX(dom.clientWidth);
           const next: Record<string, { x: number; y: number; visible: boolean }> = {};
           for (const p of markerPoints) {
             const xyz = globeRef.current.getCoords(p.lat, p.lng, 0.01);
@@ -1463,11 +1482,16 @@ export default function GlobeScene() {
       >
         <div
           className={surfacing ? "v1-globe-breach" : undefined}
-          style={{ willChange: "transform" }}
+          style={{
+            willChange: "transform",
+            // Static half-bleed shift — centres the oversized canvas so its
+            // edges stay off-screen at both ends of the idle⇄active slide.
+            marginLeft: -globeBleedX(dimensions.width),
+          }}
         >
         <Globe
           ref={globeRef}
-          width={dimensions.width}
+          width={globeCanvasWidth(dimensions.width)}
           height={dimensions.height}
         backgroundColor="#040E1F"
         backgroundImageUrl={STARFIELD_URL}
@@ -2197,7 +2221,7 @@ function CallAnimationOverlay({
       const w = dom.clientWidth;
       const h = dom.clientHeight;
       return {
-        x: ((v.x + 1) / 2) * w + globeOffsetX(w),
+        x: ((v.x + 1) / 2) * w + globeProjectionOffsetX(w),
         y: ((1 - v.y) / 2) * h,
       };
     };
