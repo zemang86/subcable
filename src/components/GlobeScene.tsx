@@ -48,6 +48,7 @@ import {
 import { useIdleAttractor } from "@/lib/useIdleAttractor";
 import { useT } from "@/lib/i18n";
 import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
+import { attachHologramRim } from "@/lib/hologramRim";
 
 // ───────── Tuning ─────────
 
@@ -987,6 +988,16 @@ export default function GlobeScene() {
     const scene = globeRef.current.scene?.();
     if (!scene) return;
     return attachCableFlow(scene, () => flowStateRef.current);
+  }, [isLoaded]);
+
+  // Hologram fresnel rim — crisp electric edge on the sphere's silhouette
+  // (src/lib/hologramRim.ts). The stock atmosphere stays on for the soft
+  // outer falloff; this shell provides the sharp inner edge.
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    return attachHologramRim(scene);
   }, [isLoaded]);
 
   // Render order: muted siblings first → halo rings → cores.
