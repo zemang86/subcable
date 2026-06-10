@@ -933,9 +933,26 @@ export default function GlobeScene() {
   // Any touch immediately takes the camera back from a programmatic flight
   // (cable zoom, recenter, arrival, …) so the globe never fights the finger.
   // Calls are exempt — their camera is scripted, and TAP TO SKIP is the out.
-  const handleScenePointerDown = useCallback(() => {
-    if (!activeCall) cancelFly();
-  }, [activeCall, cancelFly]);
+  //
+  // It also invalidates the landing-point card's "glide back on close"
+  // snapshot when the user grabs the GLOBE while a card is open: the snapshot
+  // exists to undo the card's auto-centering, not the user's own navigation —
+  // closing should leave the camera where they deliberately put it. Canvas
+  // target only: tapping the card itself (HTML) to close it also lands here,
+  // and that one must keep the snapshot or the glide-back would never happen.
+  const handleScenePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (activeCall) return;
+      cancelFly();
+      if (
+        expandedPointId !== null &&
+        (e.target as HTMLElement).tagName === "CANVAS"
+      ) {
+        prevPovRef.current = null;
+      }
+    },
+    [activeCall, cancelFly, expandedPointId],
+  );
 
   // Full reset (RightCluster ⊙) — deselect cable, close callout/dialog,
   // recenter, stop auto-rotate.
