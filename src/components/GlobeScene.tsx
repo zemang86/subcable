@@ -764,14 +764,22 @@ export default function GlobeScene() {
         cable.landingPointIds.includes(p.id),
       );
       if (points.length === 0) return;
+      // Unwrap longitudes around the first point so trans-Pacific systems
+      // (AAG: Malaysia → Guam → Hawaii → US) average across the antimeridian
+      // instead of cancelling out to the wrong side of the planet.
+      const anchor = points[0].lng;
+      const lngs = points.map((p) => {
+        let lng = p.lng;
+        while (lng - anchor > 180) lng -= 360;
+        while (lng - anchor < -180) lng += 360;
+        return lng;
+      });
       const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-      const avgLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
+      const avgLng = lngs.reduce((s, lng) => s + lng, 0) / lngs.length;
       const latSpread =
         Math.max(...points.map((p) => p.lat)) -
         Math.min(...points.map((p) => p.lat));
-      const lngSpread =
-        Math.max(...points.map((p) => p.lng)) -
-        Math.min(...points.map((p) => p.lng));
+      const lngSpread = Math.max(...lngs) - Math.min(...lngs);
       const spread = Math.max(latSpread, lngSpread);
       const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
       flyTo({ lat: avgLat, lng: avgLng, altitude }, 1500);
