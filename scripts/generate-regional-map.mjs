@@ -27,16 +27,30 @@ const LAT_MAX = 25;
 const LNG_MIN = 90;
 const LNG_MAX = 130;
 
+// ── Graticule (v7 hologram grid) ──
+// Must match generate-world-map.mjs (same 10°/30° spacing and colours) so
+// the grid lines up when this overlay cross-fades in at close zoom. This
+// texture is ~4.5× denser (px/deg) than the global bake, so the stroke is
+// wider in pixels yet renders slightly crisper on screen.
+const GRID_ENABLED = true;
+const GRID_STEP_DEG = 10;
+const GRID_MAJOR_EVERY_DEG = 30;
+const GRID_STROKE = 3.0;
+
 const PRESETS = {
   light: {
     sea: "#C9D7E8",
     land: "#FAF6EB",
     stroke: "rgba(60, 70, 95, 0.45)",
+    gridMinor: "rgba(60, 80, 120, 0.10)",
+    gridMajor: "rgba(60, 80, 120, 0.18)",
   },
   dark: {
     sea: "#1E3A5F",
     land: "#152033",
     stroke: "rgba(150, 165, 200, 0.30)",
+    gridMinor: "rgba(120, 170, 255, 0.08)",
+    gridMajor: "rgba(120, 170, 255, 0.16)",
   },
 };
 
@@ -114,11 +128,36 @@ for (const f of geojson.features) {
   }
 }
 
+// Grid lines at globally-aligned multiples of GRID_STEP_DEG that fall
+// inside the window — one M…V/H command per line, bucketed by tier.
+const graticuleSvg = (gridMinor, gridMajor) => {
+  if (!GRID_ENABLED) return "";
+  const minor = [];
+  const major = [];
+  const firstLng = Math.ceil(LNG_MIN / GRID_STEP_DEG) * GRID_STEP_DEG;
+  for (let lng = firstLng; lng <= LNG_MAX; lng += GRID_STEP_DEG) {
+    const [x] = project(lng, 0);
+    const bucket = lng % GRID_MAJOR_EVERY_DEG === 0 ? major : minor;
+    bucket.push(`M${x.toFixed(1)},0V${H}`);
+  }
+  const firstLat = Math.ceil(LAT_MIN / GRID_STEP_DEG) * GRID_STEP_DEG;
+  for (let lat = firstLat; lat <= LAT_MAX; lat += GRID_STEP_DEG) {
+    const [, y] = project(LNG_MIN, lat);
+    const bucket = lat % GRID_MAJOR_EVERY_DEG === 0 ? major : minor;
+    bucket.push(`M0,${y.toFixed(1)}H${W}`);
+  }
+  return `<g fill="none" stroke-width="${GRID_STROKE}">
+<path stroke="${gridMinor}" d="${minor.join("")}"/>
+<path stroke="${gridMajor}" d="${major.join("")}"/>
+</g>`;
+};
+
 for (const theme of themes) {
-  const { sea, land, stroke } = PRESETS[theme];
+  const { sea, land, stroke, gridMinor, gridMajor } = PRESETS[theme];
   const outFile = path.resolve(`public/textures/world-mono-${theme}-sea.webp`);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
 <rect width="${W}" height="${H}" fill="${sea}"/>
+${graticuleSvg(gridMinor, gridMajor)}
 <g fill="${land}" stroke="${stroke}" stroke-width="${STROKE_WIDTH}" stroke-linejoin="round" fill-rule="evenodd">
 ${paths.map((p) => `<path d="${p}"/>`).join("\n")}
 </g>
