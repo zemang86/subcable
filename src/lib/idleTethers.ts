@@ -65,6 +65,19 @@ const FLOW_WAVELENGTH = 20; // world units between pulses
 const FLOW_SPEED = 26; // world units/sec toward the globe
 const FLOW_AMP = 0.55;
 
+// ── Release (wake-up unplug) ──
+// On wake each conduit disconnects with a reverse circuit-trace: a white-hot
+// cut front launches at the clamp and races outward, consuming the tether —
+// fragments behind it (globe side) go dead, so the unplug IS the removal.
+// Staggered starts; the whole disengage spans the 2600ms waterline recede
+// (last tether dead at ~2550ms, right as the water clears).
+const RELEASE_STAGGER_MS = 280;
+const RELEASE_MS = 1430;
+const RELEASE_HEAD_UNITS = 8; // white-hot cut head length (world units)
+const PAD_FLASH_ALPHA = 1.25; // pad spike when its conduit lets go
+// "Still docked" sentinel — far beyond any tether's real length.
+const CONNECTED = 1e9;
+
 // Docking pads — glow discs hugging the surface at the clamp points.
 const PAD_RADIUS = 100.25; // shell radius (under the sweep at 100.3)
 const PAD_ANGLE_DEG = 3.0; // disc angular radius
@@ -89,14 +102,25 @@ varying float vFlowDist;
 
 const FRAG_DECLS = /* glsl */ `
 uniform float flowTime;
+uniform float cutFront;
 varying float vFlowDist;
 `;
 
+// Distance runs 0 at the off-screen end → max at the clamp, so the unplug
+// front starts at the globe and races outward as cutFront falls. Fragments
+// beyond it (rAhead > 0, the globe side) are disconnected and vanish; the
+// few units around it flash white-hot. While docked cutFront = CONNECTED,
+// so rMask=1, rHead=0 and this reduces to the plain feeding flow.
 const FRAG_FLOW = /* glsl */ `
 float flowP = fract( ( vFlowDist - flowTime ) / ${FLOW_WAVELENGTH.toFixed(1)} );
 float flowPulse = pow( flowP, 3.0 ) * smoothstep( 1.0, 0.97, flowP );
 float flowGain = ${(1 - FLOW_AMP).toFixed(2)} + ${FLOW_AMP.toFixed(2)} * 2.6 * flowPulse;
-gl_FragColor = vec4( diffuseColor.rgb * flowGain, alpha * flowGain );
+float rAhead = vFlowDist - cutFront;
+float rMask = 1.0 - clamp( rAhead * 0.7, 0.0, 1.0 );
+float rHead = smoothstep( ${RELEASE_HEAD_UNITS.toFixed(1)}, 0.0, abs( rAhead ) );
+float rGain = flowGain * rMask + 2.2 * rHead;
+vec3 rRGB = mix( diffuseColor.rgb, vec3( 1.0 ), 0.7 * min( rHead, 1.0 ) );
+gl_FragColor = vec4( rRGB * rGain, alpha * rGain );
 `;
 
 type FlowLineMaterial = LineMaterial & {
@@ -136,6 +160,7 @@ vFlowDist = ( position.y < 0.5 ) ? instanceDistanceStart : instanceDistanceEnd;`
       .replace(FRAG_MAIN, `${FRAG_DECLS}${FRAG_MAIN}`)
       .replace(FRAG_OUT, FRAG_FLOW);
     mat.uniforms.flowTime = { value: 0 };
+    mat.uniforms.cutFront = { value: CONNECTED };
   }
   return mat;
 }
@@ -175,6 +200,12 @@ type InterleavedAttr = {
 };
 
 export interface IdleTethers {
+  /**
+   * Wake-up disengage: each conduit unplugs with a staggered reverse
+   * circuit-trace, then everything disposes itself. Idempotent.
+   */
+  release(): void;
+  /** Hard removal (no animation) — unmount safety hatch. */
   detach(): void;
 }
 
@@ -194,6 +225,7 @@ export function attachIdleTethers(
     haloMat: FlowLineMaterial;
     padMesh: Mesh;
     padMat: ShaderMaterial;
+    totalLen: number; // arc length, refreshed each frame (release needs it)
   }
 
   const tethers: Tether[] = TETHERS.map((cfg) => {
@@ -240,7 +272,7 @@ export function attachIdleTethers(
     padMesh.renderOrder = 2;
     scene.add(padMesh);
 
-    return { geo, core, halo, coreMat, haloMat, padMesh, padMat };
+    return { geo, core, halo, coreMat, haloMat, padMesh, padMat, totalLen: 0 };
   });
 
   // Per-frame scratch (allocated once).
@@ -257,9 +289,38 @@ export function attachIdleTethers(
 
   const start = performance.now();
   let raf = 0;
+  let releaseAt = 0; // 0 = docked; timestamp once release() fires
+  let disposed = false;
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    cancelAnimationFrame(raf);
+    for (const t of tethers) {
+      scene.remove(t.core);
+      scene.remove(t.halo);
+      scene.remove(t.padMesh);
+      t.geo.dispose();
+      t.coreMat.dispose();
+      t.haloMat.dispose();
+      t.padMat.dispose();
+    }
+    padGeo.dispose();
+  };
+
   const tick = (now: number) => {
     const elapsed = (now - start) / 1000;
     const flowTime = elapsed * FLOW_SPEED;
+
+    // Releasing and every conduit fully consumed → clean up and stop.
+    if (
+      releaseAt &&
+      now >
+        releaseAt + (tethers.length - 1) * RELEASE_STAGGER_MS + RELEASE_MS + 60
+    ) {
+      dispose();
+      return;
+    }
 
     // Camera basis — orbit controls keep the camera aimed at the origin, so
     // the view plane through the globe centre spans (right, up) and NDC maps
@@ -332,17 +393,39 @@ export function attachIdleTethers(
       }
       posBuf.needsUpdate = true;
       distBuf.needsUpdate = true;
+      t.totalLen = cum;
+
+      // Unplug phase for THIS conduit (negative = its turn hasn't come yet).
+      // The cut front falls from the clamp to just past the off-screen end
+      // (ease-out, overshooting by the head length so the hot spot exits).
+      const lt = releaseAt
+        ? (now - releaseAt - ti * RELEASE_STAGGER_MS) / RELEASE_MS
+        : -1;
+      let cutFront = CONNECTED;
+      if (lt >= 0) {
+        const x = Math.min(1, lt);
+        const eased = 1 - Math.pow(1 - x, 3);
+        cutFront =
+          (t.totalLen + RELEASE_HEAD_UNITS) * (1 - eased) - RELEASE_HEAD_UNITS;
+      }
 
       for (const mat of [t.coreMat, t.haloMat]) {
         mat.resolution.set(size.x, size.y);
-        if (mat.uniforms.flowTime) mat.uniforms.flowTime.value = flowTime;
+        if (mat.uniforms.flowTime) {
+          mat.uniforms.flowTime.value = flowTime;
+          mat.uniforms.cutFront.value = cutFront;
+        }
       }
 
       (t.padMat.uniforms.padDir.value as Vector3).copy(clampDir);
+      // Pad: breathe while docked; on its conduit's release it spikes
+      // bright then decays to dark as the cut front pulls away.
       t.padMat.uniforms.padAlpha.value =
-        PAD_ALPHA_BASE +
-        PAD_ALPHA_PULSE *
-          Math.sin(elapsed * PAD_PULSE_HZ * 2 * Math.PI + ti * 1.9);
+        lt >= 0
+          ? PAD_FLASH_ALPHA * Math.pow(1 - Math.min(1, lt), 2)
+          : PAD_ALPHA_BASE +
+            PAD_ALPHA_PULSE *
+              Math.sin(elapsed * PAD_PULSE_HZ * 2 * Math.PI + ti * 1.9);
     }
 
     raf = requestAnimationFrame(tick);
@@ -350,18 +433,9 @@ export function attachIdleTethers(
   raf = requestAnimationFrame(tick);
 
   return {
-    detach() {
-      cancelAnimationFrame(raf);
-      for (const t of tethers) {
-        scene.remove(t.core);
-        scene.remove(t.halo);
-        scene.remove(t.padMesh);
-        t.geo.dispose();
-        t.coreMat.dispose();
-        t.haloMat.dispose();
-        t.padMat.dispose();
-      }
-      padGeo.dispose();
+    release() {
+      if (!releaseAt && !disposed) releaseAt = performance.now();
     },
+    detach: dispose,
   };
 }

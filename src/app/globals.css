@@ -387,11 +387,11 @@ body {
    the GPU (no per-frame re-raster of the blurred layers → smooth). Both share
    the same curve/duration so the surface line rides the top edge of the water. */
 .v1-uw-recede {
-  animation: v1-uw-drop 1150ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation: v1-uw-drop 2600ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
   will-change: transform;
 }
 .v1-uw-waterline {
-  animation: v1-uw-drop 1150ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation: v1-uw-drop 2600ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
   will-change: transform;
 }
 @keyframes v1-uw-drop {
@@ -402,7 +402,7 @@ body {
 /* Globe "breach" — during the emerge the globe rises up as the water drains
    past it, dips slightly, then settles back to centre (buoyant bob). Lives on
    its own wrapper so it doesn't collide with the left/centre X-translate. */
-.v1-globe-breach { animation: v1-globe-breach 1150ms ease-in-out both; }
+.v1-globe-breach { animation: v1-globe-breach 2600ms ease-in-out both; }
 @keyframes v1-globe-breach {
   0%   { transform: translateY(0); }
   12%  { transform: translateY(0); }
@@ -411,12 +411,12 @@ body {
   100% { transform: translateY(0); }
 }
 
-/* ── Surface-break FX — layered on during the 1150ms emerge ──────────────── */
+/* ── Surface-break FX — layered on during the 2600ms emerge ──────────────── */
 
 /* Rack focus: the globe pulls INTO focus as it rises out of the water. Plays on
    the globe wrapper during `surfacing`, overriding its inline blur until clear.
    (filter blur re-rasters per frame, but only for this one transient beat.) */
-.v1-globe-defocus { animation: v1-globe-defocus 1000ms ease-out both; }
+.v1-globe-defocus { animation: v1-globe-defocus 2250ms ease-out both; }
 @keyframes v1-globe-defocus {
   0%   { filter: blur(3px); }
   68%  { filter: blur(0.5px); }
@@ -426,7 +426,7 @@ body {
 /* Spray droplets flung off the globe as it breaches. --dx/--dy carry each
    droplet's outward vector; it arcs up-and-out, then falls back under gravity. */
 .v1-splash-drop {
-  animation: v1-splash-drop 600ms cubic-bezier(0.25, 0.6, 0.35, 1) both;
+  animation: v1-splash-drop 1300ms cubic-bezier(0.25, 0.6, 0.35, 1) both;
   will-change: transform, opacity;
 }
 @keyframes v1-splash-drop {
@@ -444,7 +444,7 @@ body {
 
 /* Surface shockwave — a thin ring expanding from the breach point. */
 .v1-ripple-ring {
-  animation: v1-ripple-ring 620ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation: v1-ripple-ring 1350ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
   will-change: transform, opacity;
 }
 @keyframes v1-ripple-ring {
@@ -455,7 +455,7 @@ body {
 
 /* Fast bubble rush as the globe surfaces (one-shot, vs the slow idle drift). */
 .v1-uw-rush {
-  animation: v1-uw-rush 1100ms ease-in both;
+  animation: v1-uw-rush 2450ms ease-in both;
   will-change: transform, opacity;
 }
 @keyframes v1-uw-rush {

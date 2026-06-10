@@ -421,7 +421,7 @@ export default function GlobeScene() {
   // overlay; on wake it plays the "rising out of the water" beat (the waterline
   // recedes top-down) before the chrome is revealed. `surfacing` is that
   // transient phase — must match the .v1-uw-recede duration in globals.css.
-  const SURFACE_MS = 1150;
+  const SURFACE_MS = 2600;
   const [surfacing, setSurfacing] = useState(false);
   // Branding card ("Submarine Cable Map / by TM") surfaces mid-emerge, holds
   // through the camera fly-in, then bows out — and ONLY once it's fully gone do
@@ -1039,8 +1039,10 @@ export default function GlobeScene() {
 
   // Idle umbilical tethers — while the kiosk idles "docked", glowing data
   // conduits clamp onto the visible hemisphere and feed pulses into the
-  // globe (src/lib/idleTethers.ts). Mounted only for the idle phase; on
-  // wake they vanish with the water (the animated unplug is a later beat).
+  // globe (src/lib/idleTethers.ts). On wake the cleanup triggers the
+  // staggered unplug animation (reverse circuit-trace racing off-screen),
+  // which disposes itself when the last conduit is consumed — it plays out
+  // under the receding waterline during the emerge.
   useEffect(() => {
     if (!isLoaded || !isIdle || !globeRef.current) return;
     const scene = globeRef.current.scene?.();
@@ -1050,7 +1052,7 @@ export default function GlobeScene() {
     const renderer = globeRef.current.renderer?.();
     if (!scene || !camera?.isPerspectiveCamera || !renderer) return;
     const tethers = attachIdleTethers(scene, camera, renderer);
-    return () => tethers.detach();
+    return () => tethers.release();
   }, [isLoaded, isIdle]);
 
   // Render order: muted siblings first → halo rings → cores.
