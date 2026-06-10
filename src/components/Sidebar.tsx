@@ -45,6 +45,14 @@ export default function Sidebar({
     thumbTopPct: 0,
     hasOverflow: false,
   });
+  // Drag-to-scroll on the card grid itself (the kiosk root sets
+  // touch-action:none, so native pan never fires — same pattern as the Morse
+  // picker sheet). A drag that moves >8px swallows the click it would
+  // otherwise land on, so scrolling never accidentally selects a card.
+  const gridDragRef = useRef<{ y: number; top: number; moved: boolean } | null>(
+    null,
+  );
+  const suppressCardClickRef = useRef(false);
 
   const visible = useMemo(() => {
     if (filter === "all") return cables;
@@ -138,6 +146,37 @@ export default function Sidebar({
         <div
           ref={scrollRef}
           className="v1-cable-grid-scroll"
+          onPointerDown={(e) => {
+            gridDragRef.current = {
+              y: e.clientY,
+              top: scrollRef.current?.scrollTop ?? 0,
+              moved: false,
+            };
+          }}
+          onPointerMove={(e) => {
+            const d = gridDragRef.current;
+            const el = scrollRef.current;
+            if (!d || !el) return;
+            const dy = e.clientY - d.y;
+            if (Math.abs(dy) > 8) d.moved = true;
+            el.scrollTop = d.top - dy;
+          }}
+          onPointerUp={() => {
+            suppressCardClickRef.current = gridDragRef.current?.moved ?? false;
+            gridDragRef.current = null;
+          }}
+          onPointerCancel={() => {
+            gridDragRef.current = null;
+          }}
+          onClickCapture={(e) => {
+            // A scroll-drag ends in a click on whichever card the finger
+            // lifted over — swallow it before it reaches the card.
+            if (suppressCardClickRef.current) {
+              suppressCardClickRef.current = false;
+              e.stopPropagation();
+              e.preventDefault();
+            }
+          }}
           style={{
             position: "absolute",
             top: 12,
@@ -509,14 +548,16 @@ function ScrollBar({
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       style={{
-        // Wide transparent hit area filling the right gutter so the thin
-        // visual bar is easy to grab on touch. The container spans the full
-        // 34px gutter (right:6 → left edge flush with the card grid) but the
-        // visual track/thumb/caps are right-anchored at the original position.
+        // Wide transparent hit area filling the FULL 34px right gutter (left
+        // edge flush with the card grid — any wider would steal taps from the
+        // right card column) so the thin visual bar is easy to grab on touch.
+        // The visual track/thumb/caps are right-anchored at their original
+        // panel position. The card grid itself is also drag-scrollable, so
+        // this bar is a secondary control.
         position: "absolute",
-        right: 6,
+        right: 0,
         top: 20,
-        width: 28,
+        width: 34,
         // Stop above the filter row so the thumb only travels the card-grid extent.
         bottom: FILTER_BUTTON_HEIGHT + 22,
         pointerEvents: hasOverflow ? "auto" : "none",
@@ -528,7 +569,7 @@ function ScrollBar({
       <div
         style={{
           position: "absolute",
-          right: 13,
+          right: 19,
           width: 8,
           top: 0,
           bottom: 0,
@@ -541,7 +582,7 @@ function ScrollBar({
         <div
           style={{
             position: "absolute",
-            right: 13,
+            right: 19,
             top: `${thumbTopPct}%`,
             width: 8,
             height: `${thumbHeightPct}%`,
@@ -556,7 +597,7 @@ function ScrollBar({
       <div
         style={{
           position: "absolute",
-          right: 10,
+          right: 16,
           width: 14,
           top: -1,
           height: 0,
@@ -568,7 +609,7 @@ function ScrollBar({
       <div
         style={{
           position: "absolute",
-          right: 10,
+          right: 16,
           width: 14,
           bottom: -1,
           height: 0,
@@ -602,6 +643,8 @@ function FilterButton({
       className="v1-pressable"
       style={{
         position: "relative",
+        // Visual height stays 32px (Figma); the invisible hit-extension span
+        // below grows the touch target to the 48px project minimum.
         height: FILTER_BUTTON_HEIGHT,
         background: active ? "#F05A22" : "rgba(255, 255, 255, 0.04)",
         border: "1px solid #FFFFFF",
@@ -656,6 +699,20 @@ function FilterButton({
           }}
         />
       )}
+      {/* Invisible hit-area extension — ±8px vertically takes the 32px visual
+          to a 48px touch target. Taps on it bubble to the button. The 14px gap
+          to the scroll container above and the 12px panel inset below mean it
+          overlaps nothing. */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: -8,
+          bottom: -8,
+          left: 0,
+          right: 0,
+        }}
+      />
     </button>
   );
 }
