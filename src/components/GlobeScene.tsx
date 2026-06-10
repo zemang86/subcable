@@ -49,6 +49,7 @@ import { useIdleAttractor } from "@/lib/useIdleAttractor";
 import { useT } from "@/lib/i18n";
 import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
 import { attachHologramRim } from "@/lib/hologramRim";
+import { attachScanSweep } from "@/lib/scanSweep";
 
 // ───────── Tuning ─────────
 
@@ -998,6 +999,15 @@ export default function GlobeScene() {
     const scene = globeRef.current.scene?.();
     if (!scene) return;
     return attachHologramRim(scene);
+  }, [isLoaded]);
+
+  // Scanline sweep — a radar-style band of light circling the sphere every
+  // ~20s (src/lib/scanSweep.ts), so the globe reads as continuously scanned.
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    return attachScanSweep(scene);
   }, [isLoaded]);
 
   // Render order: muted siblings first → halo rings → cores.
