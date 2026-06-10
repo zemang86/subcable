@@ -218,13 +218,9 @@ const ARRIVAL_SETTLE_MS = 650;
 const MIN_CAM_DISTANCE = 108; // ~altitude 0.08 (close detail)
 const MAX_CAM_DISTANCE = 440; // ~altitude 3.4
 
-// Tooltip styling for the built-in pointLabel / pathLabel render.
-const TOOLTIP_STYLE =
-  "padding:6px 10px;background:rgba(4,14,31,0.92);border:1px solid rgba(255,255,255,0.40);color:#FFFFFF;font-size:12px;font-family:'Rajdhani','Helvetica Neue',sans-serif;font-weight:600;letter-spacing:0.04em;";
-const renderPathLabel = (path: any) =>
-  `<div style="${TOOLTIP_STYLE}">${path.name}</div>`;
-const renderPointLabel = (p: any) =>
-  `<div style="${TOOLTIP_STYLE}">${p.city}, ${p.country}</div>`;
+// NOTE: no pathLabel/pointLabel hover tooltips — they never fire on the
+// touch kiosk (no hover), and with tap forgiveness every tap already lands
+// on the full info (cable panel / landing-point card) in one step.
 
 interface PathData {
   coords: [number, number][];
@@ -1461,7 +1457,6 @@ export default function GlobeScene() {
         pathStroke={getPathStroke as any}
         pathResolution={0.05}
         pathTransitionDuration={0}
-        pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
         onGlobeClick={handleGlobeClick as any}
         pointsData={pointsData}
@@ -1470,7 +1465,6 @@ export default function GlobeScene() {
         pointColor={getPointColor as any}
         pointAltitude={getPointAltitude as any}
         pointRadius={pointRadius}
-        pointLabel={renderPointLabel}
         onPointClick={handleGlobePointClick}
         labelsData={allLabels}
         labelLat="lat"
