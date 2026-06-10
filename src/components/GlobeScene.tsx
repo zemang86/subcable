@@ -244,6 +244,9 @@ interface PathData {
   name: string;
   color: string;
   status: CableSystem["status"];
+  // Position of this segment within its cable's route — the circuit-trace
+  // selection effect energizes segments in this order (src/lib/cableFlow.ts).
+  _segIndex: number;
   // Neon glow ring index: undefined = white-hot core line,
   // 2 = saturated colour glow hugging the core.
   _halo?: 2;
@@ -495,15 +498,16 @@ export default function GlobeScene() {
           : status === "planned"
             ? V1_COLORS.orange
             : baseColor;
-      for (const seg of route.segments) {
+      route.segments.forEach((seg, segIndex) => {
         out.push({
           coords: seg.coords,
           cableId: route.cableId,
           name: cable?.shortName || route.cableId,
           color: colorByStatus,
           status,
+          _segIndex: segIndex,
         });
-      }
+      });
     }
     return out;
   }, []);
