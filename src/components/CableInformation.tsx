@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CableSystem, Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 
@@ -539,7 +539,33 @@ function FilmStripChip({ label }: { label: string }) {
 // Includes a chamfered top-right corner, a bottom-left staircase, and an
 // open-ended inner L-bracket on the left. Text overlays are positioned
 // inside the corresponding viewBox regions.
+//
+// The frame is a fixed 104px (the panel body is a fixed Figma frame, so the
+// block can't grow). Copy that doesn't fit used to be silently clipped; now
+// overflow is detected and the text becomes drag-scrollable (pointer-driven —
+// the kiosk root sets touch-action:none, so native pan never fires), with a
+// bottom fade + chevron so the user can SEE there's more.
 function DescriptionBlock({ label, text }: { label: string; text: string }) {
+  const bodyRef = useRef<HTMLParagraphElement | null>(null);
+  const dragRef = useRef<{ y: number; top: number } | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
+  const [atEnd, setAtEnd] = useState(false);
+
+  // Re-measure whenever the copy changes (cable switch / language flip).
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+    setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    setAtEnd(false);
+  }, [text]);
+
+  const updateAtEnd = () => {
+    const el = bodyRef.current;
+    if (!el) return;
+    setAtEnd(el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
+  };
+
   return (
     <div
       style={{
@@ -610,8 +636,33 @@ function DescriptionBlock({ label, text }: { label: string; text: string }) {
       </span>
 
       {/* Body text — right of inner bracket, below the eyebrow chip,
-          above the bottom-left staircase. */}
+          above the bottom-left staircase. Drag-scrollable when it overflows;
+          the fade mask lifts once scrolled to the end. */}
       <p
+        ref={bodyRef}
+        onPointerDown={(e) => {
+          if (!overflowing) return;
+          dragRef.current = {
+            y: e.clientY,
+            top: bodyRef.current?.scrollTop ?? 0,
+          };
+        }}
+        onPointerMove={(e) => {
+          const d = dragRef.current;
+          const el = bodyRef.current;
+          if (!d || !el) return;
+          el.scrollTop = d.top - (e.clientY - d.y);
+          updateAtEnd();
+        }}
+        onPointerUp={() => {
+          dragRef.current = null;
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null;
+        }}
+        onPointerLeave={() => {
+          dragRef.current = null;
+        }}
         style={{
           position: "absolute",
           top: "26%",
@@ -625,10 +676,41 @@ function DescriptionBlock({ label, text }: { label: string; text: string }) {
           lineHeight: "13px",
           color: "#FFFFFF",
           overflow: "hidden",
+          userSelect: "none",
+          touchAction: "none",
+          ...(overflowing && !atEnd
+            ? {
+                WebkitMaskImage:
+                  "linear-gradient(180deg, #000 62%, transparent 100%)",
+                maskImage:
+                  "linear-gradient(180deg, #000 62%, transparent 100%)",
+              }
+            : null),
         }}
       >
         {text}
       </p>
+
+      {/* "More below" chevron — only while overflowing copy hasn't been
+          scrolled to its end. */}
+      {overflowing && !atEnd && (
+        <span
+          aria-hidden
+          className="v1-pulse"
+          style={{
+            position: "absolute",
+            right: "4%",
+            bottom: 2,
+            fontFamily: "var(--v1-mono)",
+            fontSize: 11,
+            lineHeight: 1,
+            color: "#FFFFFF",
+            pointerEvents: "none",
+          }}
+        >
+          ⌄
+        </span>
+      )}
     </div>
   );
 }
