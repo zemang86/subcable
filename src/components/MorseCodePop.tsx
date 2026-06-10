@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { decodeSymbols } from "@/lib/morse";
 import { dialablePoints, sensiblyReachableFrom } from "@/lib/callRoutes";
 import {
@@ -322,34 +322,37 @@ export default function MorseCodePop({
           />
         ))}
 
-        {/* ── PICKERS ── overlay selects mask the SVG's baked-in city/country
-            text. Each is sized exactly to the picker rect; opaque navy
-            background covers the SVG decorations underneath. */}
-        <PickerOverlay
+        {/* ── PICKERS ── trigger buttons mask the SVG's baked-in city/country
+            text (opaque navy covers the decorations underneath); tapping one
+            opens a touch-first option sheet over the dialog body. */}
+        <TouchPicker
           pos={POS.fromCountry}
           value={fromCountry}
           onChange={onChangeFromCountry}
           options={countries.map((c) => ({ value: c, label: c }))}
           ariaLabel="From country"
           placeholder={fromCountry}
+          title={t("selectCountry")}
         />
-        <PickerOverlay
+        <TouchPicker
           pos={POS.fromCity}
           value={from}
           onChange={setFrom}
           options={lpsIn(fromCountry).map((p) => ({ value: p.id, label: p.city }))}
           ariaLabel="From location"
           placeholder={fromPoint?.city}
+          title={t("selectLocation")}
         />
-        <PickerOverlay
+        <TouchPicker
           pos={POS.toCountry}
           value={toCountry}
           onChange={onChangeToCountry}
           options={toCountries.map((c) => ({ value: c, label: c }))}
           ariaLabel="To country"
           placeholder={toCountry}
+          title={t("selectCountry")}
         />
-        <PickerOverlay
+        <TouchPicker
           pos={POS.toCity}
           value={to}
           onChange={setTo}
@@ -359,6 +362,7 @@ export default function MorseCodePop({
           }))}
           ariaLabel="To location"
           placeholder={toPoint?.city}
+          title={t("selectLocation")}
         />
 
         {/* Mask out the baked-in "max letters" hint at the top-left INSIDE the
@@ -545,19 +549,21 @@ function absPos(p: Pos): React.CSSProperties {
   };
 }
 
-/* ─────────────────────── PICKER OVERLAY ─────────────────────── */
-// Native <select> sized to the SVG's picker rect. Opaque navy bg covers
-// the baked-in city/country text underneath. Live label text is the
-// `placeholder` prop (rendered visually) while the select itself is
-// stretched on top to capture taps and open the dropdown.
+/* ─────────────────────── TOUCH PICKER ─────────────────────── */
+// Replaces the old transparent-native-<select> overlay, which was hostile on
+// the kiosk: the OS dropdown is tiny, un-themed, and has no cancel affordance.
+// The trigger keeps the exact same look (navy mask over the SVG-baked picker
+// rect, live label, caret); tapping it opens PickerSheet — a scrimmed panel
+// over the dialog body with big touch cells.
 
-function PickerOverlay({
+function TouchPicker({
   pos,
   value,
   onChange,
   options,
   ariaLabel,
   placeholder,
+  title,
 }: {
   pos: Pos;
   value: string;
@@ -565,78 +571,239 @@ function PickerOverlay({
   options: { value: string; label: string }[];
   ariaLabel: string;
   placeholder?: string;
+  title: string;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div style={absPos(pos)}>
-      {/* Opaque navy mask covers the SVG-baked picker text */}
+    <>
+      <div style={absPos(pos)}>
+        {/* Opaque navy mask covers the SVG-baked picker text */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "#1B3E6D",
+            pointerEvents: "none",
+          }}
+        />
+        {/* Visible live label */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--v1-mono)",
+            fontWeight: 500,
+            fontSize: 14.57,
+            lineHeight: 1,
+            color: "#FFFFFF",
+            pointerEvents: "none",
+            padding: "0 32px",
+            textAlign: "center",
+          }}
+        >
+          {placeholder ?? "—"}
+        </div>
+        {/* Caret — small white down-triangle on the right */}
+        <svg
+          width="15"
+          height="10"
+          viewBox="0 0 15 10"
+          aria-hidden
+          style={{
+            position: "absolute",
+            right: 10,
+            top: "50%",
+            transform: "translateY(-50%)",
+            pointerEvents: "none",
+          }}
+        >
+          <polygon points="0,0 15,0 7.5,10" fill="#FFFFFF" />
+        </svg>
+        {/* Transparent tap target over the whole trigger */}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="v1-pressflash"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+          }}
+        />
+      </div>
+      {open && (
+        <PickerSheet
+          title={title}
+          options={options}
+          value={value}
+          onPick={(v) => {
+            onChange(v);
+            setOpen(false);
+          }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+/* ─────────────────────── PICKER SHEET ─────────────────────── */
+// Fullscreen-within-the-dialog option panel: scrim (tap to cancel), TitleStrip
+// header (✕ to cancel), options as a 3-column grid of 52px cells, current
+// value highlighted orange. Scrolling is DRAG-DRIVEN via pointer events — the
+// kiosk root sets touch-action:none, so native pan gestures never fire and a
+// plain overflow:auto list would be finger-unscrollable. A drag that moves
+// more than a few px suppresses the click it would otherwise land on.
+
+function PickerSheet({
+  title,
+  options,
+  value,
+  onPick,
+  onClose,
+}: {
+  title: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onPick: (value: string) => void;
+  onClose: () => void;
+}) {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ y: number; top: number; moved: boolean } | null>(
+    null,
+  );
+  const suppressClickRef = useRef(false);
+
+  return (
+    // Positioned against the dialog body (nearest positioned ancestor), above
+    // every other overlay in it.
+    <div style={{ position: "absolute", inset: 0, zIndex: 40 }}>
+      {/* Scrim — tap anywhere outside the panel cancels. */}
       <div
+        onClick={onClose}
         style={{
           position: "absolute",
           inset: 0,
-          background: "#1B3E6D",
-          pointerEvents: "none",
+          background: "rgba(2, 8, 20, 0.62)",
         }}
       />
-      {/* Visible live label */}
       <div
+        role="listbox"
+        aria-label={title}
         style={{
           position: "absolute",
-          inset: 0,
+          left: 24,
+          right: 24,
+          top: 16,
+          bottom: 16,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "var(--v1-mono)",
-          fontWeight: 500,
-          fontSize: 14.57,
-          lineHeight: 1,
-          color: "#FFFFFF",
-          pointerEvents: "none",
-          padding: "0 32px",
-          textAlign: "center",
+          flexDirection: "column",
+          gap: 6,
         }}
       >
-        {placeholder ?? "—"}
+        <TitleStrip title={title} onClose={onClose} />
+        <div
+          ref={listRef}
+          onPointerDown={(e) => {
+            dragRef.current = {
+              y: e.clientY,
+              top: listRef.current?.scrollTop ?? 0,
+              moved: false,
+            };
+          }}
+          onPointerMove={(e) => {
+            const d = dragRef.current;
+            const el = listRef.current;
+            if (!d || !el) return;
+            const dy = e.clientY - d.y;
+            if (Math.abs(dy) > 8) d.moved = true;
+            el.scrollTop = d.top - dy;
+          }}
+          onPointerUp={() => {
+            suppressClickRef.current = dragRef.current?.moved ?? false;
+            dragRef.current = null;
+          }}
+          onPointerCancel={() => {
+            dragRef.current = null;
+          }}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            background: "rgba(4, 14, 31, 0.96)",
+            border: "0.37px solid rgba(255, 255, 255, 0.6)",
+            padding: 18,
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 10,
+            alignContent: "start",
+            boxSizing: "border-box",
+          }}
+        >
+          {options.length === 0 && (
+            <span
+              style={{
+                gridColumn: "1 / -1",
+                fontFamily: "var(--v1-mono)",
+                fontSize: 14,
+                color: "rgba(255, 255, 255, 0.6)",
+                textAlign: "center",
+                padding: 24,
+              }}
+            >
+              —
+            </span>
+          )}
+          {options.map((o) => {
+            const selected = o.value === value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={selected ? undefined : "v1-pressflash"}
+                onClick={() => {
+                  // A drag that scrolled the list ends in a click on whatever
+                  // cell the finger lifted over — swallow it.
+                  if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return;
+                  }
+                  onPick(o.value);
+                }}
+                style={{
+                  minHeight: 52,
+                  border: selected
+                    ? "1px solid #F05A22"
+                    : "1px solid rgba(255, 255, 255, 0.35)",
+                  ...(selected ? { background: "#F05A22" } : null),
+                  color: "#FFFFFF",
+                  fontFamily: "var(--v1-mono)",
+                  fontWeight: selected ? 700 : 400,
+                  fontSize: 15,
+                  lineHeight: 1.2,
+                  cursor: "pointer",
+                  padding: "0 12px",
+                  textAlign: "center",
+                }}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      {/* Caret — small white down-triangle on the right */}
-      <svg
-        width="15"
-        height="10"
-        viewBox="0 0 15 10"
-        aria-hidden
-        style={{
-          position: "absolute",
-          right: 10,
-          top: "50%",
-          transform: "translateY(-50%)",
-          pointerEvents: "none",
-        }}
-      >
-        <polygon points="0,0 15,0 7.5,10" fill="#FFFFFF" />
-      </svg>
-      {/* Transparent select stretched over the whole picker — catches taps */}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={ariaLabel}
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          opacity: 0,
-          cursor: "pointer",
-          appearance: "none",
-          border: "none",
-          background: "transparent",
-        }}
-      >
-        {options.length === 0 && <option value="">—</option>}
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }
