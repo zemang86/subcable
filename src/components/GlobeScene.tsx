@@ -51,6 +51,7 @@ import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
 import { attachHologramRim } from "@/lib/hologramRim";
 import { attachScanSweep } from "@/lib/scanSweep";
 import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
+import { attachIdleTethers } from "@/lib/idleTethers";
 
 // ───────── Tuning ─────────
 
@@ -1035,6 +1036,22 @@ export default function GlobeScene() {
     if (!scene) return;
     return attachScanSweep(scene);
   }, [isLoaded]);
+
+  // Idle umbilical tethers — while the kiosk idles "docked", glowing data
+  // conduits clamp onto the visible hemisphere and feed pulses into the
+  // globe (src/lib/idleTethers.ts). Mounted only for the idle phase; on
+  // wake they vanish with the water (the animated unplug is a later beat).
+  useEffect(() => {
+    if (!isLoaded || !isIdle || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    const camera = globeRef.current.camera?.() as
+      | THREE.PerspectiveCamera
+      | undefined;
+    const renderer = globeRef.current.renderer?.();
+    if (!scene || !camera?.isPerspectiveCamera || !renderer) return;
+    const tethers = attachIdleTethers(scene, camera, renderer);
+    return () => tethers.detach();
+  }, [isLoaded, isIdle]);
 
   // Render order: muted siblings first → halo rings → cores.
   // Later entries in pathsData paint over earlier ones in three-globe, so
