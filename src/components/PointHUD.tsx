@@ -19,7 +19,6 @@ const SVG_H = 70;
 export const MARKER_TOP = 32; // y at which the (scaled) marker artwork begins
 const MARKER_X = (SVG_W - MARKER_NATIVE_W * MARKER_SCALE) / 2; // center horizontally
 export const HUD_CENTER_Y = MARKER_TOP + MARKER_NATIVE_CY * MARKER_SCALE;
-export const HUD_BOTTOM_PAD = SVG_H - HUD_CENTER_Y;
 
 export function PointHUD({
   status = "active",

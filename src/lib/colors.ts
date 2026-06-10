@@ -37,40 +37,6 @@ export const V1_COLORS = {
   cableMutedHex:"#FFFFFF",
 } as const;
 
-// Legacy alias kept while Phase 5 (GlobeScene re-skin) is pending. Each key
-// resolves to the closest v1 equivalent so the cobalt era can compile without
-// leaking the old palette into visible chrome.
-export const TM_COLORS = {
-  cobalt:               V1_COLORS.blue,
-  navy:                 V1_COLORS.bgDeep,
-  darkBlue:             V1_COLORS.bg,
-  black:                "#000000",
-  white:                V1_COLORS.fg,
-  red:                  V1_COLORS.inactive2,
-  accentOrange:         V1_COLORS.orange,
-  orange:               V1_COLORS.orange,
-  lightOrange:          V1_COLORS.orange,
-  primary:              V1_COLORS.blue,
-  bgPrimary:            V1_COLORS.bg,
-  bgSecondary:          V1_COLORS.bgDeep,
-  bgCard:               V1_COLORS.bgDeep,
-  borderGlow:           "rgba(3, 77, 161, 0.35)",
-  textPrimary:          V1_COLORS.fg,
-  textSecondary:        V1_COLORS.mute,
-  textAccent:           V1_COLORS.orange,
-  statusActive:         V1_COLORS.active,
-  statusPlanned:        V1_COLORS.orange,
-  statusRetired:        V1_COLORS.muteDark,
-  statusInactive:       V1_COLORS.inactive,
-  atmosphereColor:      V1_COLORS.atmosphere,
-  landingPointDefault:  V1_COLORS.fg,
-  landingPointActive:   V1_COLORS.orange,
-  cableHighlight:       V1_COLORS.cableSelected,
-  cableMuted:           V1_COLORS.cableMuted,
-  cableRetired:         "rgba(255, 255, 255, 0.18)",
-  cablePlanned:         V1_COLORS.orange,
-} as const;
-
 // One color per cable family — kept for per-cable identity in the side panel,
 // even though the globe now renders selected/unselected uniformly.
 export const CABLE_COLORS: Record<string, string> = {
