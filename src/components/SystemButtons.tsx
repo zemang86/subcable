@@ -118,6 +118,7 @@ function PressButton({
     <button
       type="button"
       aria-label={label}
+      className="v1-pressable"
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         setPressed(true);

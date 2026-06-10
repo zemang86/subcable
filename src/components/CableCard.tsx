@@ -54,7 +54,7 @@ export default function CableCard({ cable, isSelected, onSelect }: CableCardProp
     <button
       type="button"
       onClick={() => onSelect(cable)}
-      className={`v1-cablecard ${isSelected ? "is-selected" : ""} ${inactive ? "is-inactive" : ""}`}
+      className={`v1-cablecard v1-pressable ${isSelected ? "is-selected" : ""} ${inactive ? "is-inactive" : ""}`}
       style={{
         position: "relative",
         cursor: "pointer",

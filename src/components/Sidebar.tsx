@@ -599,6 +599,7 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
+      className="v1-pressable"
       style={{
         position: "relative",
         height: FILTER_BUTTON_HEIGHT,

@@ -15,6 +15,9 @@ export function RecenterButton({
       type="button"
       onClick={onRecenter}
       aria-label={ariaLabel}
+      // rotate(180deg) lives on this element — scale would clobber it, so the
+      // press feedback is the filter-only variant.
+      className="v1-pressable-dim"
       style={{
         width: 44,
         height: 44,

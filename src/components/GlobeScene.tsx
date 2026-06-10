@@ -43,6 +43,7 @@ import {
   playDialing,
   playMessage,
   setMuted as setAudioMuted,
+  stopAll as stopAllAudio,
 } from "@/lib/morseAudio";
 import { useIdleAttractor } from "@/lib/useIdleAttractor";
 import { useT } from "@/lib/i18n";
@@ -239,6 +240,72 @@ interface PathData {
 export default function GlobeScene() {
   const globeRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // ── Cancellable camera flights ──
+  // globe.gl's pointOfView tweens can't be interrupted (the tween group isn't
+  // exposed, and a 0-duration set doesn't kill an in-flight tween), so a long
+  // programmatic move fights the user's drag for its whole duration. Instead,
+  // every user-flow camera move goes through flyTo: our own rAF loop stepping
+  // pointOfView(…, 0) frames with the same cubic in-out easing — and any
+  // pointerdown cancels it instantly, handing control back to the finger.
+  const flyRafRef = useRef<number | null>(null);
+  // Timer for the second leg of the emerge arrival (overshoot → settle); owned
+  // here so cancelling a flight also cancels its queued follow-up leg.
+  const arrivalSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelFly = useCallback(() => {
+    if (flyRafRef.current !== null) {
+      cancelAnimationFrame(flyRafRef.current);
+      flyRafRef.current = null;
+    }
+    if (arrivalSettleRef.current) {
+      clearTimeout(arrivalSettleRef.current);
+      arrivalSettleRef.current = null;
+    }
+  }, []);
+  const flyTo = useCallback(
+    (
+      target: { lat?: number; lng?: number; altitude?: number },
+      ms: number,
+    ) => {
+      const g = globeRef.current;
+      if (!g) return;
+      cancelFly();
+      const from = g.pointOfView?.();
+      if (!from || ms <= 0) {
+        g.pointOfView(target, 0);
+        return;
+      }
+      const to = {
+        lat: target.lat ?? from.lat,
+        lng: target.lng ?? from.lng,
+        altitude: target.altitude ?? from.altitude,
+      };
+      // Shortest way around for longitude (never rotate >180°).
+      let dLng = to.lng - from.lng;
+      while (dLng > 180) dLng -= 360;
+      while (dLng < -180) dLng += 360;
+      const startTs = performance.now();
+      const ease = (t: number) =>
+        t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+      const step = () => {
+        const t = Math.min(1, (performance.now() - startTs) / ms);
+        const e = ease(t);
+        globeRef.current?.pointOfView(
+          {
+            lat: from.lat + (to.lat - from.lat) * e,
+            lng: from.lng + dLng * e,
+            altitude: from.altitude + (to.altitude - from.altitude) * e,
+          },
+          0,
+        );
+        if (t < 1) flyRafRef.current = requestAnimationFrame(step);
+        else flyRafRef.current = null;
+      };
+      flyRafRef.current = requestAnimationFrame(step);
+    },
+    [cancelFly],
+  );
+  useEffect(() => cancelFly, [cancelFly]);
   // Intro splash: shown AFTER the loading screen finishes (isLoaded → true),
   // held ~3.5s then faded out to reveal the globe. Order: loading → splash →
   // globe. `splashFading` triggers the fade-out before unmount.
@@ -299,11 +366,9 @@ export default function GlobeScene() {
   // doesn't end up rendered behind a modal nobody is around to dismiss.
   useEffect(() => {
     if (isIdle) {
-      // Cancel any pending arrival-settle so it can't fight the idle zoom-out.
-      if (arrivalSettleRef.current) {
-        clearTimeout(arrivalSettleRef.current);
-        arrivalSettleRef.current = null;
-      }
+      // Cancel any in-flight camera move + pending arrival-settle so neither
+      // fights the idle zoom-out.
+      cancelFly();
       setAutoRotate(true);
       setOpenDialog(null);
       setSelectedCable(null);
@@ -316,17 +381,16 @@ export default function GlobeScene() {
     } else {
       setAutoRotate(false);
     }
-  }, [isIdle]);
+  }, [isIdle, cancelFly]);
 
   // Dolly the camera back when idle (globe sits smaller/further in the scene).
   // The zoom back IN is deliberately deferred to AFTER the emerge — see the
   // surfacing effect — so the globe surfaces at its far size, then zooms in.
   // Only altitude is passed so the current lat/lng (idle rotation) is kept.
   useEffect(() => {
-    const g = globeRef.current;
-    if (!g || !isLoaded) return;
-    if (isIdle) g.pointOfView({ altitude: IDLE_ALT }, 1200);
-  }, [isIdle, isLoaded]);
+    if (!globeRef.current || !isLoaded) return;
+    if (isIdle) flyTo({ altitude: IDLE_ALT }, 1200);
+  }, [isIdle, isLoaded, flyTo]);
 
   // Underwater attract mode: while idle the globe sits under a "submerged"
   // overlay; on wake it plays the "rising out of the water" beat (the waterline
@@ -345,7 +409,6 @@ export default function GlobeScene() {
   // (no emerge) shows chrome immediately.
   const [chromeReady, setChromeReady] = useState(true);
   const wasIdleRef = useRef(isIdle);
-  const arrivalSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (wasIdleRef.current && !isIdle) {
       setSurfacing(true);
@@ -355,15 +418,15 @@ export default function GlobeScene() {
         setSurfacing(false);
         // Globe surfaces at its far size, THEN the camera flies in: sweep toward
         // the Malaysia hero region while zooming PAST the resting view (a slight
-        // overshoot), then ease back out to settle — a cinematic arrival.
-        const g = globeRef.current;
-        if (g) {
-          g.pointOfView(
+        // overshoot), then ease back out to settle — a cinematic arrival. Both
+        // legs ride flyTo so a touch can take over at any point.
+        if (globeRef.current) {
+          flyTo(
             { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: ARRIVAL_OVERSHOOT_ALT },
             ARRIVAL_MS,
           );
           arrivalSettleRef.current = setTimeout(() => {
-            globeRef.current?.pointOfView(
+            flyTo(
               { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
               ARRIVAL_SETTLE_MS,
             );
@@ -387,7 +450,7 @@ export default function GlobeScene() {
       };
     }
     wasIdleRef.current = isIdle;
-  }, [isIdle]);
+  }, [isIdle, flyTo]);
 
   // Resize handler
   useEffect(() => {
@@ -707,17 +770,11 @@ export default function GlobeScene() {
         Math.min(...points.map((p) => p.lng));
       const spread = Math.max(latSpread, lngSpread);
       const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
-      globeRef.current.pointOfView(
-        { lat: avgLat, lng: avgLng, altitude },
-        1500,
-      );
+      flyTo({ lat: avgLat, lng: avgLng, altitude }, 1500);
     } else if (!cable && globeRef.current) {
-      globeRef.current.pointOfView(
-        { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
-        1500,
-      );
+      flyTo({ lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT }, 1500);
     }
-  }, []);
+  }, [flyTo]);
 
   const handlePathClick = useCallback(
     (path: PathData) => {
@@ -740,12 +797,12 @@ export default function GlobeScene() {
   const closeExpanded = useCallback(() => {
     const prev = prevPovRef.current;
     if (prev) {
-      globeRef.current?.pointOfView(prev, 700);
+      flyTo(prev, 700);
       prevPovRef.current = null;
     }
     setExpandedPointId(null);
     setSelectedLandingPoint(null);
-  }, []);
+  }, [flyTo]);
 
   // Back button — pops one navigation step:
   //  1. If a landing-point callout is open (location info showing) → close it,
@@ -780,10 +837,10 @@ export default function GlobeScene() {
         };
       }
       const alt = pov?.altitude ?? DEFAULT_ALT;
-      globeRef.current?.pointOfView({ lat: p.lat, lng: p.lng, altitude: alt }, 700);
+      flyTo({ lat: p.lat, lng: p.lng, altitude: alt }, 700);
       setExpandedPointId(p.id);
     },
-    [expandedPointId, closeExpanded],
+    [expandedPointId, closeExpanded, flyTo],
   );
 
   // Open a landing point's info directly (the expanded card), independent of
@@ -808,13 +865,81 @@ export default function GlobeScene() {
     [openLandingPoint],
   );
 
+  // ── Tap forgiveness ──
+  // Globe dots are a few px and cable strokes thinner still, so a fingertip
+  // that just misses raycasts through to the bare globe. onGlobeClick catches
+  // that miss and retargets it: the nearest landing point within an
+  // altitude-scaled reach (≈ a fingertip at any zoom), else the nearest cable
+  // vertex within a tighter reach. Zooming in shrinks the reach, so precision
+  // returns once targets are big enough to hit directly.
+  const handleGlobeClick = useCallback(
+    ({ lat, lng }: { lat: number; lng: number }) => {
+      if (isIdle || surfacing || activeCall) return;
+      const alt = globeRef.current?.pointOfView?.()?.altitude ?? DEFAULT_ALT;
+      const cosLat = Math.cos((lat * Math.PI) / 180);
+      const distDeg = (aLat: number, aLng: number) => {
+        const dLat = aLat - lat;
+        let dLng = aLng - lng;
+        while (dLng > 180) dLng -= 360;
+        while (dLng < -180) dLng += 360;
+        return Math.hypot(dLat, dLng * cosLat);
+      };
+
+      const pointReach = 1.6 * alt + 0.2; // alt 2.2 → ~3.7°, alt 0.5 → ~1°
+      let bestPoint: (typeof pointsData)[number] | null = null;
+      let bestPointD = Infinity;
+      for (const p of pointsData) {
+        const d = distDeg(p.lat, p.lng);
+        if (d < bestPointD) {
+          bestPointD = d;
+          bestPoint = p;
+        }
+      }
+      if (bestPoint && bestPointD <= pointReach) {
+        handleGlobePointClick(bestPoint);
+        return;
+      }
+
+      // Cables get a tighter reach so a stray land tap doesn't surprise-select.
+      const cableReach = pointReach * 0.7;
+      let bestCableId: string | null = null;
+      let bestCableD = Infinity;
+      for (const path of pathsData) {
+        for (const [cLat, cLng] of path.coords) {
+          const d = distDeg(cLat, cLng);
+          if (d < bestCableD) {
+            bestCableD = d;
+            bestCableId = path.cableId;
+          }
+        }
+      }
+      if (bestCableId && bestCableD <= cableReach) {
+        const cable = cablesById[bestCableId];
+        if (cable) handleSelectCable(cable);
+      }
+    },
+    [
+      isIdle,
+      surfacing,
+      activeCall,
+      pointsData,
+      pathsData,
+      handleGlobePointClick,
+      handleSelectCable,
+    ],
+  );
+
   // Recenter on Malaysia (compass) — leaves selection/dialogs alone.
   const recenterMalaysia = useCallback(() => {
-    globeRef.current?.pointOfView(
-      { lat: MY_LAT, lng: MY_LNG, altitude: MY_ALT },
-      1200,
-    );
-  }, []);
+    flyTo({ lat: MY_LAT, lng: MY_LNG, altitude: MY_ALT }, 1200);
+  }, [flyTo]);
+
+  // Any touch immediately takes the camera back from a programmatic flight
+  // (cable zoom, recenter, arrival, …) so the globe never fights the finger.
+  // Calls are exempt — their camera is scripted, and TAP TO SKIP is the out.
+  const handleScenePointerDown = useCallback(() => {
+    if (!activeCall) cancelFly();
+  }, [activeCall, cancelFly]);
 
   // Full reset (RightCluster ⊙) — deselect cable, close callout/dialog,
   // recenter, stop auto-rotate.
@@ -1282,6 +1407,7 @@ export default function GlobeScene() {
     <div
       className="relative w-full h-screen overflow-hidden"
       style={{ background: "var(--v1-bg)", touchAction: "none" }}
+      onPointerDownCapture={handleScenePointerDown}
     >
       {!hideLoading && <LoadingScreen language={language} />}
       {isLoaded && showSplash && (
@@ -1337,6 +1463,7 @@ export default function GlobeScene() {
         pathTransitionDuration={0}
         pathLabel={renderPathLabel}
         onPathClick={handlePathClick as any}
+        onGlobeClick={handleGlobeClick as any}
         pointsData={pointsData}
         pointLat="lat"
         pointLng="lng"
@@ -1827,6 +1954,9 @@ function CallAnimationOverlay({
     "dial" | "connect" | "intro" | "travel" | "arrive" | "return"
   >("dial");
   const returnTriggeredRef = useRef(false);
+  // Populated by the effect with a "finish now" closure; the TAP TO SKIP chip
+  // calls it. Tears the animation down instantly: timers, rAF, meshes, audio.
+  const skipRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!globeRef.current) return;
@@ -1908,7 +2038,7 @@ function CallAnimationOverlay({
     playDialing();
 
     const start: [number, number] = [route.fromPoint.lat, route.fromPoint.lng];
-    setTimeout(() => {
+    const connectTimer = setTimeout(() => {
       playConnect();
       globeRef.current?.pointOfView(
         { lat: start[0], lng: start[1], altitude: CALL_INTRO_ALT },
@@ -1916,7 +2046,7 @@ function CallAnimationOverlay({
       );
     }, dialMs);
 
-    setTimeout(
+    const messageTimer = setTimeout(
       () => playMessage(message, totalTravelMs),
       dialMs + connectMs + introMs,
     );
@@ -2158,7 +2288,10 @@ function CallAnimationOverlay({
     };
     raf = requestAnimationFrame(tick);
 
+    let disposed = false;
     function disposeAll() {
+      if (disposed) return;
+      disposed = true;
       scene.remove(pulse);
       scene.remove(halo);
       geo.dispose();
@@ -2173,10 +2306,31 @@ function CallAnimationOverlay({
       }
     }
 
-    return () => {
+    // TAP TO SKIP — jump straight to the end state: stop the scripted timers,
+    // the rAF loop, the pulse meshes and any scheduled morse audio, then glide
+    // the camera home and report done (parent unmounts us).
+    skipRef.current = () => {
+      if (cancelled) return;
       cancelled = true;
+      clearTimeout(connectTimer);
+      clearTimeout(messageTimer);
       cancelAnimationFrame(raf);
       disposeAll();
+      stopAllAudio();
+      globeRef.current?.pointOfView(
+        { lat: CALL_RETURN_LAT, lng: CALL_RETURN_LNG, altitude: CALL_RETURN_ALT },
+        900,
+      );
+      onDone();
+    };
+
+    return () => {
+      cancelled = true;
+      clearTimeout(connectTimer);
+      clearTimeout(messageTimer);
+      cancelAnimationFrame(raf);
+      disposeAll();
+      skipRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2242,6 +2396,42 @@ function CallAnimationOverlay({
         {phase === "intro" && <PhaseChip text="Transmitting" tone="blue" />}
         {phase === "arrive" && <PhaseChip text="Delivered" tone="orange" />}
       </div>
+
+      {/* Skip — the call runs 5-10s; impatient kiosk visitors need an out.
+          Hidden once the return glide starts (it's about to end anyway).
+          Outer div centres; the button carries the press-scale animation so
+          the two transforms don't collide. */}
+      {phase !== "return" && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 110,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 31,
+          }}
+        >
+          <button
+            type="button"
+            className="v1-pressable"
+            onClick={() => skipRef.current?.()}
+            style={{
+              minHeight: 48,
+              padding: "12px 26px",
+              background: "rgba(4, 14, 31, 0.85)",
+              border: "1px solid rgba(255, 255, 255, 0.45)",
+              color: "var(--v1-fg)",
+              fontFamily: "var(--v1-mono)",
+              fontSize: 14,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            Tap to skip ✕
+          </button>
+        </div>
+      )}
     </>
   );
 }

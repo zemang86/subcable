@@ -10,6 +10,14 @@ export function setMuted(m: boolean) {
   _muted = m;
 }
 
+/** Hard-stop everything currently scheduled (e.g. a skipped call). All nodes
+ * connect straight to the context destination, so the only reliable kill is
+ * closing the context — ensureCtx lazily recreates it on the next sound. */
+export function stopAll() {
+  if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
+  ctx = null;
+}
+
 const FREQ = 650;
 const UNIT_MS = 80;       // 1 unit = dot length
 const DASH_UNITS = 3;

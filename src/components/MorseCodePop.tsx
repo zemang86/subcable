@@ -663,9 +663,13 @@ function Hotspot({
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
+      // Transparent overlay on baked-in art: press feedback is the
+      // .v1-pressflash fill (background must NOT be set inline when enabled,
+      // or it would beat the :active rule).
+      className={disabled ? undefined : "v1-pressflash"}
       style={{
         ...absPos(pos),
-        background: disabled ? "rgba(0, 0, 0, 0.45)" : "transparent",
+        ...(disabled ? { background: "rgba(0, 0, 0, 0.45)" } : null),
         border: "none",
         borderRadius: 9.7,
         cursor: disabled ? "not-allowed" : "pointer",
@@ -697,6 +701,7 @@ function SendButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
+      className="v1-pressable"
       style={{
         ...absPos(pos),
         background: disabled ? "#9AA7B6" : "#FFFFFF",
@@ -768,15 +773,16 @@ function TitleStrip({
         type="button"
         onClick={onClose}
         aria-label="Close"
+        className="v1-pressable"
         style={{
-          width: 28,
-          height: 28,
+          width: 40,
+          height: 40,
           background: "transparent",
           border: "1px solid rgba(255, 255, 255, 0.6)",
           color: "#FFFFFF",
           cursor: "pointer",
           fontFamily: "var(--v1-mono)",
-          fontSize: 14,
+          fontSize: 16,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

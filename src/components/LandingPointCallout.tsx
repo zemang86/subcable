@@ -114,6 +114,7 @@ export function LandingPointCallout({
           type="button"
           onClick={onToggleExpand}
           aria-label={`Open details for ${point.name}`}
+          className="v1-pressable"
           style={{
             position: "absolute",
             left: -SVG_W / 2 - HIT,
@@ -466,6 +467,7 @@ function ExpandedCard({
             the tap), so it's a styled span, not a nested button. */}
         <span
           aria-hidden
+          className="v1-pressable"
           style={{
             alignSelf: "flex-end",
             width: 40,

@@ -78,6 +78,7 @@ function ClusterButton({
       disabled={disabled}
       aria-label={ariaLabel}
       aria-pressed={active}
+      className="v1-pressable"
       style={{
         position: "relative",
         width: 76,
