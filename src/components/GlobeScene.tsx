@@ -333,7 +333,15 @@ export default function GlobeScene() {
 
   // Idle attractor (§H.12): after ~60s of no interaction, slow auto-rotate
   // kicks in and a "TAP ANYWHERE TO BEGIN" hint appears. Any touch dismisses.
-  const { isIdle, warnSecondsLeft } = useIdleAttractor(60_000);
+  // Suspended while a call animation runs — watching IS engagement (long
+  // routes travel >60s with zero touches; without this the kiosk submerged
+  // mid-call and the idle zoom-out fought the call's camera follow). The
+  // timer re-arms fresh when the call ends.
+  const { isIdle, warnSecondsLeft } = useIdleAttractor(
+    60_000,
+    undefined,
+    activeCall !== null,
+  );
   const t = useT(language);
 
   // Transient hint shown when a dimmed cluster button (Morse / Fun Fact) is

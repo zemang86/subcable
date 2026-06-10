@@ -15,6 +15,12 @@ const DEFAULT_WARN_MS = 10_000;
  * (e.g. a half-typed Morse message). Any pointerdown/touchstart/keydown
  * clears both and restarts the timer.
  *
+ * `suspended` parks the attractor entirely (timers cleared, no warn, can't go
+ * idle) — pass it while a scripted sequence holds the user's attention without
+ * touches, e.g. an active Make-a-Call animation (long routes run >60s and the
+ * watching user would otherwise be "idle" mid-cinematic). On unsuspend the
+ * timer re-arms from zero, giving a full fresh window after the sequence.
+ *
  * Consumers wire `isIdle` to:
  *  - enable slow auto-rotate on the globe
  *  - run the existing travelling-dot pulse across ALL cables (not just the
@@ -25,6 +31,7 @@ const DEFAULT_WARN_MS = 10_000;
 export function useIdleAttractor(
   idleMs: number = DEFAULT_IDLE_MS,
   warnMs: number = DEFAULT_WARN_MS,
+  suspended: boolean = false,
 ): { isIdle: boolean; warnSecondsLeft: number | null } {
   const [isIdle, setIsIdle] = useState(false);
   const [warnSecondsLeft, setWarnSecondsLeft] = useState<number | null>(null);
@@ -34,6 +41,14 @@ export function useIdleAttractor(
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (suspended) {
+      // Park the attractor: no countdown, no idle flip, until unsuspended.
+      // Cleanup of any previously-armed timers happens in the effect teardown
+      // below (this effect re-runs on `suspended` change), and `arm()` runs
+      // fresh when it flips back.
+      setWarnSecondsLeft(null);
+      return;
+    }
 
     const clearAll = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -81,7 +96,7 @@ export function useIdleAttractor(
       window.removeEventListener("touchstart", wake);
       window.removeEventListener("keydown", wake);
     };
-  }, [idleMs, warnMs]);
+  }, [idleMs, warnMs, suspended]);
 
   return { isIdle, warnSecondsLeft };
 }
