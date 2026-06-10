@@ -337,7 +337,7 @@ export default function GlobeScene() {
 
   // Idle attractor (§H.12): after ~60s of no interaction, slow auto-rotate
   // kicks in and a "TAP ANYWHERE TO BEGIN" hint appears. Any touch dismisses.
-  const isIdle = useIdleAttractor(60_000);
+  const { isIdle, warnSecondsLeft } = useIdleAttractor(60_000);
   const t = useT(language);
 
   // Transient hint shown when a dimmed cluster button (Morse / Fun Fact) is
@@ -1706,6 +1706,61 @@ export default function GlobeScene() {
             setBrandingLeaving(false);
           }}
         />
+      )}
+
+      {/* Pre-idle countdown — warns for the last 10s before the attractor
+          submerges everything (otherwise it silently eats in-progress work,
+          e.g. a half-typed Morse message). Any tap resets the idle timer via
+          useIdleAttractor's window listeners, so the toast needs no button —
+          pointer-events: none keeps it out of the way. Above dialogs (z 50). */}
+      {warnSecondsLeft !== null && !isIdle && isLoaded && (
+        <div
+          role="status"
+          style={{
+            position: "fixed",
+            top: 48,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 55,
+            pointerEvents: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 6,
+            padding: "16px 30px",
+            background: "rgba(4, 14, 31, 0.92)",
+            border: "1px solid var(--v1-orange)",
+            boxShadow: "0 6px 30px rgba(0, 0, 0, 0.55)",
+          }}
+        >
+          <span
+            className="v1-pulse"
+            style={{
+              fontFamily: "var(--v1-heading)",
+              fontWeight: 600,
+              fontSize: 22,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              color: "var(--v1-fg)",
+            }}
+          >
+            {t("stillThere")}
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--v1-mono)",
+              fontSize: 13,
+              color: "var(--v1-fg)",
+            }}
+          >
+            {t("idleReturningIn")}{" "}
+            <span style={{ color: "var(--v1-orange)", fontWeight: 700 }}>
+              {warnSecondsLeft}s
+            </span>
+            {" — "}
+            {t("idleTapToContinue").toLowerCase()}
+          </span>
+        </div>
       )}
 
       {/* Idle attractor hint — overlays everything else, pointer-events: none
