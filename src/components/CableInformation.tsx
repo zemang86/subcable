@@ -472,6 +472,27 @@ function FieldChip({
 // outline-only (panel gradient shows through); only the main 75×12 inner
 // rectangle is filled #D9D9D9.
 function FilmStripChip({ label }: { label: string }) {
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+
+  // Autoscale long owner names to fit the fixed-width strip: shrink the font
+  // uniformly down to 80%, then condense width-only (scaleX) beyond that so
+  // even the longest names ("Reliance Globalcom (TM IRU)") stay inside.
+  // offsetWidth is layout width (ignores transform) so re-measuring is safe.
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const text = textRef.current;
+    if (!box || !text) return;
+    const fit = () => {
+      const ratio = box.clientWidth / Math.max(1, text.offsetWidth);
+      text.style.transform =
+        ratio < 1 ? `scale(${ratio}, ${Math.max(ratio, 0.8)})` : "none";
+    };
+    fit();
+    // Re-fit once webfonts land — the heading font swap changes metrics.
+    void document.fonts?.ready.then(fit);
+  }, [label]);
+
   return (
     <span
       style={{
@@ -508,6 +529,7 @@ function FilmStripChip({ label }: { label: string }) {
       {/* Text overlay — positioned inside the main body region only, skipping
           the tab area (≈13% from left). */}
       <span
+        ref={boxRef}
         style={{
           position: "absolute",
           top: "33%",
@@ -526,7 +548,9 @@ function FilmStripChip({ label }: { label: string }) {
           pointerEvents: "none",
         }}
       >
-        {label}
+        <span ref={textRef} style={{ display: "inline-block" }}>
+          {label}
+        </span>
       </span>
     </span>
   );
