@@ -50,6 +50,7 @@ import { useT } from "@/lib/i18n";
 import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
 import { attachHologramRim } from "@/lib/hologramRim";
 import { attachScanSweep } from "@/lib/scanSweep";
+import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
 
 // ───────── Tuning ─────────
 
@@ -863,6 +864,24 @@ export default function GlobeScene() {
     [openLandingPoint],
   );
 
+  // Touch ripple — an expanding ring on the sphere at the tapped point
+  // (src/lib/touchRipple.ts), spawned from handleGlobeClick below. Gives
+  // every globe tap visible feedback, including misses that select nothing.
+  // (Declared before handleGlobeClick so the ref mutation in the effect
+  // precedes the callback that captures it — react-hooks/immutability.)
+  const touchRippleRef = useRef<TouchRipple | null>(null);
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    const ripple = attachTouchRipple(scene);
+    touchRippleRef.current = ripple;
+    return () => {
+      touchRippleRef.current = null;
+      ripple.detach();
+    };
+  }, [isLoaded]);
+
   // ── Tap forgiveness ──
   // Globe dots are a few px and cable strokes thinner still, so a fingertip
   // that just misses raycasts through to the bare globe. onGlobeClick catches
@@ -873,6 +892,9 @@ export default function GlobeScene() {
   const handleGlobeClick = useCallback(
     ({ lat, lng }: { lat: number; lng: number }) => {
       if (isIdle || surfacing || activeCall) return;
+      // Hologram disturbance at the touched point — fires for every globe
+      // tap, hit or miss, so the kiosk always acknowledges the finger.
+      touchRippleRef.current?.spawn(lat, lng);
       const alt = globeRef.current?.pointOfView?.()?.altitude ?? DEFAULT_ALT;
       const cosLat = Math.cos((lat * Math.PI) / 180);
       const distDeg = (aLat: number, aLng: number) => {
