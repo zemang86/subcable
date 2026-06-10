@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import type { LandingPoint } from "@/lib/types";
+import { useScramble } from "@/lib/useScramble";
 import { HUD_CENTER_Y, PointHUD, SVG_W } from "./PointHUD";
 
 type LandingPointCalloutProps = {
@@ -394,10 +395,10 @@ function ExpandedCard({
           font: "inherit",
         }}
       >
-        <CornerBracket position="tl" size={32} thickness={3} />
-        <CornerBracket position="tr" size={32} thickness={3} />
-        <CornerBracket position="bl" size={32} thickness={3} />
-        <CornerBracket position="br" size={32} thickness={3} />
+        <CornerBracket position="tl" size={32} thickness={3} materialize />
+        <CornerBracket position="tr" size={32} thickness={3} materialize />
+        <CornerBracket position="bl" size={32} thickness={3} materialize />
+        <CornerBracket position="br" size={32} thickness={3} materialize />
 
         {/* Title — shrinks to stay one line when the city name is long */}
         <FitTitle text={point.city} maxFontSize={74} minFontSize={28} />
@@ -502,6 +503,9 @@ function FitTitle({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
   const [size, setSize] = useState(maxFontSize);
+  // Decrypt-resolve the visible title; the hidden measurer keeps using the
+  // real text so the fitted size never jitters during the scramble.
+  const display = useScramble(text);
 
   useLayoutEffect(() => {
     const wrapper = wrapperRef.current;
@@ -548,7 +552,7 @@ function FitTitle({
       >
         {text}
       </span>
-      <span style={{ fontSize: size }}>{text}</span>
+      <span style={{ fontSize: size }}>{display}</span>
     </div>
   );
 }
@@ -557,10 +561,13 @@ function CornerBracket({
   position,
   size = 14,
   thickness = 1.8,
+  materialize = false,
 }: {
   position: "tl" | "tr" | "bl" | "br";
   size?: number;
   thickness?: number;
+  /** Play the v7 lock-in pop on mount (expanded card corners). */
+  materialize?: boolean;
 }) {
   const t = `${thickness}px`;
   const off = -Math.round(thickness / 2);
@@ -578,5 +585,11 @@ function CornerBracket({
     bl: { bottom: off, left: off, borderWidth: `0 0 ${t} ${t}` },
     br: { bottom: off, right: off, borderWidth: `0 ${t} ${t} 0` },
   };
-  return <span aria-hidden style={{ ...base, ...variants[position] }} />;
+  return (
+    <span
+      aria-hidden
+      className={materialize ? "v7-mat-cross" : undefined}
+      style={{ ...base, ...variants[position] }}
+    />
+  );
 }
