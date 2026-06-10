@@ -47,13 +47,9 @@ import {
 } from "@/lib/morseAudio";
 import { useIdleAttractor } from "@/lib/useIdleAttractor";
 import { useT } from "@/lib/i18n";
+import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
 
 // ───────── Tuning ─────────
-
-// Travelling-dot tuning — constant world-size spheres along every cable.
-const DOT_RADIUS = 0.11;
-const DOT_SPEED_KM_PER_SEC = 375;
-const DOT_MIN_LOOP_SEC = 4;
 
 // Quantized zoom buckets — three-globe rebuilds TextGeometry whenever
 // labelSize / labelDotRadius returns a new value. A continuous scalar from
@@ -196,7 +192,6 @@ const neonCore = (hex: string, toward = 0.72) => {
 const LANDING_POINT_DEFAULT = V1_COLORS.fg;             // white
 const LANDING_POINT_ACTIVE = V1_COLORS.active;          // #8FFF3F lime
 const LANDING_POINT_MUTED = "rgba(120, 120, 120, 0.30)";
-const TRAVELLING_DOT_COLOR = V1_COLORS.fg;              // white
 
 // Country highlight (Phase 2): when a cable is selected, the countries it lands
 // in get a flat translucent light-grey fill — no border, no pattern. Sits just
@@ -484,8 +479,8 @@ export default function GlobeScene() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Solid line per segment. Travelling dots are NOT in this list — they're
-  // real THREE.Mesh spheres added directly to the scene (see RAF effect).
+  // Solid line per segment. The flowing-energy pulses are not extra objects —
+  // they're a shader patch on these lines' materials (src/lib/cableFlow.ts).
   const pathsData: PathData[] = useMemo(() => {
     const out: PathData[] = [];
     for (const route of cableRoutes) {
@@ -509,40 +504,6 @@ export default function GlobeScene() {
       }
     }
     return out;
-  }, []);
-
-  // Per-segment cumulative arc-length (km) so the travelling-dot RAF can map
-  // elapsed time → distance → lat/lng.
-  const dotSegments = useMemo(() => {
-    const haversine = (a: [number, number], b: [number, number]) => {
-      const R = 6371;
-      const dLat = ((b[0] - a[0]) * Math.PI) / 180;
-      const dLng = ((b[1] - a[1]) * Math.PI) / 180;
-      const la1 = (a[0] * Math.PI) / 180;
-      const la2 = (b[0] * Math.PI) / 180;
-      const x =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
-      return 2 * R * Math.asin(Math.sqrt(x));
-    };
-    type Seg = {
-      coords: [number, number][];
-      cumKm: number[];
-      totalKm: number;
-    };
-    const segs: Seg[] = [];
-    for (const route of cableRoutes) {
-      for (const seg of route.segments) {
-        const coords = seg.coords;
-        if (coords.length < 2) continue;
-        const cumKm = [0];
-        for (let i = 1; i < coords.length; i++) {
-          cumKm.push(cumKm[i - 1] + haversine(coords[i - 1], coords[i]));
-        }
-        segs.push({ coords, cumKm, totalKm: cumKm[cumKm.length - 1] });
-      }
-    }
-    return segs;
   }, []);
 
   // Greedy cluster: any landing points within CLUSTER_KM of an existing
@@ -1008,6 +969,26 @@ export default function GlobeScene() {
     [activeCall],
   );
 
+  // Flowing-energy wave on the cable lines (src/lib/cableFlow.ts). The flow
+  // loop reads selection/call state through a ref so the rAF never restarts
+  // on state changes — it just sees the latest values each frame.
+  const flowStateRef = useRef<CableFlowState>({
+    selectedCableId: null,
+    callCableIds: null,
+  });
+  useEffect(() => {
+    flowStateRef.current = {
+      selectedCableId: selectedCable?.id ?? null,
+      callCableIds: activeCallCableIds,
+    };
+  }, [selectedCable, activeCallCableIds]);
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    return attachCableFlow(scene, () => flowStateRef.current);
+  }, [isLoaded]);
+
   // Render order: muted siblings first → halo rings → cores.
   // Later entries in pathsData paint over earlier ones in three-globe, so
   // each core sits on top of its own translucent halo.
@@ -1173,79 +1154,6 @@ export default function GlobeScene() {
     }, 60);
     return () => clearTimeout(id);
   }, [isLoaded]);
-
-  // Travelling dots — a single InstancedMesh holds one dot per cable segment,
-  // all animated continuously regardless of selection. One draw call for every
-  // dot (vs a mesh-per-segment); the RAF writes each dot's transform into the
-  // shared instance matrix.
-  useEffect(() => {
-    if (!isLoaded || !globeRef.current) return;
-    const scene = globeRef.current.scene?.();
-    if (!scene) return;
-
-    const count = dotSegments.length;
-    const geo = new THREE.SphereGeometry(DOT_RADIUS, 12, 8);
-    const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(TRAVELLING_DOT_COLOR),
-      // depthTest on so the opaque globe occludes dots on its far side
-      // (depthTest:false made back-side dots bleed through to the front).
-      depthTest: true,
-      transparent: true,
-    });
-    const inst = new THREE.InstancedMesh(geo, mat, count);
-    inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    inst.renderOrder = 999;
-    inst.frustumCulled = false;
-    scene.add(inst);
-
-    const m4 = new THREE.Matrix4();
-    let raf = 0;
-    const start = performance.now();
-    const tick = () => {
-      const elapsedSec = (performance.now() - start) / 1000;
-      const pov = globeRef.current?.pointOfView?.();
-      const alt = pov?.altitude ?? 1;
-      const scale = Math.max(0.12, Math.min(3, (1 + alt) / 2.0));
-      for (let i = 0; i < count; i++) {
-        const seg = dotSegments[i];
-        if (seg.totalKm <= 0) {
-          // Degenerate segment — scale to 0 so the instance is invisible.
-          m4.makeScale(0, 0, 0);
-          inst.setMatrixAt(i, m4);
-          continue;
-        }
-        const speed = Math.min(
-          DOT_SPEED_KM_PER_SEC,
-          seg.totalKm / DOT_MIN_LOOP_SEC,
-        );
-        const dist = (elapsedSec * speed) % seg.totalKm;
-        let j = 1;
-        while (j < seg.cumKm.length && seg.cumKm[j] < dist) j++;
-        if (j >= seg.cumKm.length) j = seg.cumKm.length - 1;
-        const a = seg.coords[j - 1];
-        const b = seg.coords[j];
-        const legKm = seg.cumKm[j] - seg.cumKm[j - 1];
-        const t = legKm > 0 ? (dist - seg.cumKm[j - 1]) / legKm : 0;
-        const lat = a[0] + (b[0] - a[0]) * t;
-        const lng = a[1] + (b[1] - a[1]) * t;
-        const xyz = globeRef.current.getCoords(lat, lng, 0.005);
-        m4.makeScale(scale, scale, scale);
-        m4.setPosition(xyz.x, xyz.y, xyz.z);
-        inst.setMatrixAt(i, m4);
-      }
-      inst.instanceMatrix.needsUpdate = true;
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      scene.remove(inst);
-      inst.dispose();
-      geo.dispose();
-      mat.dispose();
-    };
-  }, [isLoaded, dotSegments]);
 
   // Regional sharpness overlay (SEA window). Single grid mesh, fades in at
   // close zoom. Always dark in v1.0.
