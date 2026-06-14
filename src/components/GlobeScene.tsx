@@ -12,7 +12,6 @@ import CableInformation from "./CableInformation";
 import GeneralInformation from "./GeneralInformation";
 import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
-import { RecenterButton } from "./RecenterButton";
 import { RightCluster } from "./RightCluster";
 import { ClusterStem } from "./ClusterStem";
 import { LandingPointCallout } from "./LandingPointCallout";
@@ -1579,6 +1578,7 @@ export default function GlobeScene() {
               className="v1-enter-right v1-delay-1"
               showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
               onBack={handleBack}
+              onRecenter={resetView}
               muted={muted}
               onAudioToggle={() => setMuted((m) => !m)}
             />
@@ -1660,6 +1660,12 @@ export default function GlobeScene() {
                   </span>
                 </div>
               )}
+
+              {/* Language toggle — sits directly below the Help button, sharing
+                  the left-edge action stack. */}
+              <div style={{ marginTop: 31 }}>
+                <LanguageToggle value={language} onChange={setLanguage} />
+              </div>
             </div>
           </div>
           )}
@@ -1673,27 +1679,6 @@ export default function GlobeScene() {
             />
           )}
 
-          {/* Bottom-center: language toggle + re-center button (Figma V1.3).
-              Outer div centres; inner div animates (avoids transform clash). */}
-          {bootStage >= 4 && (
-          <div
-            style={{
-              position: "fixed",
-              bottom: 30,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 25,
-            }}
-          >
-            <div
-              className="v1-enter-bottom v1-delay-3"
-              style={{ display: "flex", gap: 14, alignItems: "center" }}
-            >
-              <LanguageToggle value={language} onChange={setLanguage} />
-              <RecenterButton onRecenter={resetView} />
-            </div>
-          </div>
-          )}
         </>
       )}
 
