@@ -238,9 +238,15 @@ export default function IntroSequence({
     [],
   );
 
-  // Begin the launch on the first touch while attracting.
+  // Begin the launch on the first touch while attracting. Dismiss the prompt
+  // immediately and keep promptReady false for the rest of the cycle — otherwise
+  // its stale `true` survives until the next attract effect runs and flashes the
+  // prompt for one paint during the clip3→clip1 re-entry (2nd cycle onward).
   const handleTap = useCallback(() => {
-    if (phase === "attract") setPhase("launching");
+    if (phase === "attract") {
+      setPromptReady(false);
+      setPhase("launching");
+    }
   }, [phase]);
 
   // clip1 reached 8s after a tap → direct cut into the emerge clip (no
