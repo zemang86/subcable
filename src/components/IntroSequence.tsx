@@ -30,7 +30,7 @@ import { useT } from "@/lib/i18n";
 import type { Language } from "@/lib/types";
 
 const CLIP1 = "/video/tm-clip1-underwater-dolly-v2.mp4";
-const CLIP2 = "/video/tm-clip2-emerge-globe.mp4";
+const CLIP2 = "/video/tm-clip2-emerge-2x-hardcut.mp4";
 const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
 
 // clip1→clip2 handoff: clip2 fades IN over clip1 (held on its matching end
