@@ -389,35 +389,36 @@ export default function GlobeScene() {
   // Chrome (panels + HUD) boots in subsystem order after reveal: Header →
   // Sidebar/system buttons → info panel → cluster/controls, each replaying its
   // slide-in. 0 = nothing (attract video is up), 4 = fully booted.
-  const BOOT_STEP_MS = 180;
-  // Beat held on the bare globe after it's revealed before the network pulses
-  // on and the chrome boots — lets the reveal settle instead of everything
-  // firing at once.
-  const REVEAL_HOLD_MS = 1500;
+  const BOOT_STEP_MS = 360;
+  // Reveal beats (from the moment the bare globe is shown): hold, then beam the
+  // network on; then a further hold before the chrome panels boot in. Spreads
+  // the reveal out instead of everything firing at once.
+  const BEAM_DELAY_MS = 500; // bare globe → network pulses on
+  const CHROME_AFTER_BEAM_MS = 1000; // beam → chrome panels reveal
   const [chromeReady, setChromeReady] = useState(false);
   const [bootStage, setBootStage] = useState(0);
   const bootTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => bootTimers.current.forEach(clearTimeout), []);
 
-  // Reveal the live globe (first boot, or clip2 emerge ended): show the bare
-  // globe immediately, then after a ~1s hold beam the whole network on from
-  // zero and boot the chrome in stages.
+  // Reveal the live globe (first boot, or clip2 emerge cut): show the bare globe
+  // immediately, beam the network on after BEAM_DELAY_MS, then boot the chrome
+  // in stages CHROME_AFTER_BEAM_MS after the beam.
   const handleReveal = useCallback(() => {
     setRevealed(true);
     bootTimers.current.forEach(clearTimeout);
+    const chromeStart = BEAM_DELAY_MS + CHROME_AFTER_BEAM_MS;
     const beam = setTimeout(() => {
       setNetworkDormant(false);
       setCableBootAt(performance.now());
+    }, BEAM_DELAY_MS);
+    const chrome = setTimeout(() => {
       setChromeReady(true);
       setBootStage(1);
-    }, REVEAL_HOLD_MS);
+    }, chromeStart);
     const stages = [2, 3, 4].map((stage, i) =>
-      setTimeout(
-        () => setBootStage(stage),
-        REVEAL_HOLD_MS + (i + 1) * BOOT_STEP_MS,
-      ),
+      setTimeout(() => setBootStage(stage), chromeStart + (i + 1) * BOOT_STEP_MS),
     );
-    bootTimers.current = [beam, ...stages];
+    bootTimers.current = [beam, chrome, ...stages];
   }, []);
 
   // clip3 (submerge) finished → reset to the dormant attract baseline so the

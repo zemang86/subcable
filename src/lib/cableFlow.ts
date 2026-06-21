@@ -51,7 +51,7 @@ const ENERGIZED = 1e9;
 // out, a one-shot circuit-trace runs on EVERY cable at once — the grid
 // powers on tip-to-tail out of the dark. Each cable's front is scaled to
 // its own route length, so all routes complete together.
-const BOOT_DURATION_SEC = 2.4;
+const BOOT_DURATION_SEC = 3.0;
 // "Everything ahead of the front" sentinel — ghosts the entire line.
 const DORMANT = -1e9;
 

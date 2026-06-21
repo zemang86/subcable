@@ -25,9 +25,13 @@ const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
 // White-flash duration that masks the submerge handoff.
 // (clip1→clip2 is a direct cut — its frames match, no transition needed.)
 const FLASH_MS = 240;
-// clip2→globe handoff fades clip2's last frame out over the live globe, hiding
-// any seam between the video and the real globe.
-const REVEAL_FADE_MS = 650;
+// clip2→globe handoff: cut the emerge clip EARLY_CUT_SEC before its end (mid
+// center→left move) and mask the cut with a soft radial bloom — it ramps up
+// over BLOOM_RISE_MS, the clip→globe swap happens at the bloomed peak, then it
+// recedes over BLOOM_FALL_MS revealing the live globe softly.
+const EARLY_CUT_SEC = 1.0;
+const BLOOM_RISE_MS = 420;
+const BLOOM_FALL_MS = 700;
 // Beat between "go submerge" and clip3 covering the screen, so the chrome's
 // reverse-reveal (panels sliding back out) is visible over the live globe.
 const SUBMERGE_LEAD_MS = 550;
@@ -55,20 +59,39 @@ export default function IntroSequence({
   const [phase, setPhase] = useState<Phase>("live");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flashing, setFlashing] = useState(false);
-  const [revealFading, setRevealFading] = useState(false);
+  const [blooming, setBlooming] = useState(false);
 
   const v1Ref = useRef<HTMLVideoElement>(null);
   const v2Ref = useRef<HTMLVideoElement>(null);
   const v3Ref = useRef<HTMLVideoElement>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bloomTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const submergeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the early-cut so the clip2 timeupdate fires the reveal only once.
+  const clip2CutRef = useRef(false);
 
   const flash = useCallback(() => {
     setFlashing(true);
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlashing(false), FLASH_MS);
   }, []);
+
+  // clip2→globe reveal: bloom up, swap clip2→live globe at the bloomed peak,
+  // then let the bloom recede over the globe. Fired once per emerge, either by
+  // the early-cut timeupdate or (fallback) by clip2 actually ending.
+  const bloomReveal = useCallback(() => {
+    if (clip2CutRef.current) return;
+    clip2CutRef.current = true;
+    bloomTimers.current.forEach(clearTimeout);
+    setBlooming(true);
+    bloomTimers.current = [
+      setTimeout(() => {
+        setPhase("live");
+        onReveal();
+        setBlooming(false); // start the (slower) fall over the live globe
+      }, BLOOM_RISE_MS),
+    ];
+  }, [onReveal]);
 
   // Drive playback off the phase. Only the active clip plays; clip1 loops only
   // while attracting.
@@ -94,6 +117,7 @@ export default function IntroSequence({
       }
     } else if (phase === "emerge") {
       setCountdown(null);
+      clip2CutRef.current = false; // arm the early-cut for this emerge
       if (v2) {
         v2.currentTime = 0;
         void v2.play().catch(() => {});
@@ -127,8 +151,8 @@ export default function IntroSequence({
   useEffect(
     () => () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
-      if (revealTimer.current) clearTimeout(revealTimer.current);
       if (submergeTimer.current) clearTimeout(submergeTimer.current);
+      bloomTimers.current.forEach(clearTimeout);
     },
     [],
   );
@@ -152,21 +176,19 @@ export default function IntroSequence({
     setCountdown(Math.max(0, Math.ceil(v.duration - v.currentTime)));
   }, [phase]);
 
-  // clip2 finished → hand the screen to the live globe. Fade clip2's last frame
-  // out over the now-live globe (revealFading enables the v2 opacity transition;
-  // setPhase('live') drops its `active`, so it animates 1→0) to hide the seam.
+  // clip2 timeupdate → early-cut: once it's within EARLY_CUT_SEC of the end
+  // (mid center→left move), bloom-reveal the live globe.
+  const handleClip2Time = useCallback(() => {
+    if (phase !== "emerge") return;
+    const v = v2Ref.current;
+    if (!v || !v.duration) return;
+    if (v.currentTime >= v.duration - EARLY_CUT_SEC) bloomReveal();
+  }, [phase, bloomReveal]);
+
+  // Fallback: if clip2 reaches its end before the early-cut fired, reveal now.
   const handleClip2Ended = useCallback(() => {
-    if (phase === "emerge") {
-      setRevealFading(true);
-      setPhase("live");
-      onReveal();
-      if (revealTimer.current) clearTimeout(revealTimer.current);
-      revealTimer.current = setTimeout(
-        () => setRevealFading(false),
-        REVEAL_FADE_MS,
-      );
-    }
-  }, [phase, onReveal]);
+    if (phase === "emerge") bloomReveal();
+  }, [phase, bloomReveal]);
 
   // clip3 finished → back to the attract loop; parent resets baseline.
   const handleClip3Ended = useCallback(() => {
@@ -194,7 +216,7 @@ export default function IntroSequence({
       }}
     >
       <Clip refEl={v1Ref} src={CLIP1} active={phase === "attract" || phase === "launching"} onEnded={handleClip1Ended} onTimeUpdate={handleClip1Time} />
-      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} fadeMs={revealFading ? REVEAL_FADE_MS : 0} />
+      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} />
       <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} />
 
       {/* Attract prompt — centred. */}
@@ -215,7 +237,23 @@ export default function IntroSequence({
         </div>
       )}
 
-      {/* Handoff flash. */}
+      {/* Soft bloom / light-bleed — masks the clip2→globe early cut. Radial,
+          biased toward the globe (left of centre), brighter in the core. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 40% 50%, rgba(224,240,255,0.92) 0%, rgba(150,200,255,0.5) 28%, rgba(80,140,220,0.16) 52%, transparent 70%)",
+          opacity: blooming ? 1 : 0,
+          transition: `opacity ${blooming ? BLOOM_RISE_MS : BLOOM_FALL_MS}ms ease`,
+          pointerEvents: "none",
+          mixBlendMode: "screen",
+        }}
+      />
+
+      {/* Handoff flash (submerge only). */}
       <div
         aria-hidden
         style={{
@@ -237,16 +275,12 @@ function Clip({
   active,
   onEnded,
   onTimeUpdate,
-  fadeMs = 0,
 }: {
   refEl: React.RefObject<HTMLVideoElement | null>;
   src: string;
   active: boolean;
   onEnded: () => void;
   onTimeUpdate?: () => void;
-  /** When >0, opacity changes animate over this duration (used for the
-   *  clip2→globe fade-out). Default 0 = instant swap (hard cut). */
-  fadeMs?: number;
 }) {
   return (
     <video
@@ -264,7 +298,8 @@ function Clip({
         height: "100%",
         objectFit: "cover",
         opacity: active ? 1 : 0,
-        transition: fadeMs ? `opacity ${fadeMs}ms ease` : "none",
+        // Instant opacity swap — the bloom/flash overlay masks the cut.
+        transition: "none",
         pointerEvents: "none",
       }}
     />
