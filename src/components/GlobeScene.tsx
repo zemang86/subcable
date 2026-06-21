@@ -7,7 +7,6 @@ import Globe from "./GlobeWrapper";
 import Sidebar from "./Sidebar";
 import SystemButtons from "./SystemButtons";
 import LoadingScreen from "./LoadingScreen";
-import SplashScreen from "./SplashScreen";
 import CableInformation from "./CableInformation";
 import GeneralInformation from "./GeneralInformation";
 import { Header } from "./Header";
@@ -15,7 +14,7 @@ import { LanguageToggle } from "./LanguageToggle";
 import { RightCluster } from "./RightCluster";
 import { ClusterStem } from "./ClusterStem";
 import { LandingPointCallout } from "./LandingPointCallout";
-import { UnderwaterOverlay } from "./UnderwaterOverlay";
+import IntroSequence from "./IntroSequence";
 import HowToGuideDialog from "./HowToGuideDialog";
 import FunFactDialog from "./FunFactDialog";
 import MorseCodePop from "./MorseCodePop";
@@ -50,7 +49,6 @@ import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
 import { attachHologramRim } from "@/lib/hologramRim";
 // import { attachScanSweep } from "@/lib/scanSweep"; // radar sweep hidden (client)
 import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
-import { attachIdleTethers } from "@/lib/idleTethers";
 
 // ───────── Tuning ─────────
 
@@ -217,19 +215,9 @@ const COUNTRY_NAME_ALIASES: Record<string, string> = {
 const DEFAULT_LAT = 5;
 const DEFAULT_LNG = 108;
 const DEFAULT_ALT = 2.2;
-// Idle attract mode pulls the camera back so the globe sits smaller/further in
-// the underwater scene (kept under MAX_CAM_DISTANCE's altitude ~3.4 cap).
-const IDLE_ALT = 3.3;
 const MY_LAT = 4.2105;
 const MY_LNG = 101.9758;
 const MY_ALT = 2.2;
-
-// Cinematic arrival after the emerge: the camera flies in toward the Malaysia
-// hero region, overshooting slightly closer than the resting view, then eases
-// back out to settle — so it reads as "arriving at" the subject, not a dolly.
-const ARRIVAL_OVERSHOOT_ALT = 1.92;
-const ARRIVAL_MS = 1300;
-const ARRIVAL_SETTLE_MS = 650;
 
 // Zoom clamps. three-globe camera distance = 100 × (1 + altitude), so these
 // bound the OrbitControls dolly: MAX caps zoom-out at ~altitude 3.4 (a touch
@@ -325,14 +313,12 @@ export default function GlobeScene() {
     [cancelFly],
   );
   useEffect(() => cancelFly, [cancelFly]);
-  // Intro splash: shown AFTER the loading screen finishes (isLoaded → true),
-  // held ~3.5s then faded out to reveal the globe. Order: loading → splash →
-  // globe. `splashFading` triggers the fade-out before unmount.
-  const [showSplash, setShowSplash] = useState(true);
-  const [splashFading, setSplashFading] = useState(false);
-  // Keep the loading screen mounted under the splash until the splash has
-  // fully faded in, so the #040E1F backdrop never breaks during the crossfade.
-  const [hideLoading, setHideLoading] = useState(false);
+  // First boot: show the LoadingScreen, then reveal the live globe directly
+  // (NOT the attract video — that only appears after the app later goes idle).
+  // `booted` flips true on the first reveal and never resets, so the loading
+  // screen is a one-time boot cover; subsequent idle→attract cycles are owned
+  // by the IntroSequence video layer instead.
+  const [booted, setBooted] = useState(false);
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
   const [selectedLandingPoint, setSelectedLandingPoint] =
     useState<LandingPoint | null>(null);
@@ -354,16 +340,20 @@ export default function GlobeScene() {
     startedAt: number;
   } | null>(null);
 
-  // Idle attractor (§H.12): after ~60s of no interaction, slow auto-rotate
-  // kicks in and a "TAP ANYWHERE TO BEGIN" hint appears. Any touch dismisses.
-  // Suspended while a call animation runs — watching IS engagement (long
-  // routes travel >60s with zero touches; without this the kiosk submerged
-  // mid-call and the idle zoom-out fought the call's camera follow). The
-  // timer re-arms fresh when the call ends.
+  // v8 intro/idle: `revealed` = live globe + chrome are up; `submerging` = idle
+  // reached, chrome reversing out while clip3 plays. See the IntroSequence
+  // block below. Declared here so the idle attractor can suspend off them.
+  const [revealed, setRevealed] = useState(false);
+  const [submerging, setSubmerging] = useState(false);
+
+  // Idle attractor (§H.12): fires after ~60s of no interaction. Suspended
+  // unless the live globe is up (the attract/emerge/submerge clips own those
+  // phases) and while a call animation runs — watching IS engagement (long
+  // routes travel >60s with zero touches). The timer re-arms fresh on unsuspend.
   const { isIdle, warnSecondsLeft } = useIdleAttractor(
-    60_000,
+    15_000,
     undefined,
-    activeCall !== null,
+    !revealed || submerging || activeCall !== null,
   );
   const t = useT(language);
 
@@ -389,129 +379,80 @@ export default function GlobeScene() {
     setAudioMuted(muted);
   }, [muted]);
 
-  // The cable network sleeps (ghosted by cableFlow) from the moment the
-  // kiosk goes idle until the post-branding power-on — explicit state, not
-  // derived, so it spans the whole idle → emerge → fly-in → branding chain
-  // without flickering awake between phases. `cableBootAt` is the timestamp
-  // of the all-cables wake-up trace (0 = never fired).
-  const [networkDormant, setNetworkDormant] = useState(false);
+  // The cable network is dormant (ghosted by cableFlow) until the globe is
+  // revealed at the end of the emerge clip, when a one-shot circuit-trace beams
+  // every cable on at once. `cableBootAt` is that power-on timestamp (0 = never
+  // fired). Stays dormant again across each submerge → attract cycle.
+  const [networkDormant, setNetworkDormant] = useState(true);
   const [cableBootAt, setCableBootAt] = useState(0);
 
-  // Idle → enable auto-rotate and close any open dialog so the attractor
-  // doesn't end up rendered behind a modal nobody is around to dismiss.
+  // Chrome (panels + HUD) boots in subsystem order after reveal: Header →
+  // Sidebar/system buttons → info panel → cluster/controls, each replaying its
+  // slide-in. 0 = nothing (attract video is up), 4 = fully booted.
+  const BOOT_STEP_MS = 180;
+  // Beat held on the bare globe after it's revealed before the network pulses
+  // on and the chrome boots — lets the reveal settle instead of everything
+  // firing at once.
+  const REVEAL_HOLD_MS = 1500;
+  const [chromeReady, setChromeReady] = useState(false);
+  const [bootStage, setBootStage] = useState(0);
+  const bootTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => bootTimers.current.forEach(clearTimeout), []);
+
+  // Reveal the live globe (first boot, or clip2 emerge ended): show the bare
+  // globe immediately, then after a ~1s hold beam the whole network on from
+  // zero and boot the chrome in stages.
+  const handleReveal = useCallback(() => {
+    setRevealed(true);
+    bootTimers.current.forEach(clearTimeout);
+    const beam = setTimeout(() => {
+      setNetworkDormant(false);
+      setCableBootAt(performance.now());
+      setChromeReady(true);
+      setBootStage(1);
+    }, REVEAL_HOLD_MS);
+    const stages = [2, 3, 4].map((stage, i) =>
+      setTimeout(
+        () => setBootStage(stage),
+        REVEAL_HOLD_MS + (i + 1) * BOOT_STEP_MS,
+      ),
+    );
+    bootTimers.current = [beam, ...stages];
+  }, []);
+
+  // clip3 (submerge) finished → reset to the dormant attract baseline so the
+  // next reveal is clean.
+  const handleReachedIdle = useCallback(() => {
+    bootTimers.current.forEach(clearTimeout);
+    bootTimers.current = [];
+    setRevealed(false);
+    setSubmerging(false);
+    setNetworkDormant(true);
+    setCableBootAt(0);
+    setChromeReady(false);
+    setBootStage(0);
+    setSelectedCable(null);
+    setSelectedLandingPoint(null);
+    setExpandedPointId(null);
+    setOpenDialog(null);
+    setAutoRotate(false);
+  }, []);
+
+  // Inactivity while live (useIdleAttractor fires only when revealed) → reverse
+  // the chrome reveal; IntroSequence then plays clip3 back down to the attract
+  // loop after a short lead so the panels are seen sliding out.
   useEffect(() => {
-    if (isIdle) {
-      // Cancel any in-flight camera move + pending arrival-settle so neither
-      // fights the idle zoom-out.
+    if (isIdle && revealed && !submerging) {
+      setSubmerging(true);
+      setChromeReady(false);
+      setBootStage(0);
       cancelFly();
-      // The network goes to sleep with the kiosk; it stays ghosted until
-      // the post-branding power-on fires on the next wake.
-      setNetworkDormant(true);
-      setAutoRotate(true);
       setOpenDialog(null);
       setSelectedCable(null);
       setSelectedLandingPoint(null);
       setExpandedPointId(null);
-      // If idle re-triggers mid-emerge, drop any lingering branding card so it
-      // doesn't hang over the underwater scene.
-      setBrandingOn(false);
-      setBrandingLeaving(false);
-    } else {
-      setAutoRotate(false);
     }
-  }, [isIdle, cancelFly]);
-
-  // Dolly the camera back when idle (globe sits smaller/further in the scene).
-  // The zoom back IN is deliberately deferred to AFTER the emerge — see the
-  // surfacing effect — so the globe surfaces at its far size, then zooms in.
-  // Only altitude is passed so the current lat/lng (idle rotation) is kept.
-  useEffect(() => {
-    if (!globeRef.current || !isLoaded) return;
-    if (isIdle) flyTo({ altitude: IDLE_ALT }, 1200);
-  }, [isIdle, isLoaded, flyTo]);
-
-  // Underwater attract mode: while idle the globe sits under a "submerged"
-  // overlay; on wake it plays the "rising out of the water" beat (the waterline
-  // recedes top-down) before the chrome is revealed. `surfacing` is that
-  // transient phase — must match the .v1-uw-recede duration in globals.css.
-  const SURFACE_MS = 2600;
-  const [surfacing, setSurfacing] = useState(false);
-  // Branding card ("Submarine Cable Map / by TM") surfaces mid-emerge, holds
-  // through the camera fly-in, then bows out — and ONLY once it's fully gone do
-  // the panels/HUD slide in (gated by `chromeReady`). `brandingOn` mounts the
-  // card; `brandingLeaving` triggers its fade-out (it unmounts when done).
-  const [brandingOn, setBrandingOn] = useState(false);
-  const [brandingLeaving, setBrandingLeaving] = useState(false);
-  // Chrome (panels + HUD) is held back during the whole emerge + branding beat
-  // on a wake-from-idle, then revealed. Defaults true so the very first load
-  // (no emerge) shows chrome immediately.
-  const [chromeReady, setChromeReady] = useState(true);
-  // Chrome boot sequence on wake: panels mount in subsystem order (Header →
-  // Sidebar/system buttons → info panel → cluster/controls), each replaying
-  // its slide-in + materialize animations. 4 = fully booted — the default,
-  // so the very first load (no emerge) shows everything at once.
-  const BOOT_STEP_MS = 180;
-  const [bootStage, setBootStage] = useState(4);
-  const wasIdleRef = useRef(isIdle);
-  useEffect(() => {
-    if (wasIdleRef.current && !isIdle) {
-      setSurfacing(true);
-      setBrandingLeaving(false);
-      setChromeReady(false); // hold the panels/HUD until the card is gone
-      const idEnd = setTimeout(() => {
-        setSurfacing(false);
-        // Globe surfaces at its far size, THEN the camera flies in: sweep toward
-        // the Malaysia hero region while zooming PAST the resting view (a slight
-        // overshoot), then ease back out to settle — a cinematic arrival. Both
-        // legs ride flyTo so a touch can take over at any point.
-        if (globeRef.current) {
-          flyTo(
-            { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: ARRIVAL_OVERSHOOT_ALT },
-            ARRIVAL_MS,
-          );
-          arrivalSettleRef.current = setTimeout(() => {
-            flyTo(
-              { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
-              ARRIVAL_SETTLE_MS,
-            );
-          }, ARRIVAL_MS);
-        }
-      }, SURFACE_MS);
-      // The branding card waits for the globe to be fully parked — emerge
-      // done, x-offset slide complete, both fly-in legs landed — so the
-      // splash/bounce beat plays unobstructed. Then: card holds, bows out
-      // (network power-on fires with it), and the chrome boots last.
-      const brandIn = SURFACE_MS + ARRIVAL_MS + ARRIVAL_SETTLE_MS;
-      const brandOut = brandIn + 2500;
-      const idIn = setTimeout(() => setBrandingOn(true), brandIn);
-      const idOut = setTimeout(() => {
-        setBrandingLeaving(true);
-        // Card bows out → power the network back on: cableFlow runs a
-        // one-shot circuit-trace on every cable simultaneously.
-        setNetworkDormant(false);
-        setCableBootAt(performance.now());
-      }, brandOut);
-      const idChrome = setTimeout(() => {
-        setChromeReady(true);
-        setBootStage(1); // chrome boots in subsystem order from here
-      }, brandOut + 700);
-      const idStages = [2, 3, 4].map((stage, i) =>
-        setTimeout(
-          () => setBootStage(stage),
-          brandOut + 700 + (i + 1) * BOOT_STEP_MS,
-        ),
-      );
-      wasIdleRef.current = isIdle;
-      return () => {
-        clearTimeout(idEnd);
-        clearTimeout(idIn);
-        clearTimeout(idOut);
-        clearTimeout(idChrome);
-        idStages.forEach(clearTimeout);
-      };
-    }
-    wasIdleRef.current = isIdle;
-  }, [isIdle, flyTo]);
+  }, [isIdle, revealed, submerging, cancelFly]);
 
   // Resize handler
   useEffect(() => {
@@ -705,21 +646,16 @@ export default function GlobeScene() {
     return [...countriesL, ...cities];
   }, [cityLabelsData, countryLabels]);
 
-  // Splash timing: starts once the loading screen is done (isLoaded). Hold
-  // ~2.9s, fade out over 600ms, unmount at 3.5s total → then the globe shows.
+  // First boot: once the globe is loaded (LoadingScreen has had its run), drop
+  // the loading cover and reveal the live globe directly — beam the network on
+  // and boot the chrome, same as a post-emerge reveal. The attract video stays
+  // dormant until the app later goes idle.
   useEffect(() => {
-    if (!isLoaded) return;
-    // Splash crossfades in over the loading screen (~600ms); once opaque,
-    // drop the loading screen. Then hold and fade out → globe.
-    const hide = setTimeout(() => setHideLoading(true), 700);
-    const fade = setTimeout(() => setSplashFading(true), 2900);
-    const done = setTimeout(() => setShowSplash(false), 3500);
-    return () => {
-      clearTimeout(hide);
-      clearTimeout(fade);
-      clearTimeout(done);
-    };
-  }, [isLoaded]);
+    if (isLoaded && !booted) {
+      setBooted(true);
+      handleReveal();
+    }
+  }, [isLoaded, booted, handleReveal]);
 
   // Initial view + globe controls
   const handleGlobeReady = useCallback(() => {
@@ -928,7 +864,7 @@ export default function GlobeScene() {
   // returns once targets are big enough to hit directly.
   const handleGlobeClick = useCallback(
     ({ lat, lng }: { lat: number; lng: number }) => {
-      if (isIdle || surfacing || activeCall) return;
+      if (!revealed || submerging || activeCall) return;
       // Hologram disturbance at the touched point — fires for every globe
       // tap, hit or miss, so the kiosk always acknowledges the finger.
       touchRippleRef.current?.spawn(lat, lng);
@@ -976,8 +912,8 @@ export default function GlobeScene() {
       }
     },
     [
-      isIdle,
-      surfacing,
+      revealed,
+      submerging,
       activeCall,
       pointsData,
       pathsData,
@@ -1078,23 +1014,9 @@ export default function GlobeScene() {
   //   return attachScanSweep(scene);
   // }, [isLoaded]);
 
-  // Idle umbilical tethers — while the kiosk idles "docked", glowing data
-  // conduits clamp onto the visible hemisphere and feed pulses into the
-  // globe (src/lib/idleTethers.ts). On wake the cleanup triggers the
-  // staggered unplug animation (reverse circuit-trace racing off-screen),
-  // which disposes itself when the last conduit is consumed — it plays out
-  // under the receding waterline during the emerge.
-  useEffect(() => {
-    if (!isLoaded || !isIdle || !globeRef.current) return;
-    const scene = globeRef.current.scene?.();
-    const camera = globeRef.current.camera?.() as
-      | THREE.PerspectiveCamera
-      | undefined;
-    const renderer = globeRef.current.renderer?.();
-    if (!scene || !camera?.isPerspectiveCamera || !renderer) return;
-    const tethers = attachIdleTethers(scene, camera, renderer);
-    return () => tethers.release();
-  }, [isLoaded, isIdle]);
+  // (v8) Idle umbilical tethers + underwater attract removed — the idle/emerge
+  // experience is now the IntroSequence video layer. src/lib/idleTethers.ts and
+  // UnderwaterOverlay.tsx are kept in the tree but no longer wired.
 
   // Render order: muted siblings first → halo rings → cores.
   // Later entries in pathsData paint over earlier ones in three-globe, so
@@ -1472,31 +1394,21 @@ export default function GlobeScene() {
       style={{ background: "var(--v1-bg)", touchAction: "none" }}
       onPointerDownCapture={handleScenePointerDown}
     >
-      {!hideLoading && <LoadingScreen language={language} />}
-      {isLoaded && showSplash && (
-        <SplashScreen language={language} fadingOut={splashFading} />
-      )}
+      {/* One-time boot cover: LoadingScreen → live globe. (z below the globe's
+          own backdrop is fine — it paints over the globe; the IntroSequence
+          layer above is transparent in its dormant `live` phase.) */}
+      {!booted && <LoadingScreen language={language} />}
 
       <div
-        className={surfacing ? "v1-globe-defocus" : undefined}
         style={{
-          // Normally offset left to clear the right-side panels. In idle attract
-          // mode the panels are hidden, so slide the globe back to centre for a
-          // balanced screen; it eases back left on wake. It's also blurred while
-          // idle (submerged feel) and pulls INTO focus as it surfaces — the
-          // .v1-globe-defocus rack-focus animation overrides this blur while it
-          // plays, timed to the breach.
-          transform: `translateX(${
-            isIdle || surfacing ? 0 : globeOffsetX(dimensions.width)
-          }px)`,
-          filter: isIdle ? "blur(3px)" : "none",
-          transition:
-            "transform 700ms cubic-bezier(0.4, 0, 0.2, 1), filter 800ms ease",
+          // Always offset left to clear the right-side panels — the globe is
+          // revealed (behind the IntroSequence flash) already in this working
+          // position, matching the emerge clip's last frame. (v8)
+          transform: `translateX(${globeOffsetX(dimensions.width)}px)`,
           willChange: "transform",
         }}
       >
         <div
-          className={surfacing ? "v1-globe-breach" : undefined}
           style={{
             willChange: "transform",
             // Static half-bleed shift — centres the oversized canvas so its
@@ -1555,10 +1467,10 @@ export default function GlobeScene() {
         </div>
       </div>
 
-      {/* Idle attract mode: hide ALL chrome so only the rotating globe + the
-          "touch anywhere to start" hint remain. On wake the panels are held
-          back (chromeReady) until the branding card has fully bowed out. */}
-      {!isIdle && !surfacing && chromeReady && (
+      {/* Chrome shows only once the globe is revealed (post-emerge) and boots
+          in subsystem order; it reverses out again when submerging back to the
+          attract video. (v8) */}
+      {revealed && !submerging && chromeReady && (
         <>
           {/* Each panel slides in from its nearest edge on wake (v1-enter-*),
               applied straight to the panel's own element so it stays fully
@@ -1752,30 +1664,12 @@ export default function GlobeScene() {
         />
       )}
 
-      {/* Underwater attract overlay — submerged look while idle; the waterline
-          recedes during `surfacing`, then it unmounts. */}
-      {isLoaded && (isIdle || surfacing) && (
-        <UnderwaterOverlay surfacing={surfacing} />
-      )}
-
-      {/* Branding card that surfaces with the globe and fades once UI settles. */}
-      {brandingOn && (
-        <BrandingFlash
-          language={language}
-          leaving={brandingLeaving}
-          onGone={() => {
-            setBrandingOn(false);
-            setBrandingLeaving(false);
-          }}
-        />
-      )}
-
-      {/* Pre-idle countdown — warns for the last 10s before the attractor
-          submerges everything (otherwise it silently eats in-progress work,
-          e.g. a half-typed Morse message). Any tap resets the idle timer via
-          useIdleAttractor's window listeners, so the toast needs no button —
-          pointer-events: none keeps it out of the way. Above dialogs (z 50). */}
-      {warnSecondsLeft !== null && !isIdle && isLoaded && (
+      {/* Pre-idle countdown — warns for the last 10s before the kiosk
+          submerges back to the attract video (otherwise it silently eats
+          in-progress work, e.g. a half-typed Morse message). Any tap resets the
+          idle timer via useIdleAttractor's window listeners, so the toast needs
+          no button — pointer-events: none keeps it out of the way. (z 55) */}
+      {warnSecondsLeft !== null && revealed && !submerging && (
         <div
           role="status"
           style={{
@@ -1825,215 +1719,21 @@ export default function GlobeScene() {
         </div>
       )}
 
-      {/* Idle attractor hint — overlays everything else, pointer-events: none
-          so any touch hits the layer underneath and useIdleAttractor wakes. */}
-      {isIdle && isLoaded && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 40,
-            pointerEvents: "none",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "center",
-            paddingBottom: "20vh",
-          }}
-        >
-          <span
-            className="v1-pulse"
-            style={{
-              fontFamily: "var(--v1-heading)",
-              fontWeight: 500,
-              fontSize: 28,
-              letterSpacing: "0.30em",
-              textTransform: "uppercase",
-              color: "var(--v1-fg)",
-              padding: "16px 32px",
-              background: "rgba(0, 0, 0, 0.45)",
-              border: "1px solid rgba(255, 255, 255, 0.25)",
-            }}
-          >
-            {t("tapToBegin")}
-          </span>
-        </div>
-      )}
+      {/* Video idle/intro layer (clip1 attract → clip2 emerge → live → clip3
+          submerge). Owns the "tap to begin" prompt + launch countdown, and
+          hands the screen to the live globe on reveal. Top of the stack. */}
+      <IntroSequence
+        language={language}
+        requestSubmerge={submerging}
+        onReveal={handleReveal}
+        onReachedIdle={handleReachedIdle}
+      />
     </div>
   );
 }
 
-// ───────── BrandingFlash ─────────
-// Title card ("Submarine Cable Map" / "Brought to you by" / TM logo / HUD
-// tagline) shown over the emerging globe. Each line rises + fades in staggered
-// (v1-brand-rise); the title carries an ice-blue gradient + one-time shine. A
-// soft scrim lifts it off the busy globe and the project's `+` corner
-// crosshairs frame it. When `leaving` goes true the whole card fades out and
-// calls `onGone` so the parent can unmount it.
-function BrandingFlash({
-  language,
-  leaving,
-  onGone,
-}: {
-  language: Language;
-  leaving: boolean;
-  onGone: () => void;
-}) {
-  const t = useT(language);
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 45,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        pointerEvents: "none",
-        // Children stagger IN on their own; the container only drives fade-OUT.
-        opacity: leaving ? 0 : 1,
-        transition: "opacity 700ms ease",
-      }}
-      onTransitionEnd={() => {
-        if (leaving) onGone();
-      }}
-    >
-      {/* Scrim — soft dark halo so the white text reads off the globe. */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          width: "min(120vw, 1100px)",
-          height: "min(80vh, 620px)",
-          background:
-            "radial-gradient(ellipse at center, rgba(2,8,20,0.62) 0%, rgba(2,8,20,0.34) 46%, transparent 72%)",
-        }}
-      />
-
-      {/* Framed card — frosted glass panel with `+` corner crosshairs (project
-          title-strip convention). Square corners keep the crosshairs aligned. */}
-      <div
-        style={{
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          padding: "clamp(30px, 4vw, 60px) clamp(40px, 6vw, 96px)",
-          border: "1px solid rgba(255, 255, 255, 0.22)",
-          background: "rgba(8, 18, 33, 0.30)",
-          backdropFilter: "blur(16px) saturate(1.15)",
-          WebkitBackdropFilter: "blur(16px) saturate(1.15)",
-          boxShadow:
-            "0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
-        }}
-      >
-        {(["tl", "tr", "bl", "br"] as const).map((pos) => (
-          <BrandCross key={pos} position={pos} />
-        ))}
-
-        <span
-          className="v1-brand-title"
-          style={{
-            fontFamily: "var(--v1-display)",
-            fontWeight: 700,
-            fontSize: "clamp(40px, 6.4vw, 88px)",
-            lineHeight: 1.1,
-            textAlign: "center",
-          }}
-        >
-          {t("submarineCableMap")}
-        </span>
-
-        <span
-          className="v1-brand-rise"
-          style={{
-            animationDelay: "150ms",
-            marginTop: "clamp(20px, 2.6vw, 40px)",
-            fontFamily: "var(--v1-mono)",
-            fontWeight: 400,
-            fontSize: "clamp(15px, 1.6vw, 30px)",
-            color: "#FFFFFF",
-            textAlign: "center",
-            textShadow: "0 2px 18px rgba(0, 0, 0, 0.7)",
-          }}
-        >
-          {t("broughtToYouBy")}
-        </span>
-
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/tm-logo.png"
-          alt="Telekom Malaysia"
-          className="v1-brand-rise"
-          style={{
-            animationDelay: "300ms",
-            marginTop: "clamp(18px, 2vw, 32px)",
-            width: "clamp(120px, 11vw, 200px)",
-            height: "auto",
-            userSelect: "none",
-            filter: "drop-shadow(0 4px 22px rgba(0, 0, 0, 0.55))",
-          }}
-          draggable={false}
-        />
-
-        <span
-          className="v1-brand-rise"
-          style={{
-            animationDelay: "440ms",
-            marginTop: "clamp(16px, 1.8vw, 28px)",
-            fontFamily: "var(--v1-mono)",
-            fontWeight: 400,
-            fontSize: "clamp(10px, 0.95vw, 15px)",
-            letterSpacing: "0.34em",
-            textTransform: "uppercase",
-            color: "rgba(184, 230, 255, 0.78)",
-            textAlign: "center",
-            textShadow: "0 2px 14px rgba(0, 0, 0, 0.7)",
-          }}
-        >
-          {t("globalSubmarineNetwork")}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// 8×8 `+` corner crosshair for the branding frame (project title-strip
-// convention — see CableInformation's CrossMark).
-function BrandCross({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
-  const variants = {
-    tl: { top: -4, left: -4 },
-    tr: { top: -4, right: -4 },
-    bl: { bottom: -4, left: -4 },
-    br: { bottom: -4, right: -4 },
-  } as const;
-  return (
-    <span
-      aria-hidden
-      style={{ position: "absolute", width: 8, height: 8, ...variants[position] }}
-    >
-      <span
-        style={{
-          position: "absolute",
-          top: 3,
-          left: 0,
-          width: 8,
-          height: 0,
-          borderTop: "2px solid #FFFFFF",
-        }}
-      />
-      <span
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 3,
-          width: 0,
-          height: 8,
-          borderLeft: "2px solid #FFFFFF",
-        }}
-      />
-    </span>
-  );
-}
+// BrandingFlash + BrandCross archived to ./_archive/BrandingFlash.tsx (v8 —
+// branding dropped from the video-driven intro; kept for future re-use).
 
 // ───────── CallAnimationOverlay ─────────
 // Drives the call animation: stitched cable polyline → bright orange pulse

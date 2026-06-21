@@ -43,9 +43,13 @@ export function useIdleAttractor(
     if (typeof window === "undefined") return;
     if (suspended) {
       // Park the attractor: no countdown, no idle flip, until unsuspended.
-      // Cleanup of any previously-armed timers happens in the effect teardown
-      // below (this effect re-runs on `suspended` change), and `arm()` runs
-      // fresh when it flips back.
+      // Reset isIdle too — "suspended ⇒ not idle". Without this, a stale
+      // isIdle=true from the previous cycle survives the park and fires the
+      // moment the attractor un-suspends on the next reveal, instantly
+      // re-triggering submerge. Cleanup of armed timers happens in the effect
+      // teardown below (re-runs on `suspended` change); `arm()` runs fresh on
+      // flip back, giving a full clean window.
+      setIsIdle(false);
       setWarnSecondsLeft(null);
       return;
     }
