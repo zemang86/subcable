@@ -10,9 +10,10 @@
 //   live      —      video layer is transparent; globe + chrome run.
 //   submerge  clip3 — live → back to idle, played over the globe.
 //
-// Handoffs are masked by a short white flash. All three <video> tags stay
-// mounted with preload="auto" so the swaps are instant (kiosk has the clips
-// buffered); only the active clip is opaque + playing.
+// The clip2→globe and globe→clip3 handoffs are masked by a soft radial bloom;
+// clip1→clip2 is a direct cut. All three <video> tags stay mounted with
+// preload="auto" so the swaps are instant (kiosk has the clips buffered); only
+// the active clip is opaque + playing.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
@@ -22,19 +23,22 @@ const CLIP1 = "/video/tm-clip1-underwater-loop.mp4";
 const CLIP2 = "/video/tm-clip2-emerge-globe.mp4";
 const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
 
-// White-flash duration that masks the submerge handoff.
 // (clip1→clip2 is a direct cut — its frames match, no transition needed.)
-const FLASH_MS = 240;
 // clip2→globe handoff: cut the emerge clip EARLY_CUT_SEC before its end (mid
 // center→left move) and mask the cut with a soft radial bloom — it ramps up
 // over BLOOM_RISE_MS, the clip→globe swap happens at the bloomed peak, then it
 // recedes over BLOOM_FALL_MS revealing the live globe softly.
+// The same bloom masks the globe→clip3 submerge (clip3 blends, no early cut).
 const EARLY_CUT_SEC = 1.0;
 const BLOOM_RISE_MS = 420;
 const BLOOM_FALL_MS = 700;
-// Beat between "go submerge" and clip3 covering the screen, so the chrome's
-// reverse-reveal (panels sliding back out) is visible over the live globe.
-const SUBMERGE_LEAD_MS = 550;
+// clip3→clip1: ease the submerge out by slowing the last second of clip3 to
+// CLIP3_SLOW_RATE, then a quick digital glitch masks the swap back to the
+// attract loop. The "tap to begin" prompt then fades in after PROMPT_DELAY_MS.
+const CLIP3_SLOW_SEC = 1.0;
+const CLIP3_SLOW_RATE = 0.5;
+const GLITCH_MS = 450;
+const PROMPT_DELAY_MS = 2000;
 
 type Phase = "attract" | "launching" | "emerge" | "live" | "submerge";
 
@@ -58,40 +62,43 @@ export default function IntroSequence({
   // the app goes idle and clip3 plays it back down. (v8)
   const [phase, setPhase] = useState<Phase>("live");
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [flashing, setFlashing] = useState(false);
   const [blooming, setBlooming] = useState(false);
+  const [glitching, setGlitching] = useState(false);
+  const [promptReady, setPromptReady] = useState(false);
 
   const v1Ref = useRef<HTMLVideoElement>(null);
   const v2Ref = useRef<HTMLVideoElement>(null);
   const v3Ref = useRef<HTMLVideoElement>(null);
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bloomTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const submergeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const glitchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const promptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the early-cut so the clip2 timeupdate fires the reveal only once.
   const clip2CutRef = useRef(false);
 
-  const flash = useCallback(() => {
-    setFlashing(true);
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlashing(false), FLASH_MS);
-  }, []);
-
-  // clip2→globe reveal: bloom up, swap clip2→live globe at the bloomed peak,
-  // then let the bloom recede over the globe. Fired once per emerge, either by
-  // the early-cut timeupdate or (fallback) by clip2 actually ending.
-  const bloomReveal = useCallback(() => {
-    if (clip2CutRef.current) return;
-    clip2CutRef.current = true;
+  // Soft-bloom handoff: bloom up, run `atPeak` (the phase swap) at the bloomed
+  // peak, then let the bloom recede over the new layer. Used for both clip2→
+  // globe (reveal) and globe→clip3 (submerge).
+  const bloom = useCallback((atPeak: () => void) => {
     bloomTimers.current.forEach(clearTimeout);
     setBlooming(true);
     bloomTimers.current = [
       setTimeout(() => {
-        setPhase("live");
-        onReveal();
-        setBlooming(false); // start the (slower) fall over the live globe
+        atPeak();
+        setBlooming(false); // start the (slower) fall over the new layer
       }, BLOOM_RISE_MS),
     ];
-  }, [onReveal]);
+  }, []);
+
+  // clip2→globe reveal — fired once per emerge (early-cut timeupdate, or clip2
+  // ending as a fallback).
+  const bloomReveal = useCallback(() => {
+    if (clip2CutRef.current) return;
+    clip2CutRef.current = true;
+    bloom(() => {
+      setPhase("live");
+      onReveal();
+    });
+  }, [bloom, onReveal]);
 
   // Drive playback off the phase. Only the active clip plays; clip1 loops only
   // while attracting.
@@ -108,6 +115,14 @@ export default function IntroSequence({
       v2?.pause();
       v3?.pause();
       setCountdown(null);
+      // Hold the "tap to begin" prompt back a couple of seconds after the loop
+      // resumes, so it fades in once the underwater scene has settled.
+      setPromptReady(false);
+      if (promptTimer.current) clearTimeout(promptTimer.current);
+      promptTimer.current = setTimeout(
+        () => setPromptReady(true),
+        PROMPT_DELAY_MS,
+      );
     } else if (phase === "launching") {
       // Let the current clip1 frame play through to its 8s end — do NOT reset
       // currentTime; just stop looping so `ended` fires.
@@ -124,6 +139,7 @@ export default function IntroSequence({
       }
     } else if (phase === "submerge") {
       if (v3) {
+        v3.playbackRate = 1; // reset any slow-out from a prior cycle
         v3.currentTime = 0;
         void v3.play().catch(() => {});
       }
@@ -134,25 +150,19 @@ export default function IntroSequence({
     }
   }, [phase]);
 
-  // Parent asks to submerge: hold in live for a beat so the chrome reverse
-  // animates over the globe, then flash and roll clip3.
+  // Parent flips requestSubmerge once the chrome has finished sliding out →
+  // bloom the live globe into clip3 (clip3 blends, so no early cut).
   useEffect(() => {
     if (requestSubmerge && phase === "live") {
-      submergeTimer.current = setTimeout(() => {
-        flash();
-        setPhase("submerge");
-      }, SUBMERGE_LEAD_MS);
-      return () => {
-        if (submergeTimer.current) clearTimeout(submergeTimer.current);
-      };
+      bloom(() => setPhase("submerge"));
     }
-  }, [requestSubmerge, phase, flash]);
+  }, [requestSubmerge, phase, bloom]);
 
   useEffect(
     () => () => {
-      if (flashTimer.current) clearTimeout(flashTimer.current);
-      if (submergeTimer.current) clearTimeout(submergeTimer.current);
       bloomTimers.current.forEach(clearTimeout);
+      if (glitchTimer.current) clearTimeout(glitchTimer.current);
+      if (promptTimer.current) clearTimeout(promptTimer.current);
     },
     [],
   );
@@ -190,11 +200,25 @@ export default function IntroSequence({
     if (phase === "emerge") bloomReveal();
   }, [phase, bloomReveal]);
 
-  // clip3 finished → back to the attract loop; parent resets baseline.
+  // clip3 timeupdate → ease the submerge out: slow the final second to
+  // slow-motion before the glitch hands back to the attract loop.
+  const handleClip3Time = useCallback(() => {
+    if (phase !== "submerge") return;
+    const v = v3Ref.current;
+    if (!v || !v.duration) return;
+    if (v.currentTime >= v.duration - CLIP3_SLOW_SEC && v.playbackRate !== CLIP3_SLOW_RATE) {
+      v.playbackRate = CLIP3_SLOW_RATE;
+    }
+  }, [phase]);
+
+  // clip3 finished → glitch-cut back to the attract loop; parent resets baseline.
   const handleClip3Ended = useCallback(() => {
     if (phase === "submerge") {
+      setGlitching(true);
       setPhase("attract");
       onReachedIdle();
+      if (glitchTimer.current) clearTimeout(glitchTimer.current);
+      glitchTimer.current = setTimeout(() => setGlitching(false), GLITCH_MS);
     }
   }, [phase, onReachedIdle]);
 
@@ -215,12 +239,19 @@ export default function IntroSequence({
         overflow: "hidden",
       }}
     >
-      <Clip refEl={v1Ref} src={CLIP1} active={phase === "attract" || phase === "launching"} onEnded={handleClip1Ended} onTimeUpdate={handleClip1Time} />
-      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} />
-      <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} />
+      {/* Video stack — glitches during the clip3→clip1 handoff. */}
+      <div
+        className={glitching ? "intro-glitch" : undefined}
+        style={{ position: "absolute", inset: 0 }}
+      >
+        <Clip refEl={v1Ref} src={CLIP1} active={phase === "attract" || phase === "launching"} onEnded={handleClip1Ended} onTimeUpdate={handleClip1Time} />
+        <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} />
+        <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} onTimeUpdate={handleClip3Time} />
+      </div>
 
-      {/* Attract prompt — centred. */}
-      {phase === "attract" && (
+      {/* Attract prompt — centred. Fades in PROMPT_DELAY_MS after the loop
+          resumes (promptReady). */}
+      {phase === "attract" && promptReady && (
         <div style={promptWrap}>
           <span className="v1-pulse" style={promptText}>
             {t("tapToBegin")}
@@ -250,19 +281,6 @@ export default function IntroSequence({
           transition: `opacity ${blooming ? BLOOM_RISE_MS : BLOOM_FALL_MS}ms ease`,
           pointerEvents: "none",
           mixBlendMode: "screen",
-        }}
-      />
-
-      {/* Handoff flash (submerge only). */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: "#FFFFFF",
-          opacity: flashing ? 0.85 : 0,
-          transition: `opacity ${FLASH_MS}ms ease`,
-          pointerEvents: "none",
         }}
       />
     </div>
@@ -298,7 +316,7 @@ function Clip({
         height: "100%",
         objectFit: "cover",
         opacity: active ? 1 : 0,
-        // Instant opacity swap — the bloom/flash overlay masks the cut.
+        // Instant opacity swap — the bloom overlay masks the cut.
         transition: "none",
         pointerEvents: "none",
       }}

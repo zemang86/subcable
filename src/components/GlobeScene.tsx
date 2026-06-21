@@ -395,10 +395,24 @@ export default function GlobeScene() {
   // the reveal out instead of everything firing at once.
   const BEAM_DELAY_MS = 500; // bare globe → network pulses on
   const CHROME_AFTER_BEAM_MS = 1000; // beam → chrome panels reveal
+  // Submerge: how long the chrome takes to animate OUT before clip3 blooms in —
+  // the reverse cascade (last slot 760ms delay + 600ms slide ≈ 1360ms).
+  const CHROME_EXIT_MS = 1450;
   const [chromeReady, setChromeReady] = useState(false);
   const [bootStage, setBootStage] = useState(0);
+  // `chromeExiting` keeps the panels mounted (with v1-exit-* classes) while they
+  // slide back out; `submergePlay` then tells IntroSequence to bloom into clip3.
+  const [chromeExiting, setChromeExiting] = useState(false);
+  const [submergePlay, setSubmergePlay] = useState(false);
   const bootTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const submergeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => bootTimers.current.forEach(clearTimeout), []);
+  useEffect(
+    () => () => {
+      if (submergeTimer.current) clearTimeout(submergeTimer.current);
+    },
+    [],
+  );
 
   // Reveal the live globe (first boot, or clip2 emerge cut): show the bare globe
   // immediately, beam the network on after BEAM_DELAY_MS, then boot the chrome
@@ -426,8 +440,11 @@ export default function GlobeScene() {
   const handleReachedIdle = useCallback(() => {
     bootTimers.current.forEach(clearTimeout);
     bootTimers.current = [];
+    if (submergeTimer.current) clearTimeout(submergeTimer.current);
     setRevealed(false);
     setSubmerging(false);
+    setChromeExiting(false);
+    setSubmergePlay(false);
     setNetworkDormant(true);
     setCableBootAt(0);
     setChromeReady(false);
@@ -439,21 +456,31 @@ export default function GlobeScene() {
     setAutoRotate(false);
   }, []);
 
-  // Inactivity while live (useIdleAttractor fires only when revealed) → reverse
-  // the chrome reveal; IntroSequence then plays clip3 back down to the attract
-  // loop after a short lead so the panels are seen sliding out.
+  // Inactivity while live (useIdleAttractor fires only when revealed) →
+  // submerge: recenter the globe to the canonical recenter pose (so it matches
+  // clip3's framing — the bloom must hand off at the same position/zoom), the
+  // chrome reverses out (panels slide back to their edges), then once they're
+  // gone IntroSequence blooms the globe into clip3. The 1200ms recenter lands
+  // well before the bloom (CHROME_EXIT_MS).
   useEffect(() => {
     if (isIdle && revealed && !submerging) {
       setSubmerging(true);
-      setChromeReady(false);
-      setBootStage(0);
+      setChromeExiting(true); // panels animate out (still mounted)
       cancelFly();
+      flyTo({ lat: MY_LAT, lng: MY_LNG, altitude: MY_ALT }, 1200); // recenter
       setOpenDialog(null);
       setSelectedCable(null);
       setSelectedLandingPoint(null);
       setExpandedPointId(null);
+      if (submergeTimer.current) clearTimeout(submergeTimer.current);
+      submergeTimer.current = setTimeout(() => {
+        setChromeExiting(false);
+        setChromeReady(false); // unmount the (now hidden) panels
+        setBootStage(0);
+        setSubmergePlay(true); // → IntroSequence blooms into clip3
+      }, CHROME_EXIT_MS);
     }
-  }, [isIdle, revealed, submerging, cancelFly]);
+  }, [isIdle, revealed, submerging, cancelFly, flyTo]);
 
   // Resize handler
   useEffect(() => {
@@ -1389,6 +1416,16 @@ export default function GlobeScene() {
     return () => cancelAnimationFrame(raf);
   }, [isLoaded, markerPoints]);
 
+  // Panel animation class: the enter class on reveal; on submerge swap to the
+  // reverse exit and replace the enter stagger with a cascade slot (1 = leaves
+  // first … 5 = leaves last) so the panels exit one after another.
+  const chromeCls = (enterCls: string, exitOrder: number) =>
+    chromeExiting
+      ? `${enterCls
+          .replace(/v1-enter/g, "v1-exit")
+          .replace(/\s*v1-delay-\d/g, "")} v1-exit-d${exitOrder}`
+      : enterCls;
+
   return (
     <div
       className="relative w-full h-screen overflow-hidden"
@@ -1468,10 +1505,10 @@ export default function GlobeScene() {
         </div>
       </div>
 
-      {/* Chrome shows only once the globe is revealed (post-emerge) and boots
-          in subsystem order; it reverses out again when submerging back to the
-          attract video. (v8) */}
-      {revealed && !submerging && chromeReady && (
+      {/* Chrome shows once the globe is revealed (post-emerge) and boots in
+          subsystem order; on submerge it stays mounted with v1-exit-* classes
+          (chromeExiting) to slide back out, then unmounts. (v8) */}
+      {revealed && chromeReady && (!submerging || chromeExiting) && (
         <>
           {/* Each panel slides in from its nearest edge on wake (v1-enter-*),
               applied straight to the panel's own element so it stays fully
@@ -1480,7 +1517,7 @@ export default function GlobeScene() {
           {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
           {bootStage >= 2 && (
             <Sidebar
-              className="v1-enter-right"
+              className={chromeCls("v1-enter-right", 4)}
               selectedCable={selectedCable}
               onSelectCable={handleSelectCable}
               language={language}
@@ -1492,7 +1529,7 @@ export default function GlobeScene() {
               (handleBack pops the open card first, then deselects the cable). */}
           {bootStage >= 2 && (
             <SystemButtons
-              className="v1-enter-right v1-delay-1"
+              className={chromeCls("v1-enter-right v1-delay-1", 3)}
               showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
               onBack={handleBack}
               onRecenter={resetView}
@@ -1505,13 +1542,13 @@ export default function GlobeScene() {
               the General Information panel sits in the same slot. */}
           {bootStage < 3 ? null : selectedCable ? (
             <CableInformation
-              className="v1-enter-right v1-delay-2"
+              className={chromeCls("v1-enter-right v1-delay-2", 2)}
               cable={selectedCable}
               language={language}
             />
           ) : (
             <GeneralInformation
-              className="v1-enter-right v1-delay-2"
+              className={chromeCls("v1-enter-right v1-delay-2", 2)}
               language={language}
             />
           )}
@@ -1529,7 +1566,7 @@ export default function GlobeScene() {
               zIndex: 25,
             }}
           >
-            <div className="v1-enter-left">
+            <div className={chromeCls("v1-enter-left", 1)}>
               <RightCluster
                 openDialog={openDialog}
                 onOpen={(id) => {
@@ -1590,7 +1627,7 @@ export default function GlobeScene() {
           {/* Bottom: titlebar — first subsystem online. */}
           {bootStage >= 1 && (
             <Header
-              className="v1-enter-bottom v1-delay-1"
+              className={chromeCls("v1-enter-bottom v1-delay-1", 5)}
               selectedCable={selectedCable}
               language={language}
             />
@@ -1725,7 +1762,7 @@ export default function GlobeScene() {
           hands the screen to the live globe on reveal. Top of the stack. */}
       <IntroSequence
         language={language}
-        requestSubmerge={submerging}
+        requestSubmerge={submergePlay}
         onReveal={handleReveal}
         onReachedIdle={handleReachedIdle}
       />
