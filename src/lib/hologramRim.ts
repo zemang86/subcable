@@ -23,12 +23,13 @@ import {
 // (and above the country-fill caps at 100.2) so the rim reads as the
 // sphere's own edge, not a detached ring.
 const RIM_RADIUS = 100.4;
-// Brighter electric blue than the deep v1 atmosphere (#034DA1) — at fresnel
-// grazing angles a dark colour vanishes; the rim needs its own luminance.
-const RIM_COLOR = "#2F86FF";
+// Follows temp/globe.svg, whose outer stop whitens at the silhouette — a
+// pale #237ED0 reads near-white at grazing angles where a dark colour would
+// vanish. Dimmed per client ("dim the glow a bit").
+const RIM_COLOR = "#7FB8EE";
 // Falloff exponent: higher = the glow hugs the silhouette tighter.
 const RIM_POWER = 3.5;
-const RIM_INTENSITY = 1.15;
+const RIM_INTENSITY = 0.8;
 
 const VERT = /* glsl */ `
 varying vec3 vNormal;

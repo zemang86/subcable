@@ -48,7 +48,7 @@ import { useIdleAttractor } from "@/lib/useIdleAttractor";
 import { useT } from "@/lib/i18n";
 import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
 import { attachHologramRim } from "@/lib/hologramRim";
-import { attachScanSweep } from "@/lib/scanSweep";
+// import { attachScanSweep } from "@/lib/scanSweep"; // radar sweep hidden (client)
 import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
 import { attachIdleTethers } from "@/lib/idleTethers";
 
@@ -160,7 +160,10 @@ const SEA_FADE_OUT_ALT = 0.3;
 
 // ───────── v1.0 palette → globe constants ─────────
 
-const ATMOSPHERE_COLOR = V1_COLORS.atmosphere;          // #034DA1 v1-blue
+// Globe glow ramp follows temp/globe.svg: a #237ED0 halo that whitens at the
+// silhouette. Recoloured off the deep v1 atmosphere (#034DA1) and dimmed —
+// the broad outer falloff is the atmosphere, the crisp rim is hologramRim.
+const ATMOSPHERE_COLOR = "#237ED0";                     // globe.svg halo stop
 const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
 const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
 // Neon glow (both default + selected): one saturated colour ring hugging the
@@ -1067,12 +1070,13 @@ export default function GlobeScene() {
 
   // Scanline sweep — a radar-style band of light circling the sphere every
   // ~20s (src/lib/scanSweep.ts), so the globe reads as continuously scanned.
-  useEffect(() => {
-    if (!isLoaded || !globeRef.current) return;
-    const scene = globeRef.current.scene?.();
-    if (!scene) return;
-    return attachScanSweep(scene);
-  }, [isLoaded]);
+  // HIDDEN for now (commented by client) — the radar sweep is disabled.
+  // useEffect(() => {
+  //   if (!isLoaded || !globeRef.current) return;
+  //   const scene = globeRef.current.scene?.();
+  //   if (!scene) return;
+  //   return attachScanSweep(scene);
+  // }, [isLoaded]);
 
   // Idle umbilical tethers — while the kiosk idles "docked", glowing data
   // conduits clamp onto the visible hemisphere and feed pulses into the
@@ -1509,7 +1513,7 @@ export default function GlobeScene() {
         globeImageUrl={WORLD_MAP_DARK_URL}
         showAtmosphere={true}
         atmosphereColor={ATMOSPHERE_COLOR}
-        atmosphereAltitude={0.18}
+        atmosphereAltitude={0.12}
         polygonsData={highlightedCountries}
         polygonCapColor={countryCapColor}
         polygonSideColor={countrySideColor}

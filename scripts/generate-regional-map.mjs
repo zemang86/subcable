@@ -46,8 +46,8 @@ const PRESETS = {
     gridMajor: "rgba(60, 80, 120, 0.18)",
   },
   dark: {
-    sea: "#1E3A5F",
-    land: "#152033",
+    sea: "#153762",
+    land: "#237ED0",
     stroke: "rgba(150, 165, 200, 0.30)",
     gridMinor: "rgba(120, 170, 255, 0.08)",
     gridMajor: "rgba(120, 170, 255, 0.16)",
