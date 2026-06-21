@@ -12,7 +12,6 @@ import CableInformation from "./CableInformation";
 import GeneralInformation from "./GeneralInformation";
 import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
-import { RecenterButton } from "./RecenterButton";
 import { RightCluster } from "./RightCluster";
 import { ClusterStem } from "./ClusterStem";
 import { LandingPointCallout } from "./LandingPointCallout";
@@ -47,13 +46,13 @@ import {
 } from "@/lib/morseAudio";
 import { useIdleAttractor } from "@/lib/useIdleAttractor";
 import { useT } from "@/lib/i18n";
+import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
+import { attachHologramRim } from "@/lib/hologramRim";
+// import { attachScanSweep } from "@/lib/scanSweep"; // radar sweep hidden (client)
+import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
+import { attachIdleTethers } from "@/lib/idleTethers";
 
 // ───────── Tuning ─────────
-
-// Travelling-dot tuning — constant world-size spheres along every cable.
-const DOT_RADIUS = 0.11;
-const DOT_SPEED_KM_PER_SEC = 375;
-const DOT_MIN_LOOP_SEC = 4;
 
 // Quantized zoom buckets — three-globe rebuilds TextGeometry whenever
 // labelSize / labelDotRadius returns a new value. A continuous scalar from
@@ -161,7 +160,10 @@ const SEA_FADE_OUT_ALT = 0.3;
 
 // ───────── v1.0 palette → globe constants ─────────
 
-const ATMOSPHERE_COLOR = V1_COLORS.atmosphere;          // #034DA1 v1-blue
+// Globe glow ramp follows temp/globe.svg: a #237ED0 halo that whitens at the
+// silhouette. Recoloured off the deep v1 atmosphere (#034DA1) and dimmed —
+// the broad outer falloff is the atmosphere, the crisp rim is hologramRim.
+const ATMOSPHERE_COLOR = "#237ED0";                     // globe.svg halo stop
 const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
 const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
 // Neon glow (both default + selected): one saturated colour ring hugging the
@@ -196,7 +198,6 @@ const neonCore = (hex: string, toward = 0.72) => {
 const LANDING_POINT_DEFAULT = V1_COLORS.fg;             // white
 const LANDING_POINT_ACTIVE = V1_COLORS.active;          // #8FFF3F lime
 const LANDING_POINT_MUTED = "rgba(120, 120, 120, 0.30)";
-const TRAVELLING_DOT_COLOR = V1_COLORS.fg;              // white
 
 // Country highlight (Phase 2): when a cable is selected, the countries it lands
 // in get a flat translucent light-grey fill — no border, no pattern. Sits just
@@ -247,6 +248,9 @@ interface PathData {
   name: string;
   color: string;
   status: CableSystem["status"];
+  // Position of this segment within its cable's route — the circuit-trace
+  // selection effect energizes segments in this order (src/lib/cableFlow.ts).
+  _segIndex: number;
   // Neon glow ring index: undefined = white-hot core line,
   // 2 = saturated colour glow hugging the core.
   _halo?: 2;
@@ -385,6 +389,14 @@ export default function GlobeScene() {
     setAudioMuted(muted);
   }, [muted]);
 
+  // The cable network sleeps (ghosted by cableFlow) from the moment the
+  // kiosk goes idle until the post-branding power-on — explicit state, not
+  // derived, so it spans the whole idle → emerge → fly-in → branding chain
+  // without flickering awake between phases. `cableBootAt` is the timestamp
+  // of the all-cables wake-up trace (0 = never fired).
+  const [networkDormant, setNetworkDormant] = useState(false);
+  const [cableBootAt, setCableBootAt] = useState(0);
+
   // Idle → enable auto-rotate and close any open dialog so the attractor
   // doesn't end up rendered behind a modal nobody is around to dismiss.
   useEffect(() => {
@@ -392,6 +404,9 @@ export default function GlobeScene() {
       // Cancel any in-flight camera move + pending arrival-settle so neither
       // fights the idle zoom-out.
       cancelFly();
+      // The network goes to sleep with the kiosk; it stays ghosted until
+      // the post-branding power-on fires on the next wake.
+      setNetworkDormant(true);
       setAutoRotate(true);
       setOpenDialog(null);
       setSelectedCable(null);
@@ -419,7 +434,7 @@ export default function GlobeScene() {
   // overlay; on wake it plays the "rising out of the water" beat (the waterline
   // recedes top-down) before the chrome is revealed. `surfacing` is that
   // transient phase — must match the .v1-uw-recede duration in globals.css.
-  const SURFACE_MS = 1150;
+  const SURFACE_MS = 2600;
   const [surfacing, setSurfacing] = useState(false);
   // Branding card ("Submarine Cable Map / by TM") surfaces mid-emerge, holds
   // through the camera fly-in, then bows out — and ONLY once it's fully gone do
@@ -431,6 +446,12 @@ export default function GlobeScene() {
   // on a wake-from-idle, then revealed. Defaults true so the very first load
   // (no emerge) shows chrome immediately.
   const [chromeReady, setChromeReady] = useState(true);
+  // Chrome boot sequence on wake: panels mount in subsystem order (Header →
+  // Sidebar/system buttons → info panel → cluster/controls), each replaying
+  // its slide-in + materialize animations. 4 = fully booted — the default,
+  // so the very first load (no emerge) shows everything at once.
+  const BOOT_STEP_MS = 180;
+  const [bootStage, setBootStage] = useState(4);
   const wasIdleRef = useRef(isIdle);
   useEffect(() => {
     if (wasIdleRef.current && !isIdle) {
@@ -456,13 +477,29 @@ export default function GlobeScene() {
           }, ARRIVAL_MS);
         }
       }, SURFACE_MS);
-      // Fade the card in halfway through the emerge, hold through the fly-in,
-      // then bow it out. Reveal the chrome only after its 700ms fade completes.
-      const idIn = setTimeout(() => setBrandingOn(true), SURFACE_MS * 0.5);
-      const idOut = setTimeout(() => setBrandingLeaving(true), SURFACE_MS + 2500);
-      const idChrome = setTimeout(
-        () => setChromeReady(true),
-        SURFACE_MS + 2500 + 700,
+      // The branding card waits for the globe to be fully parked — emerge
+      // done, x-offset slide complete, both fly-in legs landed — so the
+      // splash/bounce beat plays unobstructed. Then: card holds, bows out
+      // (network power-on fires with it), and the chrome boots last.
+      const brandIn = SURFACE_MS + ARRIVAL_MS + ARRIVAL_SETTLE_MS;
+      const brandOut = brandIn + 2500;
+      const idIn = setTimeout(() => setBrandingOn(true), brandIn);
+      const idOut = setTimeout(() => {
+        setBrandingLeaving(true);
+        // Card bows out → power the network back on: cableFlow runs a
+        // one-shot circuit-trace on every cable simultaneously.
+        setNetworkDormant(false);
+        setCableBootAt(performance.now());
+      }, brandOut);
+      const idChrome = setTimeout(() => {
+        setChromeReady(true);
+        setBootStage(1); // chrome boots in subsystem order from here
+      }, brandOut + 700);
+      const idStages = [2, 3, 4].map((stage, i) =>
+        setTimeout(
+          () => setBootStage(stage),
+          brandOut + 700 + (i + 1) * BOOT_STEP_MS,
+        ),
       );
       wasIdleRef.current = isIdle;
       return () => {
@@ -470,6 +507,7 @@ export default function GlobeScene() {
         clearTimeout(idIn);
         clearTimeout(idOut);
         clearTimeout(idChrome);
+        idStages.forEach(clearTimeout);
       };
     }
     wasIdleRef.current = isIdle;
@@ -484,8 +522,8 @@ export default function GlobeScene() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Solid line per segment. Travelling dots are NOT in this list — they're
-  // real THREE.Mesh spheres added directly to the scene (see RAF effect).
+  // Solid line per segment. The flowing-energy pulses are not extra objects —
+  // they're a shader patch on these lines' materials (src/lib/cableFlow.ts).
   const pathsData: PathData[] = useMemo(() => {
     const out: PathData[] = [];
     for (const route of cableRoutes) {
@@ -498,51 +536,18 @@ export default function GlobeScene() {
           : status === "planned"
             ? V1_COLORS.orange
             : baseColor;
-      for (const seg of route.segments) {
+      route.segments.forEach((seg, segIndex) => {
         out.push({
           coords: seg.coords,
           cableId: route.cableId,
           name: cable?.shortName || route.cableId,
           color: colorByStatus,
           status,
+          _segIndex: segIndex,
         });
-      }
+      });
     }
     return out;
-  }, []);
-
-  // Per-segment cumulative arc-length (km) so the travelling-dot RAF can map
-  // elapsed time → distance → lat/lng.
-  const dotSegments = useMemo(() => {
-    const haversine = (a: [number, number], b: [number, number]) => {
-      const R = 6371;
-      const dLat = ((b[0] - a[0]) * Math.PI) / 180;
-      const dLng = ((b[1] - a[1]) * Math.PI) / 180;
-      const la1 = (a[0] * Math.PI) / 180;
-      const la2 = (b[0] * Math.PI) / 180;
-      const x =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
-      return 2 * R * Math.asin(Math.sqrt(x));
-    };
-    type Seg = {
-      coords: [number, number][];
-      cumKm: number[];
-      totalKm: number;
-    };
-    const segs: Seg[] = [];
-    for (const route of cableRoutes) {
-      for (const seg of route.segments) {
-        const coords = seg.coords;
-        if (coords.length < 2) continue;
-        const cumKm = [0];
-        for (let i = 1; i < coords.length; i++) {
-          cumKm.push(cumKm[i - 1] + haversine(coords[i - 1], coords[i]));
-        }
-        segs.push({ coords, cumKm, totalKm: cumKm[cumKm.length - 1] });
-      }
-    }
-    return segs;
   }, []);
 
   // Greedy cluster: any landing points within CLUSTER_KM of an existing
@@ -896,6 +901,24 @@ export default function GlobeScene() {
     [openLandingPoint],
   );
 
+  // Touch ripple — an expanding ring on the sphere at the tapped point
+  // (src/lib/touchRipple.ts), spawned from handleGlobeClick below. Gives
+  // every globe tap visible feedback, including misses that select nothing.
+  // (Declared before handleGlobeClick so the ref mutation in the effect
+  // precedes the callback that captures it — react-hooks/immutability.)
+  const touchRippleRef = useRef<TouchRipple | null>(null);
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    const ripple = attachTouchRipple(scene);
+    touchRippleRef.current = ripple;
+    return () => {
+      touchRippleRef.current = null;
+      ripple.detach();
+    };
+  }, [isLoaded]);
+
   // ── Tap forgiveness ──
   // Globe dots are a few px and cable strokes thinner still, so a fingertip
   // that just misses raycasts through to the bare globe. onGlobeClick catches
@@ -906,6 +929,9 @@ export default function GlobeScene() {
   const handleGlobeClick = useCallback(
     ({ lat, lng }: { lat: number; lng: number }) => {
       if (isIdle || surfacing || activeCall) return;
+      // Hologram disturbance at the touched point — fires for every globe
+      // tap, hit or miss, so the kiosk always acknowledges the finger.
+      touchRippleRef.current?.spawn(lat, lng);
       const alt = globeRef.current?.pointOfView?.()?.altitude ?? DEFAULT_ALT;
       const cosLat = Math.cos((lat * Math.PI) / 180);
       const distDeg = (aLat: number, aLng: number) => {
@@ -1007,6 +1033,68 @@ export default function GlobeScene() {
     () => (activeCall ? new Set(activeCall.route.cableIds) : null),
     [activeCall],
   );
+
+  // Flowing-energy wave on the cable lines (src/lib/cableFlow.ts). The flow
+  // loop reads selection/call state through a ref so the rAF never restarts
+  // on state changes — it just sees the latest values each frame.
+  const flowStateRef = useRef<CableFlowState>({
+    selectedCableId: null,
+    callCableIds: null,
+    dormant: false,
+    bootAt: 0,
+  });
+  useEffect(() => {
+    flowStateRef.current = {
+      selectedCableId: selectedCable?.id ?? null,
+      callCableIds: activeCallCableIds,
+      dormant: networkDormant,
+      bootAt: cableBootAt,
+    };
+  }, [selectedCable, activeCallCableIds, networkDormant, cableBootAt]);
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    return attachCableFlow(scene, () => flowStateRef.current);
+  }, [isLoaded]);
+
+  // Hologram fresnel rim — crisp electric edge on the sphere's silhouette
+  // (src/lib/hologramRim.ts). The stock atmosphere stays on for the soft
+  // outer falloff; this shell provides the sharp inner edge.
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    return attachHologramRim(scene);
+  }, [isLoaded]);
+
+  // Scanline sweep — a radar-style band of light circling the sphere every
+  // ~20s (src/lib/scanSweep.ts), so the globe reads as continuously scanned.
+  // HIDDEN for now (commented by client) — the radar sweep is disabled.
+  // useEffect(() => {
+  //   if (!isLoaded || !globeRef.current) return;
+  //   const scene = globeRef.current.scene?.();
+  //   if (!scene) return;
+  //   return attachScanSweep(scene);
+  // }, [isLoaded]);
+
+  // Idle umbilical tethers — while the kiosk idles "docked", glowing data
+  // conduits clamp onto the visible hemisphere and feed pulses into the
+  // globe (src/lib/idleTethers.ts). On wake the cleanup triggers the
+  // staggered unplug animation (reverse circuit-trace racing off-screen),
+  // which disposes itself when the last conduit is consumed — it plays out
+  // under the receding waterline during the emerge.
+  useEffect(() => {
+    if (!isLoaded || !isIdle || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    const camera = globeRef.current.camera?.() as
+      | THREE.PerspectiveCamera
+      | undefined;
+    const renderer = globeRef.current.renderer?.();
+    if (!scene || !camera?.isPerspectiveCamera || !renderer) return;
+    const tethers = attachIdleTethers(scene, camera, renderer);
+    return () => tethers.release();
+  }, [isLoaded, isIdle]);
 
   // Render order: muted siblings first → halo rings → cores.
   // Later entries in pathsData paint over earlier ones in three-globe, so
@@ -1173,79 +1261,6 @@ export default function GlobeScene() {
     }, 60);
     return () => clearTimeout(id);
   }, [isLoaded]);
-
-  // Travelling dots — a single InstancedMesh holds one dot per cable segment,
-  // all animated continuously regardless of selection. One draw call for every
-  // dot (vs a mesh-per-segment); the RAF writes each dot's transform into the
-  // shared instance matrix.
-  useEffect(() => {
-    if (!isLoaded || !globeRef.current) return;
-    const scene = globeRef.current.scene?.();
-    if (!scene) return;
-
-    const count = dotSegments.length;
-    const geo = new THREE.SphereGeometry(DOT_RADIUS, 12, 8);
-    const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(TRAVELLING_DOT_COLOR),
-      // depthTest on so the opaque globe occludes dots on its far side
-      // (depthTest:false made back-side dots bleed through to the front).
-      depthTest: true,
-      transparent: true,
-    });
-    const inst = new THREE.InstancedMesh(geo, mat, count);
-    inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    inst.renderOrder = 999;
-    inst.frustumCulled = false;
-    scene.add(inst);
-
-    const m4 = new THREE.Matrix4();
-    let raf = 0;
-    const start = performance.now();
-    const tick = () => {
-      const elapsedSec = (performance.now() - start) / 1000;
-      const pov = globeRef.current?.pointOfView?.();
-      const alt = pov?.altitude ?? 1;
-      const scale = Math.max(0.12, Math.min(3, (1 + alt) / 2.0));
-      for (let i = 0; i < count; i++) {
-        const seg = dotSegments[i];
-        if (seg.totalKm <= 0) {
-          // Degenerate segment — scale to 0 so the instance is invisible.
-          m4.makeScale(0, 0, 0);
-          inst.setMatrixAt(i, m4);
-          continue;
-        }
-        const speed = Math.min(
-          DOT_SPEED_KM_PER_SEC,
-          seg.totalKm / DOT_MIN_LOOP_SEC,
-        );
-        const dist = (elapsedSec * speed) % seg.totalKm;
-        let j = 1;
-        while (j < seg.cumKm.length && seg.cumKm[j] < dist) j++;
-        if (j >= seg.cumKm.length) j = seg.cumKm.length - 1;
-        const a = seg.coords[j - 1];
-        const b = seg.coords[j];
-        const legKm = seg.cumKm[j] - seg.cumKm[j - 1];
-        const t = legKm > 0 ? (dist - seg.cumKm[j - 1]) / legKm : 0;
-        const lat = a[0] + (b[0] - a[0]) * t;
-        const lng = a[1] + (b[1] - a[1]) * t;
-        const xyz = globeRef.current.getCoords(lat, lng, 0.005);
-        m4.makeScale(scale, scale, scale);
-        m4.setPosition(xyz.x, xyz.y, xyz.z);
-        inst.setMatrixAt(i, m4);
-      }
-      inst.instanceMatrix.needsUpdate = true;
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      scene.remove(inst);
-      inst.dispose();
-      geo.dispose();
-      mat.dispose();
-    };
-  }, [isLoaded, dotSegments]);
 
   // Regional sharpness overlay (SEA window). Single grid mesh, fades in at
   // close zoom. Always dark in v1.0.
@@ -1498,7 +1513,7 @@ export default function GlobeScene() {
         globeImageUrl={WORLD_MAP_DARK_URL}
         showAtmosphere={true}
         atmosphereColor={ATMOSPHERE_COLOR}
-        atmosphereAltitude={0.18}
+        atmosphereAltitude={0.12}
         polygonsData={highlightedCountries}
         polygonCapColor={countryCapColor}
         polygonSideColor={countrySideColor}
@@ -1550,27 +1565,32 @@ export default function GlobeScene() {
               interactive — no overlay wrappers. */}
 
           {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
-          <Sidebar
-            className="v1-enter-right"
-            selectedCable={selectedCable}
-            onSelectCable={handleSelectCable}
-            language={language}
-          />
+          {bootStage >= 2 && (
+            <Sidebar
+              className="v1-enter-right"
+              selectedCable={selectedCable}
+              onSelectCable={handleSelectCable}
+              language={language}
+            />
+          )}
 
           {/* Left of Cable System panel: Back / Audio / Naration button column.
               Back shows when a cable is selected OR a landing-point card is open
               (handleBack pops the open card first, then deselects the cable). */}
-          <SystemButtons
-            className="v1-enter-right v1-delay-1"
-            showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
-            onBack={handleBack}
-            muted={muted}
-            onAudioToggle={() => setMuted((m) => !m)}
-          />
+          {bootStage >= 2 && (
+            <SystemButtons
+              className="v1-enter-right v1-delay-1"
+              showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
+              onBack={handleBack}
+              onRecenter={resetView}
+              muted={muted}
+              onAudioToggle={() => setMuted((m) => !m)}
+            />
+          )}
 
           {/* Right edge: CableInformation when a cable is selected, otherwise
               the General Information panel sits in the same slot. */}
-          {selectedCable ? (
+          {bootStage < 3 ? null : selectedCable ? (
             <CableInformation
               className="v1-enter-right v1-delay-2"
               cable={selectedCable}
@@ -1586,6 +1606,7 @@ export default function GlobeScene() {
           {/* Left edge centered: action cluster (Morse / Fun Fact / Help). The
               outer div holds the fixed centring transform; the inner div carries
               the slide-in animation so the two transforms don't collide. */}
+          {bootStage >= 4 && (
           <div
             style={{
               position: "fixed",
@@ -1643,35 +1664,25 @@ export default function GlobeScene() {
                   </span>
                 </div>
               )}
+
+              {/* Language toggle — sits directly below the Help button, sharing
+                  the left-edge action stack. */}
+              <div style={{ marginTop: 31 }}>
+                <LanguageToggle value={language} onChange={setLanguage} />
+              </div>
             </div>
           </div>
+          )}
 
-          {/* Bottom: titlebar */}
-          <Header
-            className="v1-enter-bottom v1-delay-1"
-            selectedCable={selectedCable}
-            language={language}
-          />
+          {/* Bottom: titlebar — first subsystem online. */}
+          {bootStage >= 1 && (
+            <Header
+              className="v1-enter-bottom v1-delay-1"
+              selectedCable={selectedCable}
+              language={language}
+            />
+          )}
 
-          {/* Bottom-center: language toggle + re-center button (Figma V1.3).
-              Outer div centres; inner div animates (avoids transform clash). */}
-          <div
-            style={{
-              position: "fixed",
-              bottom: 30,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 25,
-            }}
-          >
-            <div
-              className="v1-enter-bottom v1-delay-3"
-              style={{ display: "flex", gap: 14, alignItems: "center" }}
-            >
-              <LanguageToggle value={language} onChange={setLanguage} />
-              <RecenterButton onRecenter={resetView} />
-            </div>
-          </div>
         </>
       )}
 

@@ -2,6 +2,7 @@
 
 import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
+import { useScramble } from "@/lib/useScramble";
 
 interface GeneralInformationProps {
   language?: Language;
@@ -40,17 +41,30 @@ export default function GeneralInformation({
     >
       <TitleStrip title={t("generalInformation")} />
 
-      {/* PANEL BODY — bevel gradient + SVG frame */}
+      {/* PANEL BODY — bevel gradient + SVG frame. The gradient sits on its
+          own wiping layer so the traced frame isn't clipped with it, and the
+          content shares one fade layer (absolute coords preserved by inset 0). */}
       <div
         style={{
           position: "relative",
           width: PANEL_WIDTH,
           height: PANEL_BODY_HEIGHT,
-          background:
-            "linear-gradient(303.52deg, #034DA1 -11.48%, rgba(3, 77, 161, 0) 82.93%), linear-gradient(123.48deg, rgba(240, 90, 34, 0.6) -7.19%, rgba(240, 90, 34, 0) 100%)",
         }}
       >
+        <span
+          aria-hidden
+          className="v7-mat-wipe"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(303.52deg, #034DA1 -11.48%, rgba(3, 77, 161, 0) 82.93%), linear-gradient(123.48deg, rgba(240, 90, 34, 0.6) -7.19%, rgba(240, 90, 34, 0) 100%)",
+            pointerEvents: "none",
+          }}
+        />
         <PanelFrame />
+
+        <div className="v7-mat-body" style={{ position: "absolute", inset: 0 }}>
 
         {/* ── Intro description block (Figma "General Info 01") ── */}
         <div style={{ position: "absolute", left: 11, top: 14, width: 405, height: 79 }}>
@@ -159,6 +173,7 @@ export default function GeneralInformation({
         <StatCell left={11} top={247} value="1.3M" color={ORANGE_MID} label={t("kmOnSeafloors")} />
         <StatCell left={221} top={170} value="600+" color={ORANGE_MID} label={t("cablesWorldwide")} />
         <StatCell left={221} top={247} value="1866" color={ORANGE_HOT} label={t("firstTransAtlantic")} />
+        </div>
       </div>
     </div>
   );
@@ -275,27 +290,41 @@ function CornerBracket({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
 /* ───────────────────────── TITLE STRIP ───────────────────────── */
 
 function TitleStrip({ title }: { title: string }) {
+  const display = useScramble(title);
   return (
     <div
       style={{
         position: "relative",
         width: PANEL_WIDTH,
         height: TITLE_STRIP_HEIGHT,
-        background:
-          "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
-        border: "0.37px solid #FFFFFF",
         display: "flex",
         alignItems: "center",
         padding: "0 16px",
         boxSizing: "border-box",
       }}
     >
+      {/* Background + border on their own layer so the materialize wipe
+          doesn't clip the overhanging crosshairs or the decrypting title. */}
+      <span
+        aria-hidden
+        className="v7-mat-wipe"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
+          border: "0.37px solid #FFFFFF",
+          boxSizing: "border-box",
+          pointerEvents: "none",
+        }}
+      />
       <CrossMark position="tl" />
       <CrossMark position="tr" />
       <CrossMark position="bl" />
       <CrossMark position="br" />
       <span
         style={{
+          position: "relative",
           fontFamily: "var(--v1-display)",
           fontWeight: 500,
           fontSize: 28,
@@ -303,7 +332,7 @@ function TitleStrip({ title }: { title: string }) {
           color: "#FFFFFF",
         }}
       >
-        {title}
+        {display}
       </span>
     </div>
   );
@@ -319,6 +348,7 @@ function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
   return (
     <span
       aria-hidden
+      className="v7-mat-cross"
       style={{
         position: "absolute",
         width: 8,
@@ -368,24 +398,32 @@ function PanelFrame() {
       }}
     >
       <path
+        className="v7-mat-trace"
+        pathLength={1}
         d={`M0.5 50.5 V0.5 H${PANEL_WIDTH - 0.5} V50.5`}
         stroke="#FFFFFF"
         strokeLinecap="round"
         fill="none"
       />
       <path
+        className="v7-mat-trace"
+        pathLength={1}
         d={`M${PANEL_WIDTH - 0.5} ${PANEL_BODY_HEIGHT - 50.5} V${PANEL_BODY_HEIGHT - 0.5} H0.5 V${PANEL_BODY_HEIGHT - 50.5}`}
         stroke="#FFFFFF"
         strokeLinecap="round"
         fill="none"
       />
       <path
+        className="v7-mat-trace"
+        pathLength={1}
         d={`M${PANEL_WIDTH - 0.5} 60 V${PANEL_BODY_HEIGHT - 60}`}
         stroke="#FFFFFF"
         strokeLinecap="round"
         fill="none"
       />
       <path
+        className="v7-mat-trace"
+        pathLength={1}
         d={`M0.5 60 V${PANEL_BODY_HEIGHT - 60}`}
         stroke="#FFFFFF"
         strokeLinecap="round"

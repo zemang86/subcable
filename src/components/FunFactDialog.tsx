@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { CableSystem, Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
+import { useScramble } from "@/lib/useScramble";
 
 interface FunFactDialogProps {
   cable: CableSystem;
@@ -295,6 +296,7 @@ function TitleStrip({
   title: string;
   onClose: () => void;
 }) {
+  const display = useScramble(title);
   return (
     <div
       data-stem-title
@@ -302,9 +304,6 @@ function TitleStrip({
         position: "relative",
         width: "100%",
         height: TITLE_STRIP_HEIGHT,
-        background:
-          "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
-        border: "0.37px solid #FFFFFF",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -312,12 +311,28 @@ function TitleStrip({
         boxSizing: "border-box",
       }}
     >
+      {/* Background + border on their own layer so the materialize wipe
+          doesn't clip the overhanging crosshairs or the decrypting title. */}
+      <span
+        aria-hidden
+        className="v7-mat-wipe"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
+          border: "0.37px solid #FFFFFF",
+          boxSizing: "border-box",
+          pointerEvents: "none",
+        }}
+      />
       <CrossMark position="tl" />
       <CrossMark position="tr" />
       <CrossMark position="bl" />
       <CrossMark position="br" />
       <span
         style={{
+          position: "relative",
           fontFamily: "var(--v1-display)",
           fontWeight: 500,
           fontSize: 28,
@@ -325,13 +340,14 @@ function TitleStrip({
           color: "#FFFFFF",
         }}
       >
-        {title}
+        {display}
       </span>
       <button
         type="button"
         onClick={onClose}
         aria-label="Close"
         style={{
+          position: "relative",
           width: 28,
           height: 28,
           background: "transparent",
@@ -362,6 +378,7 @@ function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
   return (
     <span
       aria-hidden
+      className="v7-mat-cross"
       style={{
         position: "absolute",
         width: 8,

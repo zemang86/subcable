@@ -63,7 +63,7 @@ export function UnderwaterOverlay({ surfacing }: { surfacing: boolean }) {
           dx: Math.cos(angle) * dist, // vmin
           dy: Math.sin(angle) * dist, // vmin
           size: 4 + r(3) * 7, // px
-          delay: 430 + r(4) * 70, // ms — peaks with the breach, done before 1150
+          delay: 975 + r(4) * 160, // ms — peaks with the breach, done before 2600
         };
       }),
     [],
@@ -77,8 +77,8 @@ export function UnderwaterOverlay({ surfacing }: { surfacing: boolean }) {
         return {
           left: 3 + r(1) * 94, // vw
           size: 6 + r(2) * 15, // px
-          dur: 620 + r(3) * 330, // ms — finishes inside the 1150ms emerge
-          delay: r(4) * 180, // ms
+          dur: 1400 + r(3) * 750, // ms — finishes inside the 2600ms emerge
+          delay: r(4) * 400, // ms
           sway: (r(5) - 0.5) * 120, // px
         };
       }),
@@ -87,9 +87,9 @@ export function UnderwaterOverlay({ surfacing }: { surfacing: boolean }) {
 
   // Expanding shockwave rings from the breach point.
   const rings = [
-    { size: 34, delay: 360 },
-    { size: 50, delay: 470 },
-    { size: 66, delay: 580 },
+    { size: 34, delay: 815 },
+    { size: 50, delay: 1060 },
+    { size: 66, delay: 1310 },
   ];
 
   return (

@@ -41,14 +41,12 @@ electron/
 - Electron uses `app://` custom protocol to serve static files from `out/` directory (avoids file:// CORS issues with Next.js static export)
 
 ## Data
-3 cable systems: BDM, MCT, SKR1M
-13 unique landing points across Malaysia, Indonesia, Thailand, Cambodia
+26 cable systems in src/data/cables.ts: 11 international (SMW4, SMW5, BBG, AAG, APCN-2, CM, BDM, DMCS, MCT, NuGate, SAT3-WASC-SAFE), 2 IRU (FLAG, FA-1), 9 domestic (incl. SKR1M, MDSCS, Stingray island links), 4 planned (SMW6, ALC, AUG East, CANDLE)
+113 landing points across src/data/
 
 ## Textures
-- Night: NASA 13500x6750 (7.5MB) — near GPU max
-- Day: NASA Blue Marble 8192x4096 (5.5MB) — downscaled from 21600x10800 source
+- Globe renders a single dark monochrome mode: `world-mono-dark.webp` (land) + `world-mono-dark-sea.webp` (sea overlay), plus `starfield.webp` background
 - WebGL GPU limit is typically 8192px; anything larger gets downsampled by the GPU
-- Topology bump map for terrain relief
 
 ## Deployment
 ### Web (Vercel)
@@ -58,9 +56,9 @@ electron/
 - `output: "export"` works with both Vercel and Electron
 
 ### Desktop (Electron)
-- GitHub Actions builds macOS DMG + Windows exe on every push to `main`
+- GitHub Actions builds the Windows exe on every push to `main` (CI no longer builds the macOS DMG — kiosk target is Windows; run `npm run electron:build` locally for a DMG)
 - Download installers from GitHub Actions artifacts tab (requires GitHub login, expires 90 days)
-- For permanent distribution, create a GitHub Release and attach the .dmg/.exe files
+- For permanent distribution, create a GitHub Release and attach the .exe file
 - No code signing configured (internal distribution)
 - Config in `electron-builder.yml`
 - CI workflow: `.github/workflows/build.yml`

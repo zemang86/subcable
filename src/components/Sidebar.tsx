@@ -5,6 +5,7 @@ import { cables } from "@/data/cables";
 import type { CableSystem, Filter, LandingPoint } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import type { Language } from "@/lib/types";
+import { useScramble } from "@/lib/useScramble";
 import CableCard from "./CableCard";
 
 interface SidebarProps {
@@ -275,15 +276,13 @@ function TitleStrip({
   inactiveCount: number;
   inactiveLabel: string;
 }) {
+  const display = useScramble(title);
   return (
     <div
       style={{
         position: "relative",
         width: PANEL_WIDTH,
         height: TITLE_STRIP_HEIGHT,
-        background:
-          "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
-        border: "0.37px solid #FFFFFF",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -291,6 +290,21 @@ function TitleStrip({
         boxSizing: "border-box",
       }}
     >
+      {/* Background + border on their own layer so the materialize wipe
+          doesn't clip the overhanging crosshairs or the decrypting title. */}
+      <span
+        aria-hidden
+        className="v7-mat-wipe"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
+          border: "0.37px solid #FFFFFF",
+          boxSizing: "border-box",
+          pointerEvents: "none",
+        }}
+      />
       <CrossMark position="tl" />
       <CrossMark position="tr" />
       <CrossMark position="bl" />
@@ -298,6 +312,7 @@ function TitleStrip({
 
       <span
         style={{
+          position: "relative",
           fontFamily: "var(--v1-display)",
           fontStyle: "normal",
           fontWeight: 600,
@@ -306,10 +321,10 @@ function TitleStrip({
           color: "#FFFFFF",
         }}
       >
-        {title}
+        {display}
       </span>
 
-      <div style={{ display: "flex", gap: 22, alignItems: "center" }}>
+      <div style={{ position: "relative", display: "flex", gap: 22, alignItems: "center" }}>
         <CountChip n={activeCount} label={activeLabel} tone="active" />
         {inactiveCount > 0 && (
           <CountChip n={inactiveCount} label={inactiveLabel} tone="inactive" />
@@ -332,6 +347,7 @@ function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
   return (
     <span
       aria-hidden
+      className="v7-mat-cross"
       style={{
         position: "absolute",
         width: 8,

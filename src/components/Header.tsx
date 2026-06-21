@@ -1,5 +1,8 @@
+"use client";
+
 import type { CableSystem, Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
+import { useScramble } from "@/lib/useScramble";
 
 type HeaderProps = {
   selectedCable: CableSystem | null;
@@ -14,6 +17,9 @@ export function Header({ selectedCable, language, className }: HeaderProps) {
   const t = useT(language);
   const typeLabel =
     selectedCable?.classification === "domestic" ? "DOM" : "INT";
+  const displayTitle = useScramble(t("submarineCableMap"));
+  // Decrypt the big cable code on every select/switch.
+  const displayCode = useScramble(selectedCable?.shortName ?? "");
 
   return (
     <div
@@ -64,7 +70,7 @@ export function Header({ selectedCable, language, className }: HeaderProps) {
           whiteSpace: "nowrap",
         }}
       >
-        {t("submarineCableMap")}
+        {displayTitle}
       </span>
 
       {selectedCable && (
@@ -85,7 +91,7 @@ export function Header({ selectedCable, language, className }: HeaderProps) {
               whiteSpace: "nowrap",
             }}
           >
-            {selectedCable.shortName}
+            {displayCode}
           </span>
 
           {/* DOM/INT chip — 3rd column, far right, vertically centered */}
@@ -106,6 +112,7 @@ function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
   return (
     <span
       aria-hidden
+      className="v7-mat-cross"
       style={{
         position: "absolute",
         width: 8,

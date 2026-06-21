@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { RecenterButton } from "./RecenterButton";
 
 // Vertical button column sitting to the LEFT of the Cable System panel,
-// bottom-aligned with it. Three buttons (top → bottom): Back, Audio, Naration.
+// bottom-aligned with it. Buttons (top → bottom): Back, Recenter, Audio,
+// Naration.
 //
 // BACK   — hidden by default; shows only when a cable is selected. Pops one
 //          navigation step on release (handled in parent via `onBack`).
+// RECENTER — re-homes the camera / deselects (see `onRecenter`). Sits above
+//          audio so Back stacks directly on top of it when shown.
 // AUDIO  — toggles audio on/off (`muted` + `onAudioToggle`). Resting graphic
 //          reflects state (on vs off); while held it shows the pressed graphic.
 // NARATION — on/off toggle for now (local state) so the client can test the
@@ -26,6 +30,7 @@ const BUTTON_SIZE = 48;
 interface SystemButtonsProps {
   showBack?: boolean;
   onBack?: () => void;
+  onRecenter?: () => void;
   muted?: boolean;
   onAudioToggle?: () => void;
   onNaration?: () => void;
@@ -35,6 +40,7 @@ interface SystemButtonsProps {
 export default function SystemButtons({
   showBack = false,
   onBack,
+  onRecenter,
   muted = false,
   onAudioToggle,
   onNaration,
@@ -59,7 +65,7 @@ export default function SystemButtons({
       }}
     >
       {/* Back — only rendered when a cable is selected. Topmost in the column;
-          collapsing it keeps Audio/Naration bottom-aligned. */}
+          collapsing it keeps Recenter/Audio/Naration bottom-aligned. */}
       {showBack && (
         <PressButton
           label="Back"
@@ -68,6 +74,9 @@ export default function SystemButtons({
           onActivate={onBack}
         />
       )}
+
+      {/* Recenter — sits above audio; Back stacks on top of it when shown. */}
+      {onRecenter && <RecenterButton onRecenter={onRecenter} />}
 
       {/* Audio — on/off toggle. Resting icon depends on muted state. */}
       <PressButton
