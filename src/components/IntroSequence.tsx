@@ -36,14 +36,20 @@ const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
 // clip1→clip2 handoff: clip2 fades IN over clip1 (held on its matching end
 // frame beneath) across CROSSFADE_MS — a soft dissolve so the emerge "merges"
 // naturally rather than hard-cutting.
-// clip2→globe handoff: cut the emerge clip EARLY_CUT_SEC before its end (mid
-// center→left move) and mask the cut with a soft radial bloom — it ramps up
-// over BLOOM_RISE_MS, the clip→globe swap happens at the bloomed peak, then it
-// recedes over BLOOM_FALL_MS revealing the live globe softly.
-// The same bloom masks the globe→clip3 submerge (clip3 blends, no early cut).
+// clip2→globe handoff: cut the emerge clip EARLY_CUT_SEC before its end. The
+// reveal uses the CENTERED emerge bloom (EMERGE_BLOOM_*, 50% 50%) — the globe is
+// centered at this point — plus a slow clip2 dissolve (REVEAL_FADE_MS, below).
+// The shared bloom (BLOOM_RISE/FALL, 40% 50%) is left-biased and now masks ONLY
+// the globe→clip3 submerge, where the live globe sits offset-left.
 const EARLY_CUT_SEC = 1.0;
 const BLOOM_RISE_MS = 420;
 const BLOOM_FALL_MS = 700;
+// clip2's last frame is a centered globe and the live globe is revealed centered
+// too, so they match — a slow dissolve of clip2 OUT (over REVEAL_FADE_MS) reads
+// as a seamless handoff rather than a cut. The globe holds centered for the full
+// dissolve (GlobeScene GLOBE_SLIDE_DELAY_MS ≥ REVEAL_FADE_MS) before sliding left,
+// so there's no double-globe (a centered clip2 lingering over a sliding globe).
+const REVEAL_FADE_MS = 1200;
 // clip3→clip1: crossfade/dissolve over CROSSFADE_MS. Matched to the clip1 loop
 // seam (LOOP_FADE_MS, linear) so the submerge-end dissolve reads the same as the
 // loop seam. After the loop resumes the "tap to begin" prompt fades in after
@@ -94,6 +100,7 @@ export default function IntroSequence({
   const [emergeFading, setEmergeFading] = useState(false); // clip1→clip2 dissolve
   const [emergeBlooming, setEmergeBlooming] = useState(false); // clip1→clip2 swell
   const [promptReady, setPromptReady] = useState(false);
+  const [revealFading, setRevealFading] = useState(false); // clip2→globe dissolve
   // clip1 crossfade-loop bookkeeping: which of the two clip1 elements is the
   // current lead, and whether a seam crossfade is in progress (drives opacity).
   const [attractLead, setAttractLead] = useState<Lead>("a");
@@ -116,6 +123,11 @@ export default function IntroSequence({
   const promptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the early-cut so the clip2 timeupdate fires the reveal only once.
   const clip2CutRef = useRef(false);
+  // Mirrors revealFading for the phase effect's `live` branch (not in its deps):
+  // while the dissolve runs, the branch must NOT snap-park clip2 to frame 0 —
+  // that would jump the still-visible fading frame. The reveal timer parks it.
+  const revealFadingRef = useRef(false);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const leadEl = useCallback(
     (id: Lead) => (id === "a" ? v1aRef.current : v1bRef.current),
@@ -169,11 +181,34 @@ export default function IntroSequence({
   const bloomReveal = useCallback(() => {
     if (clip2CutRef.current) return;
     clip2CutRef.current = true;
-    bloom(() => {
-      setPhase("live");
+    // Arm the dissolve: enable clip2's opacity transition before its `active`
+    // flips false (at the bloom peak), so it fades OUT over REVEAL_FADE_MS into
+    // the matching centered globe rather than cutting.
+    revealFadingRef.current = true;
+    setRevealFading(true);
+    // Centered bloom — the globe is centered at the reveal (clip2 ends centered),
+    // so reuse the clip1→clip2 emerge bloom (50% 50%), NOT the left-biased shared
+    // one (that's for the submerge, where the live globe sits offset-left).
+    setEmergeBlooming(true);
+    if (emergeBloomTimer.current) clearTimeout(emergeBloomTimer.current);
+    emergeBloomTimer.current = setTimeout(() => {
+      setPhase("live"); // clip2 active→false → dissolves out over REVEAL_FADE_MS
       onReveal();
-    });
-  }, [bloom, onReveal]);
+      setEmergeBlooming(false); // bloom recedes over EMERGE_BLOOM_FALL_MS
+    }, EMERGE_BLOOM_RISE_MS);
+    // End the dissolve once it has fully played out (it starts at the bloom peak)
+    // and only then park clip2 at frame 0 for the next emerge.
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    revealTimer.current = setTimeout(() => {
+      revealFadingRef.current = false;
+      setRevealFading(false);
+      const v2 = v2Ref.current;
+      if (v2) {
+        v2.pause();
+        v2.currentTime = 0;
+      }
+    }, EMERGE_BLOOM_RISE_MS + REVEAL_FADE_MS);
+  }, [onReveal]);
 
   // Prime all clips on mount: kick off buffering and warm each decoder so the
   // first frame is ready instantly when a clip is first revealed (no decode
@@ -281,9 +316,11 @@ export default function IntroSequence({
       v1a?.pause();
       v1b?.pause();
       v3?.pause();
-      // PARK clip2 at 0 (masked by the bloom reveal) so the next emerge starts
-      // on its first frame instead of flashing the held globe end frame.
-      if (v2) {
+      // PARK clip2 at 0 so the next emerge starts on its first frame instead of
+      // flashing the held globe end frame. SKIP while the reveal dissolve is
+      // mid-flight — clip2 is still visibly fading out; the reveal timer parks it
+      // once the dissolve completes (else it'd snap to frame 0 on screen).
+      if (v2 && !revealFadingRef.current) {
         v2.pause();
         v2.currentTime = 0;
       }
@@ -306,6 +343,7 @@ export default function IntroSequence({
       if (emergeBloomTimer.current) clearTimeout(emergeBloomTimer.current);
       if (loopFadeTimer.current) clearTimeout(loopFadeTimer.current);
       if (promptTimer.current) clearTimeout(promptTimer.current);
+      if (revealTimer.current) clearTimeout(revealTimer.current);
     },
     [],
   );
@@ -457,7 +495,7 @@ export default function IntroSequence({
       ))}
       {/* clip2 dissolves in over clip1 on emerge (emergeFading), then plays out
           to the bloom-masked globe reveal. */}
-      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} fadeMs={emergeFading ? EMERGE_FADE_MS : 0} />
+      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} fadeMs={emergeFading ? EMERGE_FADE_MS : revealFading ? REVEAL_FADE_MS : 0} />
       {/* clip3 dissolves out over the clip1 loop on the way back to idle. */}
       <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} fadeMs={crossfading ? CROSSFADE_MS : 0} easing="linear" />
 

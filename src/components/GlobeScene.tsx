@@ -345,6 +345,12 @@ export default function GlobeScene() {
   // block below. Declared here so the idle attractor can suspend off them.
   const [revealed, setRevealed] = useState(false);
   const [submerging, setSubmerging] = useState(false);
+  // v8: clip2 (fullseq) ends with the globe CENTERED, so the live globe is
+  // revealed centered too (seamless cut), then slides left into its working
+  // offset pose to clear the right-side panels. `globeSlid` drives that slide;
+  // it stays true through the live session + submerge (clip3 hands off from the
+  // offset pose) and resets on idle so the next reveal starts centered again.
+  const [globeSlid, setGlobeSlid] = useState(false);
 
   // Idle attractor (§H.12): fires after ~60s of no interaction. Suspended
   // unless the live globe is up (the attract/emerge/submerge clips own those
@@ -394,7 +400,16 @@ export default function GlobeScene() {
   // network on; then a further hold before the chrome panels boot in. Spreads
   // the reveal out instead of everything firing at once.
   const BEAM_DELAY_MS = 500; // bare globe → network pulses on
-  const CHROME_AFTER_BEAM_MS = 1000; // beam → chrome panels reveal
+  // Center→offset slide: globe is revealed centered (matching clip2's last
+  // frame) and holds while clip2 dissolves out over it (IntroSequence
+  // REVEAL_FADE_MS ≈ 1200ms — the hold MUST outlast it so clip2 isn't still
+  // lingering centered while the globe slides, which would double-image), then
+  // glides left into its working pose.
+  const GLOBE_SLIDE_DELAY_MS = 1300;
+  const GLOBE_SLIDE_MS = 2000;
+  // Chrome boots once the globe is most of the way through its slide (cleared the
+  // right side) so the panels never appear over a still-centered globe.
+  const CHROME_AT_SLIDE_FRAC = 0.65;
   // Submerge: how long the chrome takes to animate OUT before clip3 blooms in —
   // the reverse cascade (last slot 760ms delay + 600ms slide ≈ 1360ms).
   const CHROME_EXIT_MS = 1450;
@@ -416,11 +431,14 @@ export default function GlobeScene() {
 
   // Reveal the live globe (first boot, or clip2 emerge cut): show the bare globe
   // immediately, beam the network on after BEAM_DELAY_MS, then boot the chrome
-  // in stages CHROME_AFTER_BEAM_MS after the beam.
+  // in stages once the globe has slid most of the way left (CHROME_AT_SLIDE_FRAC).
   const handleReveal = useCallback(() => {
     setRevealed(true);
+    setGlobeSlid(false); // appear centered (matches clip2's last frame)
     bootTimers.current.forEach(clearTimeout);
-    const chromeStart = BEAM_DELAY_MS + CHROME_AFTER_BEAM_MS;
+    const chromeStart =
+      GLOBE_SLIDE_DELAY_MS + Math.round(GLOBE_SLIDE_MS * CHROME_AT_SLIDE_FRAC);
+    const slide = setTimeout(() => setGlobeSlid(true), GLOBE_SLIDE_DELAY_MS);
     const beam = setTimeout(() => {
       setNetworkDormant(false);
       setCableBootAt(performance.now());
@@ -432,7 +450,7 @@ export default function GlobeScene() {
     const stages = [2, 3, 4].map((stage, i) =>
       setTimeout(() => setBootStage(stage), chromeStart + (i + 1) * BOOT_STEP_MS),
     );
-    bootTimers.current = [beam, chrome, ...stages];
+    bootTimers.current = [slide, beam, chrome, ...stages];
   }, []);
 
   // clip3 (submerge) finished → reset to the dormant attract baseline so the
@@ -442,6 +460,7 @@ export default function GlobeScene() {
     bootTimers.current = [];
     if (submergeTimer.current) clearTimeout(submergeTimer.current);
     setRevealed(false);
+    setGlobeSlid(false); // next reveal starts centered again (globe is hidden)
     setSubmerging(false);
     setChromeExiting(false);
     setSubmergePlay(false);
@@ -1439,10 +1458,15 @@ export default function GlobeScene() {
 
       <div
         style={{
-          // Always offset left to clear the right-side panels — the globe is
-          // revealed (behind the IntroSequence flash) already in this working
-          // position, matching the emerge clip's last frame. (v8)
-          transform: `translateX(${globeOffsetX(dimensions.width)}px)`,
+          // clip2 ends centered, so the globe is revealed centered then slides
+          // left into its working pose (clears the right-side panels). The bleed
+          // margin keeps the oversized canvas edges off-screen throughout the
+          // slide. `globeSlid` false→true animates; the reset back to false
+          // happens while the globe is hidden, so it's left non-transitioning. (v8)
+          transform: `translateX(${globeSlid ? globeOffsetX(dimensions.width) : 0}px)`,
+          transition: globeSlid
+            ? `transform ${GLOBE_SLIDE_MS}ms cubic-bezier(0.45, 0, 0.55, 1)`
+            : "none",
           willChange: "transform",
         }}
       >
