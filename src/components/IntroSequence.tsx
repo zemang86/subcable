@@ -30,7 +30,7 @@ import { useT } from "@/lib/i18n";
 import type { Language } from "@/lib/types";
 
 const CLIP1 = "/video/tm-clip1-underwater-dolly-v2.mp4";
-const CLIP2 = "/video/tm-clip2-emerge-2x-hardcut.mp4";
+const CLIP2 = "/video/tm-clip2-fullseq-fast.mp4";
 const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
 
 // clip1→clip2 handoff: clip2 fades IN over clip1 (held on its matching end
@@ -44,9 +44,11 @@ const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
 const EARLY_CUT_SEC = 1.0;
 const BLOOM_RISE_MS = 420;
 const BLOOM_FALL_MS = 700;
-// clip3→clip1: crossfade/dissolve over CROSSFADE_MS. After the loop resumes
-// the "tap to begin" prompt fades in after PROMPT_DELAY_MS.
-const CROSSFADE_MS = 650;
+// clip3→clip1: crossfade/dissolve over CROSSFADE_MS. Matched to the clip1 loop
+// seam (LOOP_FADE_MS, linear) so the submerge-end dissolve reads the same as the
+// loop seam. After the loop resumes the "tap to begin" prompt fades in after
+// PROMPT_DELAY_MS.
+const CROSSFADE_MS = 900;
 const PROMPT_DELAY_MS = 2000;
 // clip1→clip2 (emerge start): longer dissolve so clip2's motion has time to
 // diverge from clip1's frozen matching end frame (a shorter fade reads as a
@@ -457,7 +459,7 @@ export default function IntroSequence({
           to the bloom-masked globe reveal. */}
       <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} fadeMs={emergeFading ? EMERGE_FADE_MS : 0} />
       {/* clip3 dissolves out over the clip1 loop on the way back to idle. */}
-      <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} fadeMs={crossfading ? CROSSFADE_MS : 0} />
+      <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} fadeMs={crossfading ? CROSSFADE_MS : 0} easing="linear" />
 
       {/* Attract prompt — centred. Fades in PROMPT_DELAY_MS after the loop
           resumes (promptReady). */}
@@ -522,6 +524,7 @@ function Clip({
   onEnded,
   onTimeUpdate,
   fadeMs = 0,
+  easing = "ease",
 }: {
   refEl: React.RefObject<HTMLVideoElement | null>;
   src: string;
@@ -531,6 +534,9 @@ function Clip({
   /** When >0, opacity changes animate over this duration (clip3→clip1 dissolve);
    *  0 = instant swap. */
   fadeMs?: number;
+  /** Easing for the fade. clip3 uses "linear" to match the clip1 loop seam;
+   *  clip2's emerge uses "ease". */
+  easing?: string;
 }) {
   return (
     <video
@@ -550,7 +556,7 @@ function Clip({
         opacity: active ? 1 : 0,
         // Instant swap by default (bloom masks the cut); fadeMs drives the
         // clip3→clip1 dissolve.
-        transition: fadeMs ? `opacity ${fadeMs}ms ease` : "none",
+        transition: fadeMs ? `opacity ${fadeMs}ms ${easing}` : "none",
         pointerEvents: "none",
       }}
     />
