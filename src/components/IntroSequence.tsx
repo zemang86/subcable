@@ -32,12 +32,9 @@ const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
 const EARLY_CUT_SEC = 1.0;
 const BLOOM_RISE_MS = 420;
 const BLOOM_FALL_MS = 700;
-// clip3→clip1: ease the submerge out by slowing the last second of clip3 to
-// CLIP3_SLOW_RATE, then a quick digital glitch masks the swap back to the
-// attract loop. The "tap to begin" prompt then fades in after PROMPT_DELAY_MS.
-const CLIP3_SLOW_SEC = 1.0;
-const CLIP3_SLOW_RATE = 0.5;
-const GLITCH_MS = 450;
+// clip3→clip1: clip3 crossfades (dissolves) into the clip1 attract loop. The
+// "tap to begin" prompt then fades in after PROMPT_DELAY_MS.
+const CROSSFADE_MS = 650;
 const PROMPT_DELAY_MS = 2000;
 
 type Phase = "attract" | "launching" | "emerge" | "live" | "submerge";
@@ -63,14 +60,14 @@ export default function IntroSequence({
   const [phase, setPhase] = useState<Phase>("live");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [blooming, setBlooming] = useState(false);
-  const [glitching, setGlitching] = useState(false);
+  const [crossfading, setCrossfading] = useState(false);
   const [promptReady, setPromptReady] = useState(false);
 
   const v1Ref = useRef<HTMLVideoElement>(null);
   const v2Ref = useRef<HTMLVideoElement>(null);
   const v3Ref = useRef<HTMLVideoElement>(null);
   const bloomTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const glitchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const crossfadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const promptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the early-cut so the clip2 timeupdate fires the reveal only once.
   const clip2CutRef = useRef(false);
@@ -139,7 +136,6 @@ export default function IntroSequence({
       }
     } else if (phase === "submerge") {
       if (v3) {
-        v3.playbackRate = 1; // reset any slow-out from a prior cycle
         v3.currentTime = 0;
         void v3.play().catch(() => {});
       }
@@ -161,7 +157,7 @@ export default function IntroSequence({
   useEffect(
     () => () => {
       bloomTimers.current.forEach(clearTimeout);
-      if (glitchTimer.current) clearTimeout(glitchTimer.current);
+      if (crossfadeTimer.current) clearTimeout(crossfadeTimer.current);
       if (promptTimer.current) clearTimeout(promptTimer.current);
     },
     [],
@@ -200,25 +196,19 @@ export default function IntroSequence({
     if (phase === "emerge") bloomReveal();
   }, [phase, bloomReveal]);
 
-  // clip3 timeupdate → ease the submerge out: slow the final second to
-  // slow-motion before the glitch hands back to the attract loop.
-  const handleClip3Time = useCallback(() => {
-    if (phase !== "submerge") return;
-    const v = v3Ref.current;
-    if (!v || !v.duration) return;
-    if (v.currentTime >= v.duration - CLIP3_SLOW_SEC && v.playbackRate !== CLIP3_SLOW_RATE) {
-      v.playbackRate = CLIP3_SLOW_RATE;
-    }
-  }, [phase]);
-
-  // clip3 finished → glitch-cut back to the attract loop; parent resets baseline.
+  // clip3 finished → crossfade (dissolve) into the clip1 attract loop. clip1
+  // plays beneath at full opacity while clip3 fades out on top (crossfading
+  // enables v3's opacity transition; setPhase('attract') drops its `active`).
   const handleClip3Ended = useCallback(() => {
     if (phase === "submerge") {
-      setGlitching(true);
+      setCrossfading(true);
       setPhase("attract");
       onReachedIdle();
-      if (glitchTimer.current) clearTimeout(glitchTimer.current);
-      glitchTimer.current = setTimeout(() => setGlitching(false), GLITCH_MS);
+      if (crossfadeTimer.current) clearTimeout(crossfadeTimer.current);
+      crossfadeTimer.current = setTimeout(
+        () => setCrossfading(false),
+        CROSSFADE_MS,
+      );
     }
   }, [phase, onReachedIdle]);
 
@@ -239,15 +229,10 @@ export default function IntroSequence({
         overflow: "hidden",
       }}
     >
-      {/* Video stack — glitches during the clip3→clip1 handoff. */}
-      <div
-        className={glitching ? "intro-glitch" : undefined}
-        style={{ position: "absolute", inset: 0 }}
-      >
-        <Clip refEl={v1Ref} src={CLIP1} active={phase === "attract" || phase === "launching"} onEnded={handleClip1Ended} onTimeUpdate={handleClip1Time} />
-        <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} />
-        <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} onTimeUpdate={handleClip3Time} />
-      </div>
+      <Clip refEl={v1Ref} src={CLIP1} active={phase === "attract" || phase === "launching"} onEnded={handleClip1Ended} onTimeUpdate={handleClip1Time} />
+      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} />
+      {/* clip3 dissolves out over the clip1 loop on the way back to idle. */}
+      <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} fadeMs={crossfading ? CROSSFADE_MS : 0} />
 
       {/* Attract prompt — centred. Fades in PROMPT_DELAY_MS after the loop
           resumes (promptReady). */}
@@ -283,6 +268,7 @@ export default function IntroSequence({
           mixBlendMode: "screen",
         }}
       />
+
     </div>
   );
 }
@@ -293,12 +279,16 @@ function Clip({
   active,
   onEnded,
   onTimeUpdate,
+  fadeMs = 0,
 }: {
   refEl: React.RefObject<HTMLVideoElement | null>;
   src: string;
   active: boolean;
   onEnded: () => void;
   onTimeUpdate?: () => void;
+  /** When >0, opacity changes animate over this duration (clip3→clip1 dissolve);
+   *  0 = instant swap. */
+  fadeMs?: number;
 }) {
   return (
     <video
@@ -316,8 +306,9 @@ function Clip({
         height: "100%",
         objectFit: "cover",
         opacity: active ? 1 : 0,
-        // Instant opacity swap — the bloom overlay masks the cut.
-        transition: "none",
+        // Instant swap by default (bloom masks the cut); fadeMs drives the
+        // clip3→clip1 dissolve.
+        transition: fadeMs ? `opacity ${fadeMs}ms ease` : "none",
         pointerEvents: "none",
       }}
     />
