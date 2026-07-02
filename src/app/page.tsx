@@ -1,4 +1,4 @@
-import GlobeScene from "@/components/GlobeScene";
+import GlobeScene from "@/components/GlobeSceneLoader";
 
 export default function Home() {
   return <GlobeScene />;
