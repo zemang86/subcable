@@ -22,7 +22,10 @@ import MorseCodePop from "./MorseCodePop";
 import { cables, cablesById } from "@/data/cables";
 import { landingPoints } from "@/data/landingPoints";
 import { cableRoutes } from "@/data/cableRoutes";
-import countries from "@/data/countries.json";
+// Precomputed extracts of countries.json (see scripts/trim-countries.mjs) —
+// the full 496 KB Natural Earth file stays out of the client bundle.
+import countryLabelData from "@/data/countryLabels.json";
+import landingCountries from "@/data/landingCountries.json";
 import robotoMedium from "@/data/roboto-medium.typeface.json";
 
 import type {
@@ -637,61 +640,14 @@ export default function GlobeScene() {
     });
   }, [useClusters, pointClusters]);
 
-  // Country labels — pick the largest polygon per feature so MultiPolygon
-  // countries label on their main body, not a stray island.
-  const countryLabels = useMemo(() => {
-    const out: { lat: number; lng: number; name: string; area: number }[] = [];
-    const ringArea = (ring: number[][]) => {
-      let a = 0;
-      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
-      }
-      return Math.abs(a) / 2;
-    };
-    const ringCentre = (ring: number[][]) => {
-      let minX = Infinity,
-        minY = Infinity,
-        maxX = -Infinity,
-        maxY = -Infinity;
-      for (const [x, y] of ring) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-      return [(minX + maxX) / 2, (minY + maxY) / 2];
-    };
-    for (const f of (countries as any).features) {
-      const g = f.geometry;
-      if (!g) continue;
-      const polys =
-        g.type === "Polygon"
-          ? [g.coordinates]
-          : g.type === "MultiPolygon"
-            ? g.coordinates
-            : [];
-      let bestRing: number[][] | null = null;
-      let bestArea = 0;
-      for (const poly of polys) {
-        const outer = poly[0];
-        if (!outer || outer.length < 3) continue;
-        const a = ringArea(outer);
-        if (a > bestArea) {
-          bestArea = a;
-          bestRing = outer;
-        }
-      }
-      if (!bestRing || bestArea < 4) continue;
-      const [lng, lat] = ringCentre(bestRing);
-      out.push({
-        lat,
-        lng,
-        name: (f.properties?.name || "").toUpperCase(),
-        area: bestArea,
-      });
-    }
-    return out;
-  }, []);
+  // Country labels — largest-polygon centroids precomputed at build time by
+  // scripts/trim-countries.mjs (verbatim port of the old runtime shoelace/
+  // bbox-centre computation).
+  const countryLabels = useMemo(
+    () =>
+      countryLabelData as { lat: number; lng: number; name: string; area: number }[],
+    [],
+  );
 
   // City labels are built from pointClusters directly (NOT pointsData) so
   // identity stays stable across the cluster flip at alt 0.18.
@@ -1450,9 +1406,9 @@ export default function GlobeScene() {
     const wanted = new Set(
       cableLandingPoints.map((p) => COUNTRY_NAME_ALIASES[p.country] ?? p.country),
     );
-    return (countries as { features: { properties?: { name?: string } }[] }).features.filter(
-      (f) => f.properties?.name && wanted.has(f.properties.name),
-    );
+    return (
+      landingCountries as { features: { properties?: { name?: string } }[] }
+    ).features.filter((f) => f.properties?.name && wanted.has(f.properties.name));
   }, [cableLandingPoints]);
 
   const countryCapColor = useCallback(() => COUNTRY_FILL_CAP, []);
