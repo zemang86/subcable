@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { RecenterButton } from "./RecenterButton";
 
 // Vertical button column sitting to the LEFT of the Cable System panel,
@@ -37,7 +37,12 @@ interface SystemButtonsProps {
   className?: string;
 }
 
-export default function SystemButtons({
+// Memoized: shields the column from GlobeScene's 30fps marker-tracking
+// re-renders — requires every handler prop (incl. onAudioToggle) to be a
+// stable useCallback at the call site.
+export default memo(SystemButtons);
+
+function SystemButtons({
   showBack = false,
   onBack,
   onRecenter,

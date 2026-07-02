@@ -147,6 +147,16 @@ const SEA_OVERLAY_DARK_URL = "/textures/world-mono-dark-sea.webp";
 // scripts/generate-starfield.mjs on the same #040E1F as the canvas so the
 // stars sit seamlessly on the dark background.
 const STARFIELD_URL = "/textures/starfield.webp";
+
+// WebGLRenderer options (module-level: a fresh object identity here would
+// re-create the whole renderer). alpha/antialias match the defaults;
+// powerPreference asks the OS for the discrete/high-perf GPU on hybrid
+// hardware.
+const RENDERER_CONFIG = {
+  antialias: true,
+  alpha: true,
+  powerPreference: "high-performance",
+} as const;
 const SEA_LAT_MIN = -15;
 const SEA_LAT_MAX = 25;
 const SEA_LNG_MIN = 90;
@@ -373,6 +383,23 @@ export default function GlobeScene() {
     if (hintTimer.current) clearTimeout(hintTimer.current);
     hintTimer.current = setTimeout(() => setHintFor(null), 3000);
   }, []);
+
+  // Stable handlers for the memoized chrome — an inline arrow here would give
+  // SystemButtons/RightCluster a fresh prop identity every render and defeat
+  // their memo.
+  const handleAudioToggle = useCallback(() => setMuted((m) => !m), []);
+  const handleClusterOpen = useCallback(
+    (id: Exclude<DialogId, null>) => {
+      // Fun Fact is still scoped to one cable — block + hint if none.
+      // Morse now works standalone (cross-network dialling).
+      if (id === "funfact" && !selectedCable) {
+        flashClusterHint(id);
+        return;
+      }
+      setOpenDialog((current) => (current === id ? null : id));
+    },
+    [selectedCable, flashClusterHint],
+  );
   useEffect(
     () => () => {
       if (hintTimer.current) clearTimeout(hintTimer.current);
@@ -711,6 +738,13 @@ export default function GlobeScene() {
         { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
         0,
       );
+      // Cap the render resolution: react-globe.gl defaults to the full
+      // devicePixelRatio, which is 4× the fragment work on a DPR-2 kiosk
+      // panel — invisible at touchscreen viewing distance. 1.5 keeps text
+      // and cable edges crisp at a fraction of the fill cost.
+      globeRef.current
+        .renderer()
+        ?.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       const controls = globeRef.current.controls();
       if (controls) {
         controls.autoRotate = false;
@@ -740,9 +774,28 @@ export default function GlobeScene() {
     if (controls) controls.autoRotate = autoRotate;
   }, [autoRotate, isLoaded]);
 
-  // Camera altitude polling — throttled so React re-renders don't blow up.
+  // While the opaque attract/idle video owns the screen the globe is pure
+  // waste — on a kiosk that's the majority of 24/7 uptime. Pause the whole
+  // react-globe.gl render loop (draw calls, controls, tweens) and resume on
+  // reveal. Gated on isLoaded so the initial 3s LoadingScreen window still
+  // renders — first-draw shader compilation must happen there, not at the
+  // reveal cut. The satellite rAF loops below gate on the same signal.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
+    if (revealed) globeRef.current.resumeAnimation?.();
+    else globeRef.current.pauseAnimation?.();
+  }, [isLoaded, revealed]);
+
+  // Ref mirror for rAF loops that must not re-run their setup on reveal
+  // flips (e.g. the SEA overlay effect owns a texture load).
+  const revealedRef = useRef(revealed);
+  useEffect(() => {
+    revealedRef.current = revealed;
+  }, [revealed]);
+
+  // Camera altitude polling — throttled so React re-renders don't blow up.
+  useEffect(() => {
+    if (!isLoaded || !revealed || !globeRef.current) return;
     let rafId: number;
     let lastReported = -1;
     const poll = () => {
@@ -757,7 +810,7 @@ export default function GlobeScene() {
     };
     rafId = requestAnimationFrame(poll);
     return () => cancelAnimationFrame(rafId);
-  }, [isLoaded]);
+  }, [isLoaded, revealed]);
 
   const zoomBucket = useMemo(() => bucketForAltitude(zoomLevel), [zoomLevel]);
 
@@ -1025,6 +1078,7 @@ export default function GlobeScene() {
     callCableIds: null,
     dormant: false,
     bootAt: 0,
+    hidden: false,
   });
   useEffect(() => {
     flowStateRef.current = {
@@ -1032,8 +1086,9 @@ export default function GlobeScene() {
       callCableIds: activeCallCableIds,
       dormant: networkDormant,
       bootAt: cableBootAt,
+      hidden: !revealed,
     };
-  }, [selectedCable, activeCallCableIds, networkDormant, cableBootAt]);
+  }, [selectedCable, activeCallCableIds, networkDormant, cableBootAt, revealed]);
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     const scene = globeRef.current.scene?.();
@@ -1302,19 +1357,28 @@ export default function GlobeScene() {
       mesh.frustumCulled = false;
       scene.add(mesh);
 
+      let lastOpacity = -1;
       const tick = () => {
-        const pov = globeRef.current?.pointOfView?.();
-        const alt = pov?.altitude ?? 1;
-        const opacity =
-          alt >= SEA_FADE_IN_ALT
-            ? 0
-            : Math.min(
-                1,
-                (SEA_FADE_IN_ALT - alt) /
-                  (SEA_FADE_IN_ALT - SEA_FADE_OUT_ALT),
-              );
-        mat.opacity = opacity;
-        mat.visible = opacity > 0.001;
+        // Idle-cheap: no camera read or material write while the attract
+        // video covers the globe, and no write when the value hasn't moved
+        // (the overlay spends most of its life pinned at 0 or 1).
+        if (revealedRef.current) {
+          const pov = globeRef.current?.pointOfView?.();
+          const alt = pov?.altitude ?? 1;
+          const opacity =
+            alt >= SEA_FADE_IN_ALT
+              ? 0
+              : Math.min(
+                  1,
+                  (SEA_FADE_IN_ALT - alt) /
+                    (SEA_FADE_IN_ALT - SEA_FADE_OUT_ALT),
+                );
+          if (opacity !== lastOpacity) {
+            lastOpacity = opacity;
+            mat.opacity = opacity;
+            mat.visible = opacity > 0.001;
+          }
+        }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -1337,7 +1401,7 @@ export default function GlobeScene() {
   // mesh.scale on the label Group; TextGeometry is built once and never
   // rebuilt.
   useEffect(() => {
-    if (!isLoaded || !globeRef.current) return;
+    if (!isLoaded || !revealed || !globeRef.current) return;
     let raf = 0;
     const tick = () => {
       const pov = globeRef.current?.pointOfView?.();
@@ -1357,7 +1421,7 @@ export default function GlobeScene() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [isLoaded, allLabels]);
+  }, [isLoaded, revealed, allLabels]);
 
   // Cable-scoped landing-point list passed to MorseCodePop.
   const cableLandingPoints = useMemo(() => {
@@ -1405,6 +1469,12 @@ export default function GlobeScene() {
     }
     let raf = 0;
     let frame = 0;
+    // Reused scratch vector (no per-marker allocation) + last-published
+    // positions: while the camera is at rest (damping settled, user reading
+    // the panel) positions don't move, so skipping the setState spares the
+    // whole React tree a 30fps re-render for zero visual change.
+    const scratch = new THREE.Vector3();
+    let last: Record<string, { x: number; y: number; visible: boolean }> = {};
     const tick = () => {
       frame = (frame + 1) & 1;
       if (frame === 0) {
@@ -1415,18 +1485,29 @@ export default function GlobeScene() {
           const dom = renderer.domElement as HTMLCanvasElement;
           const offX = globeProjectionOffsetX(dom.clientWidth);
           const next: Record<string, { x: number; y: number; visible: boolean }> = {};
+          let changed = false;
           for (const p of markerPoints) {
             const xyz = globeRef.current.getCoords(p.lat, p.lng, 0.01);
-            const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
+            const v = scratch.set(xyz.x, xyz.y, xyz.z).project(camera);
             // v.z > 1 = point is behind the camera (far side of the globe)
             const visible = v.z <= 1;
-            next[p.id] = {
-              x: ((v.x + 1) / 2) * dom.clientWidth + offX,
-              y: ((1 - v.y) / 2) * dom.clientHeight,
-              visible,
-            };
+            const x = ((v.x + 1) / 2) * dom.clientWidth + offX;
+            const y = ((1 - v.y) / 2) * dom.clientHeight;
+            next[p.id] = { x, y, visible };
+            const prev = last[p.id];
+            if (
+              !prev ||
+              prev.visible !== visible ||
+              Math.abs(prev.x - x) > 0.5 ||
+              Math.abs(prev.y - y) > 0.5
+            ) {
+              changed = true;
+            }
           }
-          setCalloutScreens(next);
+          if (changed) {
+            last = next;
+            setCalloutScreens(next);
+          }
         }
       }
       raf = requestAnimationFrame(tick);
@@ -1525,6 +1606,7 @@ export default function GlobeScene() {
         labelIncludeDot={labelIncludeDot}
           onGlobeReady={handleGlobeReady}
           animateIn={true}
+          rendererConfig={RENDERER_CONFIG}
         />
         </div>
       </div>
@@ -1558,7 +1640,7 @@ export default function GlobeScene() {
               onBack={handleBack}
               onRecenter={resetView}
               muted={muted}
-              onAudioToggle={() => setMuted((m) => !m)}
+              onAudioToggle={handleAudioToggle}
             />
           )}
 
@@ -1593,15 +1675,7 @@ export default function GlobeScene() {
             <div className={chromeCls("v1-enter-left", 1)}>
               <RightCluster
                 openDialog={openDialog}
-                onOpen={(id) => {
-                  // Fun Fact is still scoped to one cable — block + hint if none.
-                  // Morse now works standalone (cross-network dialling).
-                  if (id === "funfact" && !selectedCable) {
-                    flashClusterHint(id);
-                    return;
-                  }
-                  setOpenDialog((current) => (current === id ? null : id));
-                }}
+                onOpen={handleClusterOpen}
                 cableSelected={Boolean(selectedCable)}
               />
 

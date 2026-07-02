@@ -62,6 +62,8 @@ export interface CableFlowState {
   dormant: boolean;
   /** performance.now() timestamp of the wake-up power-on; 0 = never. */
   bootAt: number;
+  /** Globe is covered by the opaque attract video — skip all per-frame work. */
+  hidden: boolean;
 }
 
 // Minimal structural view of three-globe internals we rely on.
@@ -212,9 +214,36 @@ export function attachCableFlow(
   const bootOffs = new Map<string, number[]>();
   const bootFront = new Map<string, number>();
 
+  // All path groups live under one persistent parent (the paths layer's
+  // scene group — three-globe empties it only at init and ThreeDigest
+  // adds/removes children in place). Caching that parent replaces the
+  // whole-scene traverse (globe, atmosphere, ~140 label groups, points…)
+  // with a flat walk of just the path children. Rebuilt lines simply show
+  // up as new children, so the lazy patching keeps working unchanged.
+  let pathsParent: Object3D | null = null;
+  const findPathsParent = (): Object3D | null => {
+    if (pathsParent && pathsParent.parent) return pathsParent;
+    pathsParent = null;
+    scene.traverse((obj) => {
+      if (!pathsParent && (obj as PathGroup).__globeObjType === "path") {
+        pathsParent = obj.parent;
+      }
+    });
+    return pathsParent;
+  };
+
   const tick = (now: number) => {
+    const { selectedCableId, callCableIds, dormant, bootAt, hidden } =
+      getState();
+    // Covered by the opaque attract video — keep the clock alive but do no
+    // work. The first visible tick after reveal runs before react-globe.gl's
+    // freshly-resumed render (its rAF re-registers after ours), so uniforms
+    // are correct by the first drawn frame.
+    if (hidden) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
     const flowTime = ((now - start) / 1000) * FLOW_SPEED;
-    const { selectedCableId, callCableIds, dormant, bootAt } = getState();
 
     if (selectedCableId !== lastSelected) {
       lastSelected = selectedCableId;
@@ -234,7 +263,7 @@ export function attachCableFlow(
     let bootCount = 0;
     bootLens.clear();
 
-    scene.traverse((obj) => {
+    const processGroup = (obj: Object3D) => {
       const group = obj as PathGroup;
       if (group.__globeObjType !== "path") return;
       const line = group.children[0] as Line2 | undefined;
@@ -287,7 +316,12 @@ export function attachCableFlow(
       } else {
         mat.uniforms.energizeFront.value = ENERGIZED;
       }
-    });
+    };
+
+    const parent = findPathsParent();
+    if (parent) {
+      for (const child of parent.children) processGroup(child);
+    }
 
     if (traceCount > 0) {
       // Cumulative offset of each segment along the whole route.

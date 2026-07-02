@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cables } from "@/data/cables";
 import type { CableSystem, Filter, LandingPoint } from "@/lib/types";
 import { useT } from "@/lib/i18n";
@@ -32,7 +32,13 @@ const FILTER_BUTTON_HEIGHT = 32;
 // + 32 filter-row + 12 bottom-padding ≈ 314. Round to 318.
 const PANEL_BODY_HEIGHT = 318;
 
-export default function Sidebar({
+// Memoized: GlobeScene re-renders at 30fps while a cable is selected (marker
+// screen-tracking state); every prop here is referentially stable, so memo
+// skips this panel's reconcile entirely. (Function declarations hoist, so the
+// export can precede the definition.)
+export default memo(Sidebar);
+
+function Sidebar({
   selectedCable,
   onSelectCable,
   language = "en",
@@ -65,10 +71,15 @@ export default function Sidebar({
     return cables.filter((c) => c.classification === "domestic");
   }, [filter]);
 
-  const activeCount = visible.filter((c) => c.status === "active").length;
-  // Count only true "inactive" cables — "planned" cables are excluded from the
-  // count per client feedback (so this reads 1, not 5).
-  const inactiveCount = visible.filter((c) => c.status === "inactive").length;
+  const { activeCount, inactiveCount } = useMemo(
+    () => ({
+      activeCount: visible.filter((c) => c.status === "active").length,
+      // Count only true "inactive" cables — "planned" cables are excluded from
+      // the count per client feedback (so this reads 1, not 5).
+      inactiveCount: visible.filter((c) => c.status === "inactive").length,
+    }),
+    [visible],
+  );
 
   const updateScrollState = () => {
     const el = scrollRef.current;

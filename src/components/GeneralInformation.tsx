@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
@@ -17,7 +18,11 @@ const PANEL_BODY_HEIGHT = 362;
 const ORANGE_HOT = "#FF4D00";
 const ORANGE_MID = "#F05A22";
 
-export default function GeneralInformation({
+// Memoized: shields the panel from GlobeScene's 30fps marker-tracking
+// re-renders (props are stable).
+export default memo(GeneralInformation);
+
+function GeneralInformation({
   language = "en",
   className,
 }: GeneralInformationProps) {

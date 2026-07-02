@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CableSystem, Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
@@ -28,7 +28,12 @@ function splitValueUnit(raw: string | undefined, fallbackUnit?: string): {
   return { value: m[1], unit: (m[2] ?? fallbackUnit ?? "").trim() };
 }
 
-export default function CableInformation({
+// Memoized: shields the panel from GlobeScene's 30fps marker-tracking
+// re-renders — its props (cable, language, className) are stable between
+// real selection changes.
+export default memo(CableInformation);
+
+function CableInformation({
   cable,
   language = "en",
   className,

@@ -25,7 +25,7 @@
 // frame peeking on clip3→clip1). Crossfades add a second layer of safety:
 // gradual opacity hides any residual first-paint frame.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import type { Language } from "@/lib/types";
 
@@ -75,7 +75,12 @@ const LOOP_FADE_S = LOOP_FADE_MS / 1000;
 type Phase = "attract" | "launching" | "emerge" | "live" | "submerge";
 type Lead = "a" | "b";
 
-export default function IntroSequence({
+// Memoized: always mounted (owns the attract/emerge/submerge video layer), so
+// without memo it reconciles 4 <video> elements on every GlobeScene render —
+// including the 30fps marker-tracking storm while a cable is selected.
+export default memo(IntroSequence);
+
+function IntroSequence({
   language,
   requestSubmerge,
   onReveal,

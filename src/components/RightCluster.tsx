@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { DialogId } from "@/lib/types";
 
 type RightClusterProps = {
@@ -7,7 +8,11 @@ type RightClusterProps = {
   cableSelected?: boolean;
 };
 
-export function RightCluster({
+// Memoized: shields the cluster from GlobeScene's 30fps marker-tracking
+// re-renders — requires onOpen to be a stable useCallback at the call site.
+export const RightCluster = memo(RightClusterBase);
+
+function RightClusterBase({
   openDialog,
   onOpen,
   cableSelected = true,

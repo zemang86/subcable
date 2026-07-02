@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { CableSystem, Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
@@ -13,7 +14,11 @@ type HeaderProps = {
 // Top "Header" strip per Figma V1.3.
 // Frame 2008×120 at (18, 12) at the kiosk tile (2049×1150). Rendered with
 // right:23 so the strip stretches with viewport width; height stays fixed.
-export function Header({ selectedCable, language, className }: HeaderProps) {
+// Memoized: shields the strip from GlobeScene's 30fps marker-tracking
+// re-renders (props are stable). Declaration hoists past the export.
+export const Header = memo(HeaderBase);
+
+function HeaderBase({ selectedCable, language, className }: HeaderProps) {
   const t = useT(language);
   const typeLabel =
     selectedCable?.classification === "domestic" ? "DOM" : "INT";
