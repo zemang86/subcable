@@ -370,7 +370,7 @@ export default function GlobeScene() {
   // phases) and while a call animation runs — watching IS engagement (long
   // routes travel >60s with zero touches). The timer re-arms fresh on unsuspend.
   const { isIdle, warnSecondsLeft } = useIdleAttractor(
-    15_000,
+    60_000,
     undefined,
     !revealed || submerging || activeCall !== null,
   );
