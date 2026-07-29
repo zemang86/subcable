@@ -6,7 +6,7 @@
 //
 //   attract   clip1 — underwater dolly loop (two layered elements crossfade at
 //                     the seam, see LOOP_FADE_MS). "Tap anywhere to begin".
-//   launching clip1 — the lead element plays to its 8s end with a countdown.
+//   launching clip1 — the lead element plays to its end with a countdown.
 //   emerge    clip2 — emerge into the globe; last frame = globe's live pose.
 //   live      —      video layer is transparent; globe + chrome run.
 //   submerge  clip3 — live → back to idle, played over the globe.
@@ -29,9 +29,19 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import type { Language } from "@/lib/types";
 
-const CLIP1 = "/video/tm-clip1-underwater-dolly-v2.mp4";
-const CLIP2 = "/video/tm-clip2-fullseq-fast.mp4";
-const CLIP3 = "/video/tm-clip3-submerge-loop.mp4";
+// ⚠ DRAFT VIDEO SWAP (branch draft-video-swap) — temporary stand-ins from
+// docs/temp-video, re-encoded/copied into public/video as draft-*.mp4. The
+// source idleloop was 10-bit HEVC 4K (won't decode in Chrome/Electron), so it
+// was re-encoded to H.264 8-bit 1080p; emerge/submerge are the drafts as-is and
+// are sub-1080p, so they upscale soft on a kiosk panel.
+// To revert: point these three back at the originals, which are still in
+// public/video untouched —
+//   CLIP1 = "/video/tm-clip1-underwater-dolly-v2.mp4"
+//   CLIP2 = "/video/tm-clip2-fullseq-fast.mp4"
+//   CLIP3 = "/video/tm-clip3-submerge-loop.mp4"
+const CLIP1 = "/video/draft-idleloop.mp4";
+const CLIP2 = "/video/draft-emerge.mp4";
+const CLIP3 = "/video/draft-submerge.mp4";
 
 // clip1→clip2 handoff: clip2 fades IN over clip1 (held on its matching end
 // frame beneath) across CROSSFADE_MS — a soft dissolve so the emerge "merges"
@@ -267,7 +277,7 @@ function IntroSequence({
         PROMPT_DELAY_MS,
       );
     } else if (phase === "launching") {
-      // Play the current lead clip1 through to its 8s end (no swap — looping is
+      // Play the current lead clip1 through to its end (no swap — looping is
       // gated to the attract phase) and park the other element out of the way.
       const lead = leadEl(attractLeadRef.current);
       const back = leadEl(attractLeadRef.current === "a" ? "b" : "a");
@@ -282,7 +292,7 @@ function IntroSequence({
     } else if (phase === "emerge") {
       setCountdown(null);
       clip2CutRef.current = false; // arm the early-cut for this emerge
-      // clip1→clip2 handoff: clip2 fades in over clip1, held on its matching 8s
+      // clip1→clip2 handoff: clip2 fades in over clip1, held on its matching
       // end frame beneath (clip1 stays `active` while emergeFading). The frames
       // match, so the dissolve alone reads as a cut — a soft bloom swell over
       // the seam gives it a visible "surge into emerge". clip2 is parked at 0
@@ -369,7 +379,7 @@ function IntroSequence({
     }
   }, [phase]);
 
-  // clip1 `ended`. While launching: the lead reached 8s → cut into the emerge
+  // clip1 `ended`. While launching: the lead reached its end → cut into the emerge
   // clip. While attracting: an outgoing loop element finished its tail → park it.
   const handleClip1Ended = useCallback(
     (id: Lead) => {
