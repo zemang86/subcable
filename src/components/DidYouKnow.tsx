@@ -1,7 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import type { Language } from "@/lib/types";
+import { DID_YOU_KNOW_FACTS, FACT_SLIDE_MS } from "@/data/didYouKnow";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
 
@@ -17,6 +18,12 @@ const PANEL_BODY_HEIGHT = 362;
 // Orange-hot vs orange-mid alternation per Figma (key statistic 01–04).
 const ORANGE_HOT = "#FF4D00";
 const ORANGE_MID = "#F05A22";
+// Sampled from the design: the spent dots are a warm cream, not dimmed white —
+// white at any opacity goes grey against this panel's gradient.
+const DOT_IDLE = "#F1CCAA";
+// 6px on an 11px pitch, measured off the design.
+const DOT_SIZE = 6;
+const DOT_GAP = 5;
 
 // Memoized: shields the panel from GlobeScene's 30fps marker-tracking
 // re-renders (props are stable).
@@ -27,6 +34,18 @@ function DidYouKnow({
   className,
 }: DidYouKnowProps) {
   const t = useT(language);
+  const [fact, setFact] = useState(0);
+
+  // One fact per FACT_SLIDE_MS, looping. setInterval rather than a chained
+  // timeout: nothing here can interrupt the cadence, so there's no state to
+  // restart it from.
+  useEffect(() => {
+    const tick = setInterval(
+      () => setFact((i) => (i + 1) % DID_YOU_KNOW_FACTS.length),
+      FACT_SLIDE_MS,
+    );
+    return () => clearInterval(tick);
+  }, []);
 
   return (
     <div
@@ -100,8 +119,10 @@ function DidYouKnow({
           <CornerBracket position="tr" />
           <CornerBracket position="bl" />
           <CornerBracket position="br" />
-          {/* Body copy */}
+          {/* Body copy — the fact on show, re-keyed so each one fades in */}
           <p
+            key={fact}
+            className="v1-gi-fade"
             style={{
               position: "absolute",
               left: 26,
@@ -116,8 +137,38 @@ function DidYouKnow({
               color: "#FFFFFF",
             }}
           >
-            {t("generalInfoBody")}
+            {DID_YOU_KNOW_FACTS[fact]}
           </p>
+
+          {/* Ten-second countdown — orange filling a white track, sized and
+              placed to the paragraph so it reads as that fact's timer. Shares
+              FACT_SLIDE_MS with the interval above, so bar and advance can't
+              drift apart. */}
+          <div
+            style={{
+              position: "absolute",
+              left: 26,
+              top: 65,
+              width: 361,
+              height: 2,
+              background: "#FFFFFF",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              key={fact}
+              className="v1-gi-fill"
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                background: ORANGE_MID,
+                animationDuration: `${FACT_SLIDE_MS}ms`,
+              }}
+            />
+          </div>
           {/* Orange + red underline accent */}
           <div
             style={{
@@ -139,6 +190,32 @@ function DidYouKnow({
               background: "#ED1B2E",
             }}
           />
+        </div>
+
+        {/* ── Fact pagination — one dot per fact, current one orange ── */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 100,
+            display: "flex",
+            justifyContent: "center",
+            gap: DOT_GAP,
+          }}
+        >
+          {DID_YOU_KNOW_FACTS.map((_, i) => (
+            <span
+              key={i}
+              style={{
+                width: DOT_SIZE,
+                height: DOT_SIZE,
+                borderRadius: "50%",
+                background: i === fact ? ORANGE_MID : DOT_IDLE,
+              }}
+            />
+          ))}
         </div>
 
         {/* ── Divider with end caps ── */}

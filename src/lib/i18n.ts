@@ -24,8 +24,6 @@ const en: Dict = {
   cableInformation: "Cable Information",
   generalInformation: "General Information",
   didYouKnow: "Did You Know?",
-  generalInfoBody:
-    "Submarine cables are fiber-optic cables laid on the ocean floor that carry over 95% of international data and voice traffic worldwide — far exceeding satellite capacity in speed, volume, and reliability.",
   keyStatistic: "Key Statistic",
   globalInternetTraffic: "of global internet traffic",
   cablesWorldwide: "cables worldwide (2024)",
@@ -93,8 +91,6 @@ const bm: Dict = {
   cableInformation: "Maklumat Kabel",
   generalInformation: "Maklumat Umum",
   didYouKnow: "Tahukah Anda?",
-  generalInfoBody:
-    "Kabel dasar laut ialah kabel gentian optik yang diletakkan di dasar lautan dan membawa lebih 95% trafik data dan suara antarabangsa di seluruh dunia — jauh melebihi kapasiti satelit dari segi kelajuan, isi padu dan kebolehpercayaan.",
   keyStatistic: "Statistik Utama",
   globalInternetTraffic: "daripada trafik internet global",
   cablesWorldwide: "kabel di seluruh dunia (2024)",
