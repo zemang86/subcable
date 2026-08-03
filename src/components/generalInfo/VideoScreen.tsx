@@ -91,83 +91,98 @@ export default function VideoScreen({
           {screen.title}
         </h2>
 
+        {/* Player = picture stacked above its controls, both inside the one
+            bordered frame. The control bar is in normal flow, not floated over
+            the picture: on a kiosk it is always visible, so overlaying it would
+            permanently cover the bottom of every clip. The stage takes whatever
+            height is left, which is why the picture is shorter than the frame. */}
         <div
           ref={frameRef}
           style={{
             position: "relative",
             flex: 1,
             minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
             overflow: "hidden",
             borderRadius: 8,
             border: "1px solid rgba(255, 255, 255, 0.85)",
             background: "#000000",
           }}
         >
-          {started && screen.src ? (
-            <video
-              ref={videoRef}
-              src={screen.src}
-              poster={screen.poster.src}
-              autoPlay
-              muted={muted}
-              playsInline
-              onClick={toggle}
-              onPlay={() => setPaused(false)}
-              onPause={() => setPaused(true)}
-              onLoadedMetadata={(e) => setLength(e.currentTarget.duration)}
-              onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-              onEnded={() => {
-                setStarted(false);
-                setTime(0);
-              }}
-              // contain, not cover: the two clips aren't the same aspect (16:9
-              // and 4:3) and cropping a documentary frame to fill is worse than
-              // pillarboxing it against the black backing.
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-            />
-          ) : (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
-              <img
-                src={screen.poster.src}
-                alt={screen.poster.alt}
+          <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+            {started && screen.src ? (
+              <video
+                ref={videoRef}
+                src={screen.src}
+                poster={screen.poster.src}
+                autoPlay
+                muted={muted}
+                playsInline
+                onClick={toggle}
+                onPlay={() => setPaused(false)}
+                onPause={() => setPaused(true)}
+                onLoadedMetadata={(e) => setLength(e.currentTarget.duration)}
+                onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+                onEnded={() => {
+                  setStarted(false);
+                  setTime(0);
+                }}
+                // contain, not cover: the two clips aren't the same aspect (16:9
+                // and 4:3) and cropping a documentary frame to fill is worse than
+                // pillarboxing it against the black backing.
                 style={{
                   position: "absolute",
                   inset: 0,
                   width: "100%",
                   height: "100%",
-                  objectFit: "cover",
+                  objectFit: "contain",
                 }}
               />
-              <button
-                type="button"
-                onClick={toggle}
-                aria-label={playable ? `Play ${screen.title}` : "Video pending"}
-                aria-disabled={!playable}
-                className="v1-pressable"
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  width: 108,
-                  height: 108,
-                  borderRadius: "50%",
-                  border: "none",
-                  background: "var(--v1-blue)",
-                  cursor: playable ? "pointer" : "default",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 0,
-                }}
-              >
-                <svg width="36" height="40" viewBox="0 0 24 24" aria-hidden>
-                  <polygon points="7,4 21,12 7,20" fill="var(--v1-orange)" />
-                </svg>
-              </button>
-            </>
-          )}
+            ) : (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
+                <img
+                  src={screen.poster.src}
+                  alt={screen.poster.alt}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-label={playable ? `Play ${screen.title}` : "Video pending"}
+                  aria-disabled={!playable}
+                  className="v1-pressable"
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: 108,
+                    height: 108,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "var(--v1-blue)",
+                    cursor: playable ? "pointer" : "default",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                  }}
+                >
+                  <svg width="36" height="40" viewBox="0 0 24 24" aria-hidden>
+                    <polygon points="7,4 21,12 7,20" fill="var(--v1-orange)" />
+                  </svg>
+                </button>
+              </>
+            )}
+          </div>
 
           <ControlBar
             live={playable}
@@ -239,7 +254,8 @@ export default function VideoScreen({
 
 /* ── Player chrome ── */
 // Drawn to the export: grey wash, orange scrub with a round knob, glyph boxes
-// and the time pill. Always on screen — a kiosk has no hover to reveal it.
+// and the time pill. Always on screen — a kiosk has no hover to reveal it, and
+// because it never hides it sits under the picture rather than over it.
 
 const GLYPH_W = 38;
 const GLYPH_H = 32;
@@ -283,15 +299,14 @@ function ControlBar({
   return (
     <div
       style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        bottom: 0,
+        flex: "none",
         background: "rgba(140, 140, 140, 0.72)",
       }}
     >
       {/* The visible track is 3px; the hit area around it is 24px so a finger
-          can find it. */}
+          can find it. The strip sits below the picture rather than over it, so
+          the track is centred in its hit area instead of being pulled up onto
+          the video's bottom edge. */}
       <div
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -303,9 +318,8 @@ function ControlBar({
         style={{
           position: "relative",
           height: 24,
-          marginTop: -10,
           display: "flex",
-          alignItems: "flex-end",
+          alignItems: "center",
           cursor: live ? "pointer" : "default",
           touchAction: "none",
         }}
