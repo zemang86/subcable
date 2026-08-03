@@ -54,6 +54,8 @@ const CABLE_SOURCE_MAP = {
   alc: { scm: "Asia Link Cable (ALC)" },
   "aug-east": { scm: "Asia United Gateway East (AUG East)" },
   candle: { scm: "Candle" },
+  // TM now calls this SKRM; TeleGeography still files it under the original
+  // 1Malaysia-era title, so this lookup key must keep the "1".
   skr1m: { scm: "Sistem Kabel Rakyat 1Malaysia (SKR1M)" },
   "stingray-pangkor": { scm: "Lumut-Pangkor Island" },
   "stingray-tioman": { scm: "Rompin-Tioman Island" },

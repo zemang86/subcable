@@ -413,9 +413,11 @@ export const cables: CableSystem[] = [
       "This domestic cable connects Langkawi Island to mainland Kedah/Perlis, ensuring stable broadband, mobile backhaul, and tourism-related connectivity services for the island.",
   },
   {
+    // id stays "skr1m": it keys colours, geometry and topology, and the
+    // TeleGeography import still maps it to the original SKR1M page.
     id: "skr1m",
-    name: "Submarine Kabel Rakyat Malaysia",
-    shortName: "SKR1M",
+    name: "Sistem Kabel Rakyat Malaysia",
+    shortName: "SKRM",
     classification: "domestic",
     status: "active",
     buildYear: 2016,
