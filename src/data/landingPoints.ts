@@ -439,6 +439,19 @@ export const landingPoints: LandingPoint[] = [
     cableIds: ["cm"],
   },
   {
+    // NuGate's Singapore end is a carrier-neutral PoP, not a CLS — modelled
+    // the same way as its Jakarta end rather than reusing a subsea station.
+    id: "singapore-pop",
+    name: "Singapore (PoP)",
+    city: "Singapore",
+    country: "Singapore",
+    region: "Southeast Asia",
+    lat: 1.32,
+    lng: 103.79,
+    cableIds: ["nugate"],
+    kind: "pop",
+  },
+  {
     id: "tungku",
     name: "Tungku, Brunei",
     city: "Tungku",
@@ -919,16 +932,6 @@ export const landingPoints: LandingPoint[] = [
     cableIds: ["smw4", "smw5"],
   },
   {
-    id: "toulon",
-    name: "Toulon, France",
-    city: "Toulon",
-    country: "France",
-    region: "Europe",
-    lat: 43.12,
-    lng: 5.93,
-    cableIds: ["smw5"],
-  },
-  {
     id: "plerin",
     name: "Plérin, France",
     city: "Plérin",
@@ -946,7 +949,7 @@ export const landingPoints: LandingPoint[] = [
     region: "Europe",
     lat: 38.12,
     lng: 13.36,
-    cableIds: ["smw4", "smw5", "flag"],
+    cableIds: ["smw4", "flag"],
   },
   {
     id: "catania",

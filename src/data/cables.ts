@@ -37,7 +37,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["smw4"],
     description:
-      "Trans-oceanic system linking Southeast Asia to Europe via the Indian Ocean, Red Sea and Mediterranean. One of the highest-capacity cables crossing the Suez chokepoint.",
+      "South East Asia–Middle East–Western Europe 4 (SEA-ME-WE 4) is a major international submarine fiber optic cable spanning approximately 18,800 km. Commissioned in 2005, it links Southeast Asia to Europe through the Middle East and serves as one of Malaysia’s primary global internet gateways. It supports high-capacity voice, internet, cloud, and enterprise traffic between 16 landing stations across Asia, Africa, and Europe.",
   },
   {
     id: "smw5",
@@ -69,14 +69,12 @@ export const cables: CableSystem[] = [
       "zafarana",
       "abu-talat",
       "catania",
-      "palermo",
       "marmaris",
-      "toulon",
       "marseille",
     ],
     color: CABLE_COLORS["smw5"],
     description:
-      "Newer-generation 100 Gbps consortium cable. Adds diverse routing through Indonesia and Myanmar, complementing SMW4 along the Asia–Europe corridor.",
+      "South East Asia–Middle East–Western Europe 5 (SEA-ME-WE 5) is the next-generation successor to SMW-4, stretching roughly 20,000 km from Singapore to France and Italy. Operational since 2016, it offers much higher bandwidth using advanced 100G DWDM optical technology, enabling lower latency and higher reliability for growing international traffic demands such as cloud computing, streaming, and data center interconnectivity.",
   },
   {
     id: "bbg",
@@ -95,7 +93,7 @@ export const cables: CableSystem[] = [
     landingPointIds: ["penang", "chennai", "mumbai", "mt-lavinia", "barka", "fujairah"],
     color: CABLE_COLORS["bbg"],
     description:
-      "Express trunk between Southeast Asia and the Middle East. Lands at Penang in Malaysia, providing a diverse path that bypasses the more crowded Singapore hub.",
+      "Bay of Bengal Gateway (BBG) is a regional high-capacity submarine cable connecting Malaysia, Singapore, India, Sri Lanka, Oman, and the UAE. Designed to improve connectivity across South Asia and the Middle East, BBG provides strong route diversity and redundancy, helping reduce congestion on traditional SEA-ME-WE routes.",
   },
   {
     id: "aag",
@@ -125,7 +123,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["aag"],
     description:
-      "Trans-Pacific system connecting Southeast Asia directly to the US west coast via Guam and Hawaii — a major route for Pacific traffic out of Malaysia.",
+      "Asia-America Gateway (AAG) is one of the longest trans-Pacific submarine cable systems, connecting Southeast Asia directly to the United States (California and Hawaii). It enables large-scale internet traffic between Asia and North America and is essential for international content delivery, cloud services, and trans-Pacific communications.",
   },
   {
     id: "apcn2",
@@ -155,11 +153,11 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["apcn2"],
     description:
-      "Ring-architecture network across the Asia-Pacific. Provides protected connectivity between Malaysia and Japan via two diverse paths (HK and SG).",
+      "Asia Pacific Cable Network 2 (APCN-2) is a regional submarine cable system connecting major East Asian telecommunications hubs including Japan, China, Korea, Hong Kong, Singapore, Philippines, Taiwan, and Malaysia. It plays a critical role in regional internet exchange and high-speed enterprise communications.",
   },
   {
     id: "cm",
-    name: "Cahaya Malaysia",
+    name: "Cable Malaysia",
     shortName: "CM",
     classification: "international",
     status: "active",
@@ -181,7 +179,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["cm"],
     description:
-      "TM's flagship cable to Northeast Asia — direct, low-latency link between Mersing and Japan via Hong Kong, with extensions across the ASE consortium.",
+      "CM (Cable Malaysia) is a regional cable system supporting data exchange between Malaysia and neighbouring Asian hubs such as Japan, Hong Kong, Singapore, and the Philippines. It strengthens regional bandwidth capacity and provides additional redundancy for mission-critical network services.",
   },
   {
     id: "bdm",
@@ -200,7 +198,7 @@ export const cables: CableSystem[] = [
     landingPointIds: ["melaka", "batam", "dumai"],
     color: CABLE_COLORS["bdm"],
     description:
-      "Short-haul system across the Strait of Malacca, branching from Melaka to two key Indonesian internet hubs.",
+      "Batam–Dumai–Melaka (BDM) is a regional cable linking Indonesia and Malaysia across the Strait of Malacca. It improves bilateral telecommunications traffic, cross-border enterprise connectivity, and international transit routing between both countries.",
   },
   {
     id: "dmcs",
@@ -219,7 +217,7 @@ export const cables: CableSystem[] = [
     landingPointIds: ["melaka", "dumai"],
     color: CABLE_COLORS["dmcs"],
     description:
-      "Dedicated point-to-point Strait of Malacca crossing between Malaysia and Sumatra.",
+      "Dumai–Melaka Cable System (DMCS) is a short-haul submarine cable connecting Dumai, Indonesia to Melaka, Malaysia. It provides resilient cross-strait communication and acts as an important backup path for regional internet traffic.",
   },
   {
     id: "mct",
@@ -238,7 +236,7 @@ export const cables: CableSystem[] = [
     landingPointIds: ["cherating", "rayong", "sihanoukville"],
     color: CABLE_COLORS["mct"],
     description:
-      "Y-branch system across the Gulf of Thailand. The first cable to land in Cambodia, opening direct international capacity for the country.",
+      "Malaysia–Cambodia–Thailand (MCT) is a regional cable network that improves digital connectivity between mainland Southeast Asia and Malaysia. It supports growing internet usage, business traffic, and future 5G backhaul requirements across ASEAN.",
   },
   {
     id: "nugate",
@@ -254,10 +252,10 @@ export const cables: CableSystem[] = [
     regions: ["Southeast Asia"],
     routeSummary: "Singapore ↔ Batam ↔ Jakarta (PoP-only)",
     owners: ["Telekom Malaysia"],
-    landingPointIds: ["batam", "jakarta"],
+    landingPointIds: ["singapore-pop", "batam", "jakarta"],
     color: CABLE_COLORS["nugate"],
     description:
-      "Terrestrial-PoP system providing transit between Singapore, Batam and Jakarta. No subsea landings of its own — connects via partner CLS.",
+      "NuGate is a regional carrier-neutral connectivity platform linking Singapore, Batam, and Jakarta. Unlike traditional consortium cables, it focuses on efficient IP transit, peering, and data center interconnection, enabling flexible enterprise-grade connectivity.",
   },
   {
     id: "sat3-wasc-safe",
@@ -293,7 +291,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["sat3-wasc-safe"],
     description:
-      "Composite system circumnavigating Africa — SAFE links Asia to South Africa via Mauritius/Réunion, then SAT3/WASC continues up the African west coast to Portugal.",
+      "SAT3-WASC-SAFE is a long-haul submarine cable connecting Europe, West Africa, South Africa, and Asia. This cable significantly improved digital connectivity for African nations by providing international broadband capacity and reduced dependency on satellite links.",
   },
 
   // ───────────────────── IRU ─────────────────────
@@ -376,7 +374,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["mdscs"],
     description:
-      "Original 8-segment domestic loop linking Peninsular Malaysia, Sarawak and Sabah — predecessor to SKR1M. Largely inactive today but historically critical.",
+      "Malaysia Domestic Submarine Cable System (MDSCS) was designed to improve domestic connectivity between Peninsular Malaysia and East Malaysia. It served as an early backbone for national broadband expansion but is currently no longer operational.",
   },
   {
     id: "bps",
@@ -394,7 +392,7 @@ export const cables: CableSystem[] = [
     landingPointIds: ["bayan-baru", "pulau-jerejak", "seberang-jaya"],
     color: CABLE_COLORS["bps"],
     description:
-      "Short Penang-island trio connecting Bayan Baru, Pulau Jerejak and Seberang Jaya. Activated capacity ~340 Gbps.",
+      "Bayan Baru–Pulau Jerejak–Seberang Jaya (BPS) is a short domestic submarine cable system in Penang, supporting metropolitan connectivity and providing resilient local telecommunications links between mainland and island infrastructure.",
   },
   {
     id: "langkawi-perlis",
@@ -412,11 +410,11 @@ export const cables: CableSystem[] = [
     landingPointIds: ["kuala-perlis", "langkawi"],
     color: CABLE_COLORS["langkawi-perlis"],
     description:
-      "Mainland-to-island link providing Langkawi's primary fixed connectivity. Activated capacity ~394 Gbps.",
+      "This domestic cable connects Langkawi Island to mainland Kedah/Perlis, ensuring stable broadband, mobile backhaul, and tourism-related connectivity services for the island.",
   },
   {
     id: "skr1m",
-    name: "Sistem Kabel Rakyat 1Malaysia",
+    name: "Submarine Kabel Rakyat Malaysia",
     shortName: "SKR1M",
     classification: "domestic",
     status: "active",
@@ -438,7 +436,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["skr1m"],
     description:
-      "Backbone of TM's modern domestic network, joining Peninsular and East Malaysia in a single high-capacity loop. Replaces MDSCS as the primary East-West link.",
+      "SKRM (Submarine Kabel Rakyat Malaysia) was introduced to extend broadband access to underserved communities in East Malaysia and coastal regions. It supports rural digital inclusion by connecting remote landing stations to the national backbone.",
   },
   {
     id: "stingray-pangkor",
@@ -456,7 +454,8 @@ export const cables: CableSystem[] = [
     owners: ["Telekom Malaysia"],
     landingPointIds: ["lumut", "pulau-pangkor"],
     color: CABLE_COLORS["stingray-pangkor"],
-    description: "Short-haul island link, part of the Stingray family of mainland-to-island cables.",
+    description:
+      "A domestic submarine cable designed to provide reliable high-speed connectivity between Lumut and Pulau Pangkor, supporting residents, tourism, and businesses.",
   },
   {
     id: "stingray-tioman",
@@ -474,7 +473,8 @@ export const cables: CableSystem[] = [
     owners: ["Telekom Malaysia"],
     landingPointIds: ["rompin", "pulau-tioman"],
     color: CABLE_COLORS["stingray-tioman"],
-    description: "Brings high-capacity connectivity to Tioman, one of Malaysia's flagship resort islands.",
+    description:
+      "This cable connects Rompin to Pulau Tioman, ensuring stable broadband and telecommunications services for island communities and tourism operators.",
   },
   {
     id: "stingray-perhentian",
@@ -492,7 +492,8 @@ export const cables: CableSystem[] = [
     owners: ["Telekom Malaysia"],
     landingPointIds: ["kuala-besut", "pulau-perhentian"],
     color: CABLE_COLORS["stingray-perhentian"],
-    description: "Mainland-to-island link serving Pulau Perhentian Besar and Kecil.",
+    description:
+      "Provides critical telecommunications connectivity between Kuala Besut and the Perhentian Islands, supporting hospitality, emergency services, and local businesses.",
   },
   {
     id: "stingray2-ketam",
@@ -509,7 +510,8 @@ export const cables: CableSystem[] = [
     owners: ["Telekom Malaysia"],
     landingPointIds: ["jeram", "sg-lima", "pulau-ketam"],
     color: CABLE_COLORS["stingray2-ketam"],
-    description: "Stingray II programme extension to Pulau Ketam off Selangor.",
+    description:
+      "An upgraded island connectivity project that delivers better broadband services to Pulau Ketam, improving internet access for residents and commercial users.",
   },
   {
     id: "stingray2-redang",
@@ -526,7 +528,8 @@ export const cables: CableSystem[] = [
     owners: ["Telekom Malaysia"],
     landingPointIds: ["merang", "pulau-redang"],
     color: CABLE_COLORS["stingray2-redang"],
-    description: "Stingray II programme extension to Pulau Redang off Terengganu.",
+    description:
+      "Designed to enhance digital connectivity for Pulau Redang, this cable improves broadband capacity for tourism operations, marine monitoring, and local communications.",
   },
 
   // ───────────────────── PLANNED / IN DEVELOPMENT ─────────────────────
