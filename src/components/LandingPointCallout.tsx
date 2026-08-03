@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { LANDING_POINT_IMAGES } from "@/data/landingPointImages";
 import type { LandingPoint } from "@/lib/types";
 import { useScramble } from "@/lib/useScramble";
 import { HUD_CENTER_Y, PointHUD, SVG_W } from "./PointHUD";
@@ -296,6 +297,9 @@ function ExpandedCard({
 }) {
   const [closing, setClosing] = useState(false);
 
+  // First photo in drop order; undefined for points with none yet.
+  const photo = LANDING_POINT_IMAGES[point.id]?.[0];
+
   const handleClose = () => {
     if (closing || !onClose) return;
     setClosing(true);
@@ -422,46 +426,26 @@ function ExpandedCard({
           </span>
         </div>
 
-        {/* Thumbnail */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={`https://picsum.photos/seed/${point.id}/398/116`}
-          alt={point.name}
-          style={{
-            width: "100%",
-            height: 116,
-            objectFit: "cover",
-            display: "block",
-            background: "#1A1A1A",
-          }}
-        />
-
-        {/* Built: DD/MM/YY */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            fontFamily: "var(--v1-mono)",
-            fontSize: 18,
-            lineHeight: "23px",
-          }}
-        >
-          <span style={{ color: "#FFFFFF" }}>Built:</span>
-          <span style={{ color: "#F05A22" }}>DD/MM/YY</span>
-        </div>
-
-        {/* Body text — wraps and grows the panel */}
-        <div
-          style={{
-            fontFamily: "var(--v1-mono)",
-            fontSize: 18,
-            lineHeight: "23px",
-            color: "#FFFFFF",
-          }}
-        >
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
-          eiusmod tempor incididunt ut labore et dolore magna aliqua.
-        </div>
+        {/* Station photo — full width at its natural aspect. Points with no
+            photo render nothing here, so the card shrinks to title + coords
+            rather than leaving a gap. width/height reserve the box while the
+            image loads so the panel doesn't jump. */}
+        {photo && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={photo.src}
+            alt={point.name}
+            width={photo.width}
+            height={photo.height}
+            style={{
+              width: "100%",
+              height: "auto",
+              display: "block",
+              border: "1px solid rgba(255, 255, 255, 0.65)",
+              background: "#1A1A1A",
+            }}
+          />
+        )}
 
         {/* Close affordance — the whole card closes on tap; this just makes the
             close target obvious on a touchscreen. Decorative (parent handles
