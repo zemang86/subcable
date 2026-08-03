@@ -1,6 +1,6 @@
 "use client";
 
-import { INFO_TABS, type EraScreen as EraData } from "@/data/generalInfo";
+import type { EraScreen as EraData } from "@/data/generalInfo";
 import {
   CARD_BODY,
   CARD_TITLE,
@@ -24,10 +24,13 @@ export default function EraScreen({
   barRepeat,
   index,
   onSelect,
+  siblings,
 }: { screen: EraData } & ScreenProps) {
-  const eraLabels = INFO_TABS.find((tab) => tab.id === "then-and-now")
-    ?.screens.map((entry) => (entry.kind === "era" ? entry.toggleLabel : ""))
-    .filter(Boolean) ?? [];
+  // The pill's two segments are this tab's own screens, so the labels come
+  // from the siblings the panel handed down — already in the active language.
+  const eraLabels = siblings
+    .map((entry) => (entry.kind === "era" ? entry.toggleLabel : ""))
+    .filter(Boolean);
 
   return (
     <div

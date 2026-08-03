@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
 import {
   INFO_SLIDE_MS,
-  INFO_TABS,
+  getInfoTabs,
   type InfoScreen,
 } from "@/data/generalInfo";
 import { PANEL_PAD, type ScreenProps } from "./generalInfo/shared";
@@ -54,7 +54,11 @@ export default function GeneralInfoDialog({
   const [screenIndex, setScreenIndex] = useState(0);
   const [cycle, setCycle] = useState(0);
 
-  const tab = INFO_TABS[tabIndex];
+  // Same structure in both languages — only the strings differ, so the active
+  // tab and screen survive a language switch.
+  const tabs = useMemo(() => getInfoTabs(language), [language]);
+
+  const tab = tabs[tabIndex];
   const screens = tab.screens;
   const screen = screens[screenIndex];
   const count = screens.length;
@@ -138,7 +142,7 @@ export default function GeneralInfoDialog({
           <PanelFrame />
 
           <TabRow
-            labels={INFO_TABS.map((entry) => entry.label)}
+            labels={tabs.map((entry) => entry.label)}
             activeIndex={tabIndex}
             onSelect={selectTab}
           />
@@ -162,6 +166,7 @@ export default function GeneralInfoDialog({
                 count={count}
                 onStep={step}
                 onSelect={selectScreen}
+                siblings={screens}
               />
             ) : (
               <PendingTab label={tab.label} />

@@ -148,7 +148,7 @@ function DidYouKnow({
               color: "#FFFFFF",
             }}
           >
-            {DID_YOU_KNOW_FACTS[fact]}
+            {DID_YOU_KNOW_FACTS[fact][language]}
           </p>
 
           {/* Ten-second countdown — orange filling a white track, sized and
@@ -264,11 +264,12 @@ function DidYouKnow({
         {/* ── 2×2 "At a Glance" grid, in reading order ── */}
         {AT_A_GLANCE.map((stat, i) => (
           <StatCell
-            key={stat.value}
+            // Keyed on the English value so the cell survives a language swap.
+            key={stat.value.en}
             left={i % 2 === 0 ? 11 : 221}
             top={GRID_TOP + Math.floor(i / 2) * (CARD_HEIGHT + CARD_GAP)}
-            value={stat.value}
-            label={stat.label}
+            value={stat.value[language]}
+            label={stat.label[language]}
           />
         ))}
         </div>

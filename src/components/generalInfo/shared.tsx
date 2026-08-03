@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { INFO_SLIDE_MS } from "@/data/generalInfo";
+import { INFO_SLIDE_MS, type InfoScreen } from "@/data/generalInfo";
 
 /**
  * Pieces every General Information tab layout shares: the bracketed copy card,
@@ -32,6 +32,12 @@ export type ScreenProps = {
   count: number;
   onStep: (delta: number) => void;
   onSelect: (index: number) => void;
+  /**
+   * Every screen in the active tab, already resolved to the current language.
+   * A layout that draws its own switcher rather than the dot rail — Then And
+   * Now's Then/Now pill — reads its sibling's label from here.
+   */
+  siblings: InfoScreen[];
 };
 
 /* ── Bracketed card ── */
