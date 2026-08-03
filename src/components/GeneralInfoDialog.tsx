@@ -4,7 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
-import { INFO_SLIDE_MS, INFO_TABS, type InfoSlide } from "@/data/generalInfo";
+import {
+  INFO_SLIDE_MS,
+  INFO_TABS,
+  type InfoScreen,
+} from "@/data/generalInfo";
+import { PANEL_PAD, type ScreenProps } from "./generalInfo/shared";
+import OverviewScreen from "./generalInfo/OverviewScreen";
+import MaterialScreen from "./generalInfo/MaterialScreen";
+import CutawayScreen from "./generalInfo/CutawayScreen";
+import EraScreen from "./generalInfo/EraScreen";
+import VideoScreen from "./generalInfo/VideoScreen";
 
 interface GeneralInfoDialogProps {
   onClose: () => void;
@@ -18,17 +28,12 @@ const PANEL_BG =
 
 const TITLE_STRIP_HEIGHT = 47;
 
-// Layout sizes. The Figma export (temp/funfact/overview-*.svg) is drawn at
-// ~0.66 of the kiosk canvas — its title strip measures 31px against the 47px
-// every other panel uses. Rather than shrink the panel to the export's ~712px,
-// the card keeps the 1040px footprint already tuned to sit clear of the left
-// cluster and the right-hand panels, and the design's proportions are scaled
-// onto it. Body copy is held at 15px: a straight scale puts it near 12px,
-// which is too small to read at kiosk arm's length.
-const PANEL_PAD = 22;
-const IMAGE_WIDTH = 320;
-const IMAGE_RATIO = 150.08 / 108.62; // from the export's image frames
-const COLUMN_GAP = 24;
+// Sizing: the Figma exports (temp/funfact/*.svg) are drawn at ~0.66 of the
+// kiosk canvas — their title strip measures 31px against the 47px every other
+// panel uses. Rather than shrink the panel to the export's ~712px, the card
+// keeps the 1040px footprint already tuned to sit clear of the left cluster and
+// the right-hand panels, and the design's proportions are scaled onto it. Body
+// copy is held at a readable size: a straight scale lands near 8px.
 
 export default function GeneralInfoDialog({
   onClose,
@@ -39,37 +44,42 @@ export default function GeneralInfoDialog({
   // Screen within the active tab. `cycle` bumps on any manual move so the hold
   // timer and the countdown bar restart together, even when the target screen
   // is the one already showing.
-  const [slideIndex, setSlideIndex] = useState(0);
+  const [screenIndex, setScreenIndex] = useState(0);
   const [cycle, setCycle] = useState(0);
 
   const tab = INFO_TABS[tabIndex];
-  const slides = tab.slides;
-  const slide: InfoSlide | undefined = slides[slideIndex];
-  const slideCount = slides.length;
+  const screens = tab.screens;
+  const screen = screens[screenIndex];
+  const count = screens.length;
+  const counting = count > 1 && tab.autoAdvance !== false;
 
-  // Auto-advance, looping back to the first screen of the same tab. Tabs with
-  // fewer than two screens have nothing to advance to.
+  // Auto-advance, looping back to the first screen of the same tab.
   useEffect(() => {
-    if (slideCount < 2) return;
+    if (!counting) return;
     const hold = setTimeout(
-      () => setSlideIndex((i) => (i + 1) % slideCount),
+      () => setScreenIndex((i) => (i + 1) % count),
       INFO_SLIDE_MS,
     );
     return () => clearTimeout(hold);
-  }, [slideIndex, cycle, slideCount]);
+  }, [screenIndex, cycle, count, counting]);
 
   const selectTab = useCallback((i: number) => {
     setTabIndex(i);
-    setSlideIndex(0);
+    setScreenIndex(0);
+    setCycle((c) => c + 1);
+  }, []);
+
+  const selectScreen = useCallback((i: number) => {
+    setScreenIndex(i);
     setCycle((c) => c + 1);
   }, []);
 
   const step = useCallback(
     (delta: number) => {
-      setSlideIndex((i) => (i + delta + slideCount) % slideCount);
+      setScreenIndex((i) => (i + delta + count) % count);
       setCycle((c) => c + 1);
     },
-    [slideCount],
+    [count],
   );
 
   return (
@@ -121,22 +131,48 @@ export default function GeneralInfoDialog({
             onSelect={selectTab}
           />
 
-          {slide ? (
-            <SlideView
-              key={`${tab.id}-${slide.id}`}
-              slide={slide}
-              cycleKey={`${tab.id}-${slideIndex}-${cycle}`}
-              showPrev={slideIndex > 0}
-              showNext={slideIndex < slideCount - 1}
-              onStep={step}
-            />
-          ) : (
-            <PendingTab key={tab.id} label={tab.label} />
-          )}
+          <div
+            key={`${tab.id}-${screen?.id ?? "empty"}`}
+            className="v1-gi-fade"
+            style={{ position: "relative", zIndex: 3 }}
+          >
+            {screen ? (
+              <ScreenLayout
+                screen={screen}
+                cycleKey={`${tab.id}-${screenIndex}-${cycle}`}
+                counting={counting}
+                index={screenIndex}
+                count={count}
+                onStep={step}
+                onSelect={selectScreen}
+              />
+            ) : (
+              <PendingTab label={tab.label} />
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+/** Each tab owns its own composition — dispatch on the screen's kind. */
+function ScreenLayout({
+  screen,
+  ...rest
+}: { screen: InfoScreen } & ScreenProps) {
+  switch (screen.kind) {
+    case "overview":
+      return <OverviewScreen screen={screen} {...rest} />;
+    case "material":
+      return <MaterialScreen screen={screen} {...rest} />;
+    case "cutaway":
+      return <CutawayScreen screen={screen} {...rest} />;
+    case "era":
+      return <EraScreen screen={screen} {...rest} />;
+    case "video":
+      return <VideoScreen screen={screen} {...rest} />;
+  }
 }
 
 /* ───────────────────────── TAB ROW ───────────────────────── */
@@ -230,227 +266,13 @@ function TabRow({
   );
 }
 
-/* ───────────────────────── SLIDE ───────────────────────── */
-// Overview composition: two stacked photos on the left, a bracketed copy card
-// on the right with the countdown bar along its bottom edge, and the step
-// arrows below the frame's right edge.
-
-function SlideView({
-  slide,
-  cycleKey,
-  showPrev,
-  showNext,
-  onStep,
-}: {
-  slide: InfoSlide;
-  cycleKey: string;
-  showPrev: boolean;
-  showNext: boolean;
-  onStep: (delta: number) => void;
-}) {
-  return (
-    <div
-      className="v1-gi-fade"
-      style={{
-        position: "relative",
-        zIndex: 3,
-        display: "flex",
-        gap: COLUMN_GAP,
-        padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
-      }}
-    >
-      <div
-        style={{
-          flex: "none",
-          width: IMAGE_WIDTH,
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-        }}
-      >
-        {slide.images.map((image) => (
-          // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer
-          <img
-            key={image.src}
-            src={image.src}
-            alt={image.alt}
-            style={{
-              width: IMAGE_WIDTH,
-              height: Math.round(IMAGE_WIDTH / IMAGE_RATIO),
-              objectFit: "cover",
-              display: "block",
-              border: "1px solid rgba(255, 255, 255, 0.85)",
-              borderRadius: 8,
-            }}
-          />
-        ))}
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        <div style={{ position: "relative", padding: "10px 12px" }}>
-          <CardBrackets />
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.15)",
-              padding: "16px 18px",
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                fontFamily: "var(--v1-mono)",
-                fontWeight: 600,
-                fontSize: 30,
-                lineHeight: "38px",
-                color: "var(--v1-fg)",
-              }}
-            >
-              {slide.title}
-            </h2>
-            {slide.body.map((paragraph, i) => (
-              <p
-                key={i}
-                style={{
-                  margin: i === 0 ? "14px 0 0" : "12px 0 0",
-                  fontFamily: "var(--v1-mono)",
-                  fontWeight: 300,
-                  fontSize: 15,
-                  lineHeight: "23px",
-                  color: "var(--v1-fg)",
-                }}
-              >
-                {paragraph}
-              </p>
-            ))}
-          </div>
-
-          {/* Countdown to the next screen — orange fill over the red track,
-              driven by the same constant as the hold timer, so the bar and the
-              advance can't drift apart. */}
-          <div
-            style={{
-              position: "relative",
-              height: 3,
-              margin: "8px 4px 0",
-              background: "#ED1B2E",
-            }}
-          >
-            <span
-              key={cycleKey}
-              className="v1-gi-fill"
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: "var(--v1-orange)",
-                backgroundClip: "padding-box",
-                borderRight: "4px solid transparent",
-                animationDuration: `${INFO_SLIDE_MS}ms`,
-              }}
-            />
-          </div>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          {showPrev && (
-            <StepButton direction="prev" onClick={() => onStep(-1)} />
-          )}
-          {showNext && (
-            <StepButton direction="next" onClick={() => onStep(1)} />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StepButton({
-  direction,
-  onClick,
-}: {
-  direction: "prev" | "next";
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={direction === "next" ? "Next" : "Previous"}
-      className="v1-pressable"
-      style={{
-        width: 48,
-        height: 48,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 0,
-        cursor: "pointer",
-        background: "rgba(240, 90, 34, 0.54)",
-        border: "1px solid var(--v1-orange)",
-      }}
-    >
-      <svg width="16" height="26" viewBox="0 0 16 26" fill="none" aria-hidden>
-        <path
-          d={direction === "next" ? "M3 2 L13 13 L3 24" : "M13 2 L3 13 L13 24"}
-          stroke="#FFFFFF"
-          strokeWidth="3"
-          strokeLinecap="square"
-        />
-      </svg>
-    </button>
-  );
-}
-
-/* ───────────────────────── CARD BRACKETS ───────────────────────── */
-// Four L-corners around the copy card + countdown bar, per the export.
-
-const BRACKET = 22;
-
-function CardBrackets() {
-  const line = "1px solid #FFFFFF";
-  const corners = [
-    { top: 0, left: 0, borderTop: line, borderLeft: line },
-    { top: 0, right: 0, borderTop: line, borderRight: line },
-    { bottom: 0, left: 0, borderBottom: line, borderLeft: line },
-    { bottom: 0, right: 0, borderBottom: line, borderRight: line },
-  ];
-  return (
-    <>
-      {corners.map((corner, i) => (
-        <span
-          key={i}
-          aria-hidden
-          style={{
-            position: "absolute",
-            width: BRACKET,
-            height: BRACKET,
-            pointerEvents: "none",
-            ...corner,
-          }}
-        />
-      ))}
-    </>
-  );
-}
-
 /* ───────────────────────── PENDING TAB ───────────────────────── */
-// Each remaining tab gets its own layout and composition from Figma, so this
-// is a neutral holding state rather than the Overview layout with empty slots.
+// Holding state for a tab whose content hasn't landed yet.
 
 function PendingTab({ label }: { label: string }) {
   return (
     <div
-      className="v1-gi-fade"
       style={{
-        position: "relative",
-        zIndex: 3,
         minHeight: 420,
         display: "flex",
         flexDirection: "column",
