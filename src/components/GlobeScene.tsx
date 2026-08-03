@@ -55,6 +55,16 @@ import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
 
 // ───────── Tuning ─────────
 
+// Dev escape hatch: `NEXT_PUBLIC_DEV_NO_IDLE=1` in .env.local parks the idle
+// attractor, so the live screen never submerges back to the attract loop while
+// you're working on it. Lives in a (gitignored) env file rather than a source
+// constant on purpose — a hardcoded testing override is exactly what shipped as
+// the 15s idle window fixed in 93e4609. Belt and braces: the NODE_ENV guard
+// makes it inert in any production build even if .env.local is left in place.
+const DEV_NO_IDLE =
+  process.env.NODE_ENV !== "production" &&
+  process.env.NEXT_PUBLIC_DEV_NO_IDLE === "1";
+
 // Quantized zoom buckets — three-globe rebuilds TextGeometry whenever
 // labelSize / labelDotRadius returns a new value. A continuous scalar from
 // piecewiseByZoom triggers ~163 dispose+tessellate-glyph-paths per zoom tick →
@@ -372,43 +382,20 @@ export default function GlobeScene() {
   const { isIdle, warnSecondsLeft } = useIdleAttractor(
     60_000,
     undefined,
-    !revealed || submerging || activeCall !== null,
+    DEV_NO_IDLE || !revealed || submerging || activeCall !== null,
   );
   const t = useT(language);
-
-  // Transient hint shown when a dimmed cluster button (Morse / Fun Fact) is
-  // tapped without a cable selected — both are scoped to a single cable
-  // system. Tracks which button so the toast anchors beside it.
-  const [hintFor, setHintFor] = useState<"morse" | "funfact" | null>(null);
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flashClusterHint = useCallback((id: "morse" | "funfact") => {
-    setHintFor(id);
-    if (hintTimer.current) clearTimeout(hintTimer.current);
-    hintTimer.current = setTimeout(() => setHintFor(null), 3000);
-  }, []);
 
   // Stable handlers for the memoized chrome — an inline arrow here would give
   // SystemButtons/RightCluster a fresh prop identity every render and defeat
   // their memo.
   const handleAudioToggle = useCallback(() => setMuted((m) => !m), []);
-  const handleClusterOpen = useCallback(
-    (id: Exclude<DialogId, null>) => {
-      // Fun Fact is still scoped to one cable — block + hint if none.
-      // Morse now works standalone (cross-network dialling).
-      if (id === "funfact" && !selectedCable) {
-        flashClusterHint(id);
-        return;
-      }
-      setOpenDialog((current) => (current === id ? null : id));
-    },
-    [selectedCable, flashClusterHint],
-  );
-  useEffect(
-    () => () => {
-      if (hintTimer.current) clearTimeout(hintTimer.current);
-    },
-    [],
-  );
+  // All three cluster dialogs are standalone now — Morse dials cross-network,
+  // and the Fun Fact deck is its own looping content, not scoped to a cable —
+  // so none of them need a selection guard or the old "choose a network" hint.
+  const handleClusterOpen = useCallback((id: Exclude<DialogId, null>) => {
+    setOpenDialog((current) => (current === id ? null : id));
+  }, []);
 
   // Push mute state down to morseAudio so playDot/playMessage/etc no-op.
   useEffect(() => {
@@ -1629,45 +1616,7 @@ export default function GlobeScene() {
             }}
           >
             <div className={chromeCls("v1-enter-left", 1)}>
-              <RightCluster
-                openDialog={openDialog}
-                onOpen={handleClusterOpen}
-                cableSelected={Boolean(selectedCable)}
-              />
-
-              {/* "Choose a network first" hint — anchored to the right of
-                  whichever dimmed button was tapped. Cluster buttons are 76px
-                  tall with 31px gaps, so centres sit at 38 (Morse) and 145 (Fun
-                  Fact). pointer-events:none so it never eats touches. */}
-              {hintFor && (
-                <div
-                  role="status"
-                  style={{
-                    position: "absolute",
-                    left: 76 + 16,
-                    top: hintFor === "morse" ? 38 : 76 + 31 + 38,
-                    transform: "translateY(-50%)",
-                    zIndex: 26,
-                    pointerEvents: "none",
-                    whiteSpace: "nowrap",
-                    padding: "10px 18px",
-                    background: "rgba(4, 14, 31, 0.92)",
-                    border: "1px solid var(--v1-orange)",
-                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.5)",
-                  }}
-                >
-                  <span
-                    className="v1-h-display"
-                    style={{
-                      fontSize: 14,
-                      color: "var(--v1-fg)",
-                      letterSpacing: "0.14em",
-                    }}
-                  >
-                    {t("chooseNetworkFirst")}
-                  </span>
-                </div>
-              )}
+              <RightCluster openDialog={openDialog} onOpen={handleClusterOpen} />
 
               {/* Language toggle — sits directly below the Help button, sharing
                   the left-edge action stack. */}
@@ -1724,12 +1673,8 @@ export default function GlobeScene() {
           language={language}
         />
       )}
-      {openDialog === "funfact" && selectedCable && (
-        <FunFactDialog
-          cable={selectedCable}
-          onClose={() => setOpenDialog(null)}
-          language={language}
-        />
+      {openDialog === "funfact" && (
+        <FunFactDialog onClose={() => setOpenDialog(null)} language={language} />
       )}
       {openDialog === "morse" && (
         <MorseCodePop

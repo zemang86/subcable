@@ -1,26 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import type { CableSystem, Language } from "@/lib/types";
+import { useCallback, useEffect, useState } from "react";
+import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
+import {
+  FUN_FACT_INTERVAL_MS,
+  FUN_FACT_SLIDES,
+  type FunFactSlide,
+} from "@/data/funFacts";
 
 interface FunFactDialogProps {
-  cable: CableSystem;
   onClose: () => void;
   language?: Language;
 }
-
-// Placeholder thumbnails — picsum.photos seeded URLs so each card renders a
-// stable random photo until the client supplies real assets (per §H.6).
-// NOTE: replace with local assets in /public/textures/funfact/ before kiosk
-// deploy — picsum requires network access.
-const PLACEHOLDER_THUMBS = [
-  { id: 1, label: "Cross-section", src: "https://picsum.photos/seed/funfact-crosssection/800/450" },
-  { id: 2, label: "Repeater",      src: "https://picsum.photos/seed/funfact-repeater/800/450" },
-  { id: 3, label: "Cable ship I",  src: "https://picsum.photos/seed/funfact-ship-1/800/450" },
-  { id: 4, label: "Cable ship II", src: "https://picsum.photos/seed/funfact-ship-2/800/450" },
-];
 
 // Panel gradient lifted from temp/facts_bg_gradient.css
 const PANEL_BG =
@@ -29,12 +22,30 @@ const PANEL_BG =
 const TITLE_STRIP_HEIGHT = 47;
 
 export default function FunFactDialog({
-  cable,
   onClose,
   language = "en",
 }: FunFactDialogProps) {
   const t = useT(language);
+  // The deck always opens on slide 0 and loops. `cycle` bumps on a manual jump
+  // so the hold timer + progress bar restart even when the tapped slide is the
+  // one already showing.
   const [activeIndex, setActiveIndex] = useState(0);
+  const [cycle, setCycle] = useState(0);
+  const slideCount = FUN_FACT_SLIDES.length;
+  const slide = FUN_FACT_SLIDES[activeIndex];
+
+  useEffect(() => {
+    const hold = setTimeout(
+      () => setActiveIndex((i) => (i + 1) % slideCount),
+      FUN_FACT_INTERVAL_MS,
+    );
+    return () => clearTimeout(hold);
+  }, [activeIndex, cycle, slideCount]);
+
+  const jumpTo = useCallback((i: number) => {
+    setActiveIndex(i);
+    setCycle((c) => c + 1);
+  }, []);
 
   return (
     <div
@@ -79,129 +90,197 @@ export default function FunFactDialog({
       >
         <PanelFrame />
 
-        {/* Main player area — moved to top for touch-friendly thumb access below */}
-        <div
+        {/* One screen: artwork + copy. Keyed on the slide id so React remounts
+            the block and the fade-in replays on every advance. */}
+        <article
+          key={slide.id}
+          className="v1-ff-in"
           style={{
-            aspectRatio: "16 / 9",
-            maxHeight: 460,
-            background: "rgba(0, 0, 0, 0.50)",
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            margin: 22,
-            position: "relative",
+            padding: "22px 22px 0",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
+            flexDirection: "column",
+            gap: 18,
           }}
         >
-          <img
-            src={PLACEHOLDER_THUMBS[activeIndex].src}
-            alt={PLACEHOLDER_THUMBS[activeIndex].label}
+          <div
             style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              opacity: 0.85,
-            }}
-          />
-          {/* Play button — blue circle + orange triangle */}
-          <button
-            type="button"
-            aria-label={`Play ${PLACEHOLDER_THUMBS[activeIndex].label}`}
-            style={{
+              aspectRatio: "16 / 9",
+              maxHeight: 360,
+              background: "rgba(0, 0, 0, 0.50)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
               position: "relative",
-              width: 84,
-              height: 84,
-              borderRadius: "50%",
-              background: "var(--v1-blue)",
-              border: "2px solid var(--v1-fg)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: "pointer",
+              overflow: "hidden",
             }}
           >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="var(--v1-orange)" aria-hidden>
-              <polygon points="7,4 21,12 7,20" />
-            </svg>
-          </button>
-          <span
-            style={{
-              position: "absolute",
-              bottom: 14,
-              left: 18,
-              fontFamily: "var(--v1-heading)",
-              fontWeight: 600,
-              fontSize: 12,
-              letterSpacing: "0.20em",
-              textTransform: "uppercase",
-              color: "var(--v1-fg)",
-              textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-            }}
-          >
-            {t("overview")} · {cable.shortName}
-          </span>
-        </div>
-
-        {/* Bottom thumbnail strip — at bottom for easier touch access */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 12,
-            padding: 22,
-            borderTop: "1px solid rgba(255, 255, 255, 0.15)",
-          }}
-        >
-          {PLACEHOLDER_THUMBS.map((thumb, i) => {
-            const active = activeIndex === i;
-            return (
-              <button
-                key={thumb.id}
-                type="button"
-                onClick={() => setActiveIndex(i)}
-                aria-pressed={active}
+            {slide.image ? (
+              <img
+                src={slide.image}
+                alt=""
                 style={{
-                  aspectRatio: "16 / 9",
-                  background: "rgba(255, 255, 255, 0.04)",
-                  border: `${active ? 3 : 1}px solid ${active ? "var(--v1-orange)" : "rgba(255, 255, 255, 0.30)"}`,
-                  cursor: "pointer",
-                  padding: 0,
-                  overflow: "hidden",
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              <PlaceholderArt slide={slide} />
+            )}
+            <span
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 16,
+                fontFamily: "var(--v1-mono)",
+                fontSize: 12,
+                letterSpacing: "0.14em",
+                color: "var(--v1-fg)",
+                textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+              }}
+            >
+              {pad(activeIndex + 1)} / {pad(slideCount)}
+            </span>
+          </div>
+
+          <div style={{ minHeight: 120 }}>
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: "var(--v1-display)",
+                fontWeight: 600,
+                fontSize: 26,
+                lineHeight: "32px",
+                letterSpacing: "0.02em",
+                color: "var(--v1-fg)",
+              }}
+            >
+              {slide.title[language]}
+            </h2>
+            <p
+              style={{
+                margin: "10px 0 0",
+                fontFamily: "var(--v1-heading)",
+                fontWeight: 500,
+                fontSize: 18,
+                lineHeight: "26px",
+                color: "var(--v1-fg-iceblue)",
+                maxWidth: "72ch",
+              }}
+            >
+              {slide.body[language]}
+            </p>
+          </div>
+        </article>
+
+        {/* Progress rail — one segment per screen. The active segment fills
+            over FUN_FACT_INTERVAL_MS, so the rail doubles as the countdown to
+            the next slide. Segments are tappable (48px touch height) to jump. */}
+        <div
+          role="tablist"
+          aria-label={t("funFactTitle")}
+          style={{ display: "flex", gap: 8, padding: "6px 22px 16px" }}
+        >
+          {FUN_FACT_SLIDES.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={i === activeIndex}
+              aria-label={`${pad(i + 1)} / ${pad(slideCount)}`}
+              onClick={() => jumpTo(i)}
+              style={{
+                flex: 1,
+                height: 48,
+                padding: 0,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
                   position: "relative",
+                  display: "block",
+                  width: "100%",
+                  height: 4,
+                  background: "rgba(255, 255, 255, 0.25)",
+                  overflow: "hidden",
                 }}
               >
-                <img
-                  src={thumb.src}
-                  alt={thumb.label}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: 4,
-                    left: 6,
-                    fontFamily: "var(--v1-mono)",
-                    fontSize: 9,
-                    color: "var(--v1-fg)",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-                  }}
-                >
-                  {thumb.label}
-                </span>
-              </button>
-            );
-          })}
+                {i === activeIndex && (
+                  <span
+                    key={`${activeIndex}-${cycle}`}
+                    className="v1-ff-fill"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "var(--v1-orange)",
+                      animationDuration: `${FUN_FACT_INTERVAL_MS}ms`,
+                    }}
+                  />
+                )}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
       </div>
+    </div>
+  );
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/* ───────────────────────── PLACEHOLDER ART ───────────────────────── */
+// Stands in for a slide's artwork until the client's assets land in
+// /public/textures/funfact/. Deliberately reads as a holding frame rather than
+// a finished visual, so an unfilled slide is obvious in a demo.
+
+function PlaceholderArt({ slide }: { slide: FunFactSlide }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        background:
+          "repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 2px, transparent 2px 14px)",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--v1-mono)",
+          fontSize: 12,
+          letterSpacing: "0.28em",
+          textTransform: "uppercase",
+          color: "rgba(255, 255, 255, 0.55)",
+        }}
+      >
+        artwork pending
+      </span>
+      <span
+        style={{
+          fontFamily: "var(--v1-display)",
+          fontWeight: 600,
+          fontSize: 20,
+          letterSpacing: "0.10em",
+          textTransform: "uppercase",
+          color: "rgba(255, 255, 255, 0.30)",
+        }}
+      >
+        {slide.id}
+      </span>
     </div>
   );
 }

@@ -4,19 +4,13 @@ import type { DialogId } from "@/lib/types";
 type RightClusterProps = {
   openDialog: DialogId;
   onOpen: (id: Exclude<DialogId, null>) => void;
-  /** When false, dialogs that require a selected cable render disabled. */
-  cableSelected?: boolean;
 };
 
 // Memoized: shields the cluster from GlobeScene's 30fps marker-tracking
 // re-renders — requires onOpen to be a stable useCallback at the call site.
 export const RightCluster = memo(RightClusterBase);
 
-function RightClusterBase({
-  openDialog,
-  onOpen,
-  cableSelected = true,
-}: RightClusterProps) {
+function RightClusterBase({ openDialog, onOpen }: RightClusterProps) {
   return (
     <div
       style={{
@@ -39,7 +33,6 @@ function RightClusterBase({
         active={openDialog === "funfact"}
         onClick={() => onOpen("funfact")}
         ariaLabel="Information"
-        dimmed={!cableSelected}
         icon={<FactIcon />}
       />
 
@@ -60,7 +53,6 @@ function ClusterButton({
   onClick,
   ariaLabel,
   disabled = false,
-  dimmed = false,
   icon,
 }: {
   stemId: string;
@@ -68,13 +60,8 @@ function ClusterButton({
   onClick: () => void;
   ariaLabel: string;
   disabled?: boolean;
-  // Looks disabled (greyed, not-allowed) but stays clickable — the tap is
-  // intercepted upstream to surface a "choose a network first" hint instead
-  // of opening the dialog. Distinct from `disabled`, which is fully inert.
-  dimmed?: boolean;
   icon: React.ReactNode;
 }) {
-  const muted = disabled || dimmed;
   return (
     <button
       type="button"
@@ -91,8 +78,8 @@ function ClusterButton({
         padding: 0,
         border: "none",
         background: "transparent",
-        cursor: muted ? "not-allowed" : "pointer",
-        opacity: muted ? 0.35 : 1,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.35 : 1,
         transition: "opacity 200ms",
         overflow: "visible",
       }}
