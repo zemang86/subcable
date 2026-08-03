@@ -13,7 +13,22 @@ interface CableInformationProps {
 
 const PANEL_WIDTH = 454;
 const TITLE_STRIP_HEIGHT = 47;
-const PANEL_BODY_HEIGHT = 362;
+
+// Owner chips wrap three to a row (3 × 130 + 2 × 12 = 414 inside the 418px
+// content box) and no cable in src/data/cables.ts has more than six owners,
+// so two rows is the ceiling. The area is held at two rows for EVERY cable:
+// a one- or two-owner cable shows an empty second row rather than letting the
+// block below slide up. Deliberately not clipped — a seventh owner should
+// visibly break the layout rather than silently vanish.
+const OWNER_CHIP_HEIGHT = 35;
+const OWNER_ROW_GAP = 12;
+const OWNERS_AREA_HEIGHT = OWNER_CHIP_HEIGHT * 2 + OWNER_ROW_GAP;
+
+// 362 was the Figma height, and it only ever fitted one owner row — the two
+// cables that wrap (CM with 4 owners, BBG with 6) pushed the description
+// block clean through the panel floor. Reserving the second row grows the
+// panel by exactly that row, so every other block keeps its design spacing.
+const PANEL_BODY_HEIGHT = 362 + OWNER_CHIP_HEIGHT + OWNER_ROW_GAP;
 
 // Pull out the leading number group + a unit hint from a free-form string.
 // "3,000 km" → { value: "3,000", unit: "KM" }
@@ -144,15 +159,19 @@ function CableInformation({
             />
           </div>
 
-          {/* Owners */}
+          {/* Owners — fixed two-row area so the description below always
+              starts at the same y, whatever the owner count. */}
           <div style={{ marginTop: 10 }}>
             <EyebrowChip label={t("owners")} />
             <div
               style={{
                 display: "flex",
-                gap: 12,
+                gap: OWNER_ROW_GAP,
                 marginTop: 6,
                 flexWrap: "wrap",
+                // Pack rows to the top; the reserved second row stays empty.
+                alignContent: "flex-start",
+                height: OWNERS_AREA_HEIGHT,
               }}
             >
               {cable.owners.map((owner) => (
@@ -541,7 +560,7 @@ function FilmStripChip({ label }: { label: string }) {
         position: "relative",
         display: "inline-block",
         width: 130,
-        height: 35,
+        height: OWNER_CHIP_HEIGHT,
         flexShrink: 0,
       }}
     >
