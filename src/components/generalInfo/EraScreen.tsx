@@ -145,7 +145,22 @@ function SpecTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Then | Now pill. */
+/* ── Then | Now pill ── */
+// Values straight from the export (thennow-2.css, "Then and Now Button Toggle
+// Button"): the track carries two translucent gradients — blue washing in from
+// one corner, orange from the other — and the thumb is a white-to-blue vertical
+// gradient. Geometry keeps the export's 4.1:1 track ratio but at touch size;
+// the export draws the whole pill ~19px tall.
+
+const TOGGLE_TRACK_BG =
+  "linear-gradient(302.51deg, #034DA1 -89.34%, rgba(3, 77, 161, 0) 54.67%), linear-gradient(122.48deg, rgba(240, 90, 34, 0.6) -38.43%, rgba(240, 90, 34, 0) 58.47%)";
+const TOGGLE_THUMB_BG =
+  "linear-gradient(360deg, #034DA1 -78.91%, #FFFFFF 100.09%)";
+
+const TRACK_W = 180;
+const TRACK_H = TOUCH - 4;
+const THUMB_INSET = 3;
+
 function EraToggle({
   labels,
   activeIndex,
@@ -155,47 +170,64 @@ function EraToggle({
   activeIndex: number;
   onSelect: (index: number) => void;
 }) {
+  const half = TRACK_W / 2;
   return (
     <div
       role="tablist"
       style={{
-        display: "flex",
-        alignItems: "center",
-        padding: 4,
-        gap: 4,
-        borderRadius: 999,
-        background: "rgba(3, 77, 161, 0.45)",
-        border: "1px solid rgba(255, 255, 255, 0.65)",
+        position: "relative",
+        width: TRACK_W,
+        height: TRACK_H,
+        boxSizing: "border-box",
+        borderRadius: TRACK_H / 2,
+        border: "1px solid #FFFFFF",
+        background: TOGGLE_TRACK_BG,
       }}
     >
-      {labels.map((label, i) => {
-        const active = i === activeIndex;
-        return (
-          <button
-            key={label}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onSelect(i)}
-            className="v1-pressable"
-            style={{
-              minWidth: 104,
-              height: TOUCH - 12,
-              padding: "0 20px",
-              borderRadius: 999,
-              border: active ? "1px solid rgba(255, 255, 255, 0.9)" : "none",
-              background: active ? "rgba(255, 255, 255, 0.92)" : "transparent",
-              cursor: "pointer",
-              fontFamily: "var(--v1-heading)",
-              fontWeight: active ? 700 : 500,
-              fontSize: 17,
-              color: active ? "var(--v1-orange)" : "var(--v1-fg)",
-            }}
-          >
-            {label}
-          </button>
-        );
-      })}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: THUMB_INSET,
+          left: activeIndex === 0 ? THUMB_INSET : half,
+          width: half - THUMB_INSET,
+          height: TRACK_H - THUMB_INSET * 2,
+          boxSizing: "border-box",
+          borderRadius: (TRACK_H - THUMB_INSET * 2) / 2,
+          border: "1px solid #FFFFFF",
+          background: TOGGLE_THUMB_BG,
+          transition: "left 260ms cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      />
+      <div style={{ position: "relative", display: "flex", height: "100%" }}>
+        {labels.map((label, i) => {
+          const active = i === activeIndex;
+          return (
+            <button
+              key={label}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onSelect(i)}
+              style={{
+                flex: 1,
+                height: "100%",
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                fontFamily: "var(--v1-heading)",
+                fontWeight: active ? 600 : 400,
+                fontSize: 17,
+                letterSpacing: "0.02em",
+                color: active ? "var(--v1-orange)" : "var(--v1-fg)",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
