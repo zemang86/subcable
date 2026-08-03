@@ -38,6 +38,14 @@ export type ScreenProps = {
    * Now's Then/Now pill — reads its sibling's label from here.
    */
   siblings: InfoScreen[];
+  /**
+   * Raised while a screen is holding the user's attention without any touches
+   * to show for it, so the idle attractor doesn't submerge the kiosk mid-view.
+   * Only the Videos tab has anything that qualifies; every other layout ignores
+   * it. A screen that raises this MUST lower it on unmount — leaving it raised
+   * parks the attractor for good and the kiosk never returns to attract.
+   */
+  onHoldIdle: (holding: boolean) => void;
 };
 
 /* ── Bracketed card ── */

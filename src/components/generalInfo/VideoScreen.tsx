@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { VideoScreen as VideoData } from "@/data/generalInfo";
 import { CardBrackets, PANEL_PAD, StepButton, type ScreenProps } from "./shared";
@@ -21,6 +21,7 @@ export default function VideoScreen({
   count,
   onStep,
   onSelect,
+  onHoldIdle,
 }: { screen: VideoData } & ScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -30,6 +31,17 @@ export default function VideoScreen({
   const [time, setTime] = useState(0);
   const [length, setLength] = useState(0);
   const playable = Boolean(screen.src);
+  const playing = started && !paused;
+
+  // Watching is engagement, but it produces no pointer events, so hold the idle
+  // attractor off while a clip runs — both clips outlast the 60s window (the
+  // repair one is 3:08). The cleanup is the important half: it lowers the hold
+  // when the tab changes or the panel closes mid-play, which is the difference
+  // between a paused attractor and a kiosk that never returns to attract.
+  useEffect(() => {
+    onHoldIdle(playing);
+    return () => onHoldIdle(false);
+  }, [playing, onHoldIdle]);
 
   const toggle = useCallback(() => {
     if (!playable) return;
@@ -186,7 +198,7 @@ export default function VideoScreen({
 
           <ControlBar
             live={playable}
-            playing={started && !paused}
+            playing={playing}
             muted={muted}
             time={time}
             length={length}

@@ -375,14 +375,25 @@ export default function GlobeScene() {
   // offset pose) and resets on idle so the next reveal starts centered again.
   const [globeSlid, setGlobeSlid] = useState(false);
 
+  // Raised by the General Information panel while a clip is running. Lives here
+  // rather than in the panel because the attractor is a screen-level concern,
+  // and the panel lowers it on unmount so closing mid-play can't strand it.
+  const [holdIdle, setHoldIdle] = useState(false);
+
   // Idle attractor (§H.12): fires after ~60s of no interaction. Suspended
   // unless the live globe is up (the attract/emerge/submerge clips own those
-  // phases) and while a call animation runs — watching IS engagement (long
-  // routes travel >60s with zero touches). The timer re-arms fresh on unsuspend.
+  // phases), and while a call animation or a Fun Fact clip runs — watching IS
+  // engagement, and both produce zero touches over well past the window (long
+  // routes travel >60s; the repair clip is 3:08). The timer re-arms fresh on
+  // unsuspend, so a finished clip buys a full 60s rather than a leftover slice.
   const { isIdle, warnSecondsLeft } = useIdleAttractor(
     60_000,
     undefined,
-    DEV_NO_IDLE || !revealed || submerging || activeCall !== null,
+    DEV_NO_IDLE ||
+      !revealed ||
+      submerging ||
+      activeCall !== null ||
+      holdIdle,
   );
   const t = useT(language);
 
@@ -1677,6 +1688,7 @@ export default function GlobeScene() {
         <GeneralInfoDialog
           onClose={() => setOpenDialog(null)}
           language={language}
+          onHoldIdle={setHoldIdle}
         />
       )}
       {openDialog === "morse" && (

@@ -19,6 +19,11 @@ import VideoScreen from "./generalInfo/VideoScreen";
 interface GeneralInfoDialogProps {
   onClose: () => void;
   language?: Language;
+  /**
+   * Raised while the Videos tab has a clip running, so the caller can hold off
+   * the idle attractor. Must be a stable reference — it drives an effect.
+   */
+  onHoldIdle: (holding: boolean) => void;
 }
 
 // Panel gradient lifted from temp/facts_bg_gradient.css — same stack the
@@ -45,6 +50,7 @@ const PANEL_BODY_HEIGHT = "min(780px, calc(100vh - 120px))";
 export default function GeneralInfoDialog({
   onClose,
   language = "en",
+  onHoldIdle,
 }: GeneralInfoDialogProps) {
   const t = useT(language);
   const [tabIndex, setTabIndex] = useState(0);
@@ -167,6 +173,7 @@ export default function GeneralInfoDialog({
                 onStep={step}
                 onSelect={selectScreen}
                 siblings={screens}
+                onHoldIdle={onHoldIdle}
               />
             ) : (
               <PendingTab label={tab.label} />
