@@ -147,6 +147,82 @@ export function CountdownBar({
 // Information") — same translucent-white gradient as the panel title strip at
 // two thirds the height.
 
+export const STRIP_HEIGHT = 34;
+
+/**
+ * How far the broken outline sits outside the strip it wraps. The export puts
+ * it 22–29 of its own units clear on all four sides — near enough uniform that
+ * one number works, even though this panel scales the strip's height and width
+ * by different factors, so there's no single faithful conversion.
+ *
+ * The column brackets start on this outline, not on the strip: the export runs
+ * them from x=206.059 against an outline edge at x=206.058.
+ */
+export const STRIP_OUTLINE_OFFSET = 5;
+
+/**
+ * Runs of the outline's top and bottom edges, as [start, end, thickness]
+ * fractions of its width. The gaps are what make it read as a tech frame
+ * rather than a box.
+ *
+ * Taken from temp/funfact/pokok-internal-skeleton.svg, where both strips
+ * resolve to exactly these fractions — so it's one component reused, and the
+ * breaks are proportional rather than fixed. That matters here because this
+ * layout uses the strip at two different widths where the export uses one.
+ */
+const OUTLINE_TOP: [number, number, number][] = [
+  [0, 0.0785, 1],
+  // The export draws this run 1.5x heavier than the rest.
+  [0.0939, 0.3615, 2],
+  [0.4038, 1, 1],
+];
+const OUTLINE_BOTTOM: [number, number, number][] = [
+  [0, 0.596, 1],
+  [0.624, 0.864, 1],
+  [0.9214, 1, 1],
+];
+
+function StripOutline() {
+  const line = "1px solid #FFFFFF";
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        inset: -STRIP_OUTLINE_OFFSET,
+        pointerEvents: "none",
+      }}
+    >
+      <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, borderLeft: line }} />
+      <span style={{ position: "absolute", right: 0, top: 0, bottom: 0, borderRight: line }} />
+      {OUTLINE_TOP.map(([from, to, weight], i) => (
+        <span
+          key={`t${i}`}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: `${from * 100}%`,
+            width: `${(to - from) * 100}%`,
+            borderTop: `${weight}px solid #FFFFFF`,
+          }}
+        />
+      ))}
+      {OUTLINE_BOTTOM.map(([from, to, weight], i) => (
+        <span
+          key={`b${i}`}
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: `${from * 100}%`,
+            width: `${(to - from) * 100}%`,
+            borderBottom: `${weight}px solid #FFFFFF`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function SectionStrip({
   label,
   mono = false,
@@ -158,7 +234,7 @@ export function SectionStrip({
     <div
       style={{
         position: "relative",
-        height: 34,
+        height: STRIP_HEIGHT,
         display: "flex",
         alignItems: "center",
         padding: "0 14px",
@@ -177,6 +253,7 @@ export function SectionStrip({
           pointerEvents: "none",
         }}
       />
+      <StripOutline />
       <span
         style={{
           position: "relative",
@@ -191,6 +268,63 @@ export function SectionStrip({
         {label}
       </span>
     </div>
+  );
+}
+
+/* ── Column bracket ── */
+
+/**
+ * The connector that leaves a section strip, runs down the gutter between the
+ * columns and tucks back into the copy card at the bottom. It is three sides
+ * of a rectangle, so one bordered box draws the whole thing — no SVG, and the
+ * strokes stay a true 1px.
+ *
+ * `side` names the column it belongs to, not the direction it opens: the left
+ * column's bracket reaches right into the gutter (⊐), the right column's
+ * reaches left (⊏).
+ *
+ * Geometry from temp/funfact/howitsmade.svg, whose gutter is 49.7 units wide:
+ * the left bracket steps 12.4 into it, the right one 21.2 in from the far
+ * side, so the two verticals never meet. `width` is that step scaled onto this
+ * panel's gutter; `bottom` is how far above the column's floor the bracket
+ * closes, which the export puts at different depths on each side.
+ */
+export function ColumnBracket({
+  side,
+  width,
+  bottom,
+}: {
+  side: "left" | "right";
+  width: number;
+  bottom: number;
+}) {
+  const line = "1px solid #FFFFFF";
+  return (
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        // Leaves the strip at its mid-height, as the export draws it.
+        top: STRIP_HEIGHT / 2,
+        bottom,
+        width,
+        borderTop: line,
+        borderBottom: line,
+        // Offset so it starts on the strip's outline, not the column edge.
+        ...(side === "left"
+          ? {
+              left: "100%",
+              marginLeft: STRIP_OUTLINE_OFFSET,
+              borderRight: line,
+            }
+          : {
+              right: "100%",
+              marginRight: STRIP_OUTLINE_OFFSET,
+              borderLeft: line,
+            }),
+        pointerEvents: "none",
+      }}
+    />
   );
 }
 
