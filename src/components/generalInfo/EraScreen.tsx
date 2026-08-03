@@ -170,7 +170,17 @@ function EraToggle({
   activeIndex: number;
   onSelect: (index: number) => void;
 }) {
-  const half = TRACK_W / 2;
+  // Inset the thumb with top/bottom/left/right rather than height/width: the
+  // track is border-box, so an absolute child sized from TRACK_H overshoots by
+  // the 2px of border and lands 3px below the top edge but flush with the
+  // bottom. Edge offsets stay symmetric whatever the border does. The thumb
+  // overlaps the midpoint by THUMB_INSET, matching the export (its thumb is
+  // half the track plus the inset).
+  const thumbSides =
+    activeIndex === 0
+      ? { left: THUMB_INSET, right: `calc(50% - ${THUMB_INSET}px)` }
+      : { left: `calc(50% - ${THUMB_INSET}px)`, right: THUMB_INSET };
+
   return (
     <div
       role="tablist"
@@ -179,7 +189,7 @@ function EraToggle({
         width: TRACK_W,
         height: TRACK_H,
         boxSizing: "border-box",
-        borderRadius: TRACK_H / 2,
+        borderRadius: 999,
         border: "1px solid #FFFFFF",
         background: TOGGLE_TRACK_BG,
       }}
@@ -189,45 +199,48 @@ function EraToggle({
         style={{
           position: "absolute",
           top: THUMB_INSET,
-          left: activeIndex === 0 ? THUMB_INSET : half,
-          width: half - THUMB_INSET,
-          height: TRACK_H - THUMB_INSET * 2,
+          bottom: THUMB_INSET,
+          ...thumbSides,
           boxSizing: "border-box",
-          borderRadius: (TRACK_H - THUMB_INSET * 2) / 2,
+          borderRadius: 999,
           border: "1px solid #FFFFFF",
           background: TOGGLE_THUMB_BG,
-          transition: "left 260ms cubic-bezier(0.4, 0, 0.2, 1)",
+          transition:
+            "left 260ms cubic-bezier(0.4, 0, 0.2, 1), right 260ms cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       />
-      <div style={{ position: "relative", display: "flex", height: "100%" }}>
-        {labels.map((label, i) => {
-          const active = i === activeIndex;
-          return (
-            <button
-              key={label}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onSelect(i)}
-              style={{
-                flex: 1,
-                height: "100%",
-                padding: 0,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontFamily: "var(--v1-heading)",
-                fontWeight: active ? 600 : 400,
-                fontSize: 17,
-                letterSpacing: "0.02em",
-                color: active ? "var(--v1-orange)" : "var(--v1-fg)",
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      {labels.map((label, i) => {
+        const active = i === activeIndex;
+        return (
+          <button
+            key={label}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onSelect(i)}
+            style={{
+              // Halves meet exactly at the midpoint the thumb straddles, so a
+              // label sits centred in the thumb on either side.
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: i === 0 ? THUMB_INSET : "50%",
+              right: i === 0 ? "50%" : THUMB_INSET,
+              padding: 0,
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontFamily: "var(--v1-heading)",
+              fontWeight: active ? 600 : 400,
+              fontSize: 17,
+              letterSpacing: "0.02em",
+              color: active ? "var(--v1-orange)" : "var(--v1-fg)",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
