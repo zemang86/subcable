@@ -70,7 +70,7 @@ export const cables: CableSystem[] = [
       "abu-talat",
       "catania",
       "marmaris",
-      "marseille",
+      "toulon",
     ],
     color: CABLE_COLORS["smw5"],
     description:
@@ -157,7 +157,7 @@ export const cables: CableSystem[] = [
   },
   {
     id: "cm",
-    name: "Cable Malaysia",
+    name: "Cahaya Malaysia",
     shortName: "CM",
     classification: "international",
     status: "active",
@@ -168,7 +168,7 @@ export const cables: CableSystem[] = [
     capacity: "10 Tbps (MY–Japan)",
     regions: ["Southeast Asia", "East Asia"],
     routeSummary: "Malaysia ↔ Hong Kong ↔ Japan (with ASE branches to Singapore, Philippines, Okinawa)",
-    owners: ["Telekom Malaysia", "NTT", "StarHub", "Telstra"],
+    owners: ["Telekom Malaysia", "NTT", "PLDT", "StarHub"],
     landingPointIds: [
       "mersing",
       "tseung-kwan-o",

@@ -929,7 +929,17 @@ export const landingPoints: LandingPoint[] = [
     region: "Europe",
     lat: 43.3,
     lng: 5.37,
-    cableIds: ["smw4", "smw5"],
+    cableIds: ["smw4"],
+  },
+  {
+    id: "toulon",
+    name: "Toulon, France",
+    city: "Toulon",
+    country: "France",
+    region: "Europe",
+    lat: 43.12,
+    lng: 5.93,
+    cableIds: ["smw5"],
   },
   {
     id: "plerin",
