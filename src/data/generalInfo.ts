@@ -57,7 +57,7 @@ export type EraScreen = {
   specs: { label: string; value: string }[];
 };
 
-/** Videos: poster + player chrome. `src` lands when the clips are supplied. */
+/** Videos: poster + player chrome. A screen with no `src` stays a still. */
 export type VideoScreen = {
   kind: "video";
   id: string;
@@ -266,7 +266,8 @@ export const INFO_TABS: InfoTab[] = [
           src: "/textures/funfact/video-repair-poster.webp",
           alt: "Cable repair ship under way",
         },
-        duration: "33:31",
+        src: "/video/funfact-subsea-cable-repair.mp4",
+        duration: "3:08",
       },
       {
         kind: "video",
@@ -276,7 +277,8 @@ export const INFO_TABS: InfoTab[] = [
           src: "/textures/funfact/video-seacom-poster.webp",
           alt: "SEACOM inauguration ceremony",
         },
-        duration: "33:31",
+        src: "/video/funfact-seacom-malaysia.mp4",
+        duration: "1:05",
       },
     ],
   },

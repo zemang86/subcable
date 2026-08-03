@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { VideoScreen as VideoData } from "@/data/generalInfo";
 import { CardBrackets, PANEL_PAD, StepButton, type ScreenProps } from "./shared";
 
 /**
  * Videos — poster, player chrome and pagination.
  *
- * The clips themselves aren't supplied yet: a screen with no `src` shows the
- * design's static chrome with an inert play control. As soon as a file lands in
- * /public, setting `src` on that screen turns it into a real <video>. This tab
- * doesn't auto-advance (see INFO_TABS) — rotating away from a playing clip
- * would be wrong — so the dots and the arrow are the only way through it.
+ * The chrome from the export *is* the player: no native `controls`, so the
+ * kiosk never shows browser UI. A screen with a `src` plays on tap; one without
+ * keeps the same chrome with the controls inert. This tab doesn't auto-advance
+ * (see INFO_TABS) — rotating away from a playing clip would be wrong — so the
+ * dots and the arrow are the only way through it. Stepping away remounts the
+ * screen (the panel keys it by id), which stops playback.
  */
 export default function VideoScreen({
   screen,
@@ -20,8 +22,38 @@ export default function VideoScreen({
   onStep,
   onSelect,
 }: { screen: VideoData } & ScreenProps) {
-  const [playing, setPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [started, setStarted] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [time, setTime] = useState(0);
+  const [length, setLength] = useState(0);
   const playable = Boolean(screen.src);
+
+  const toggle = useCallback(() => {
+    if (!playable) return;
+    const video = videoRef.current;
+    if (!started || !video) {
+      setStarted(true);
+      return;
+    }
+    if (video.paused) void video.play();
+    else video.pause();
+  }, [playable, started]);
+
+  const seekTo = useCallback((ratio: number) => {
+    const video = videoRef.current;
+    if (!video || !video.duration) return;
+    const next = Math.min(Math.max(ratio, 0), 1) * video.duration;
+    video.currentTime = next;
+    setTime(next);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void frameRef.current?.requestFullscreen?.();
+  }, []);
 
   return (
     <div
@@ -60,6 +92,7 @@ export default function VideoScreen({
         </h2>
 
         <div
+          ref={frameRef}
           style={{
             position: "relative",
             flex: 1,
@@ -67,16 +100,30 @@ export default function VideoScreen({
             overflow: "hidden",
             borderRadius: 8,
             border: "1px solid rgba(255, 255, 255, 0.85)",
-            background: "rgba(0, 0, 0, 0.5)",
+            background: "#000000",
           }}
         >
-          {playing && screen.src ? (
+          {started && screen.src ? (
             <video
+              ref={videoRef}
               src={screen.src}
               poster={screen.poster.src}
-              controls
               autoPlay
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              muted={muted}
+              playsInline
+              onClick={toggle}
+              onPlay={() => setPaused(false)}
+              onPause={() => setPaused(true)}
+              onLoadedMetadata={(e) => setLength(e.currentTarget.duration)}
+              onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+              onEnded={() => {
+                setStarted(false);
+                setTime(0);
+              }}
+              // contain, not cover: the two clips aren't the same aspect (16:9
+              // and 4:3) and cropping a documentary frame to fill is worse than
+              // pillarboxing it against the black backing.
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
             />
           ) : (
             <>
@@ -94,7 +141,7 @@ export default function VideoScreen({
               />
               <button
                 type="button"
-                onClick={() => playable && setPlaying(true)}
+                onClick={toggle}
                 aria-label={playable ? `Play ${screen.title}` : "Video pending"}
                 aria-disabled={!playable}
                 className="v1-pressable"
@@ -119,9 +166,21 @@ export default function VideoScreen({
                   <polygon points="7,4 21,12 7,20" fill="var(--v1-orange)" />
                 </svg>
               </button>
-              <ControlBar duration={screen.duration} />
             </>
           )}
+
+          <ControlBar
+            live={playable}
+            playing={started && !paused}
+            muted={muted}
+            time={time}
+            length={length}
+            durationLabel={screen.duration}
+            onToggle={toggle}
+            onMute={() => setMuted((m) => !m)}
+            onSeek={seekTo}
+            onFullscreen={toggleFullscreen}
+          />
         </div>
       </div>
 
@@ -178,8 +237,49 @@ export default function VideoScreen({
   );
 }
 
-/** Static player chrome from the export — live controls come with the clips. */
-function ControlBar({ duration }: { duration: string }) {
+/* ── Player chrome ── */
+// Drawn to the export: grey wash, orange scrub with a round knob, glyph boxes
+// and the time pill. Always on screen — a kiosk has no hover to reveal it.
+
+const GLYPH_W = 38;
+const GLYPH_H = 32;
+/** Transparent padding that lifts each glyph to the 48px touch minimum. */
+const GLYPH_PAD_X = (48 - GLYPH_W) / 2;
+const GLYPH_PAD_Y = (48 - GLYPH_H) / 2;
+
+function ControlBar({
+  live,
+  playing,
+  muted,
+  time,
+  length,
+  durationLabel,
+  onToggle,
+  onMute,
+  onSeek,
+  onFullscreen,
+}: {
+  live: boolean;
+  playing: boolean;
+  muted: boolean;
+  time: number;
+  length: number;
+  durationLabel: string;
+  onToggle: () => void;
+  onMute: () => void;
+  onSeek: (ratio: number) => void;
+  onFullscreen: () => void;
+}) {
+  // Before metadata arrives there's nothing to scrub against, so the bar sits
+  // at the export's own 21% rather than snapping to an empty zero.
+  const progress = length > 0 ? time / length : live ? 0 : 0.21;
+
+  const scrub = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!live || length <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    onSeek((e.clientX - rect.left) / rect.width);
+  };
+
   return (
     <div
       style={{
@@ -190,63 +290,125 @@ function ControlBar({ duration }: { duration: string }) {
         background: "rgba(140, 140, 140, 0.72)",
       }}
     >
-      <div style={{ position: "relative", height: 3, background: "rgba(255, 255, 255, 0.5)" }}>
-        <span
+      {/* The visible track is 3px; the hit area around it is 24px so a finger
+          can find it. */}
+      <div
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          scrub(e);
+        }}
+        onPointerMove={(e) => {
+          if (e.buttons === 1) scrub(e);
+        }}
+        style={{
+          position: "relative",
+          height: 24,
+          marginTop: -10,
+          display: "flex",
+          alignItems: "flex-end",
+          cursor: live ? "pointer" : "default",
+          touchAction: "none",
+        }}
+      >
+        <div
           style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: "21%",
-            background: "var(--v1-orange)",
+            position: "relative",
+            width: "100%",
+            height: 3,
+            background: "rgba(255, 255, 255, 0.5)",
           }}
-        />
-        <span
-          style={{
-            position: "absolute",
-            left: "21%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            background: "var(--v1-orange)",
-          }}
-        />
+        >
+          <span
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: `${progress * 100}%`,
+              background: "var(--v1-orange)",
+            }}
+          />
+          <span
+            style={{
+              position: "absolute",
+              left: `${progress * 100}%`,
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "var(--v1-orange)",
+            }}
+          />
+        </div>
       </div>
+
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 10,
-          padding: "8px 12px",
+          padding: `4px ${12 - GLYPH_PAD_X}px 4px`,
         }}
       >
-        <GlyphBox>
-          <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden>
-            <rect x="1" y="1" width="4" height="14" fill="#FFFFFF" />
-            <rect x="9" y="1" width="4" height="14" fill="#FFFFFF" />
-          </svg>
-        </GlyphBox>
-        <GlyphBox>
+        <GlyphButton
+          label={playing ? "Pause" : "Play"}
+          disabled={!live}
+          onClick={onToggle}
+        >
+          {playing ? (
+            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden>
+              <rect x="1" y="1" width="4" height="14" fill="#FFFFFF" />
+              <rect x="9" y="1" width="4" height="14" fill="#FFFFFF" />
+            </svg>
+          ) : (
+            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden>
+              <polygon points="2,1 13,8 2,15" fill="#FFFFFF" />
+            </svg>
+          )}
+        </GlyphButton>
+
+        <GlyphButton
+          label={muted ? "Unmute" : "Mute"}
+          disabled={!live}
+          onClick={onMute}
+        >
           <svg width="18" height="16" viewBox="0 0 18 16" aria-hidden>
             <path d="M1 5h4l5-4v14l-5-4H1z" fill="#FFFFFF" />
-            <path d="M13 4a6 6 0 0 1 0 8" stroke="#FFFFFF" strokeWidth="1.6" fill="none" />
+            {muted ? (
+              <path
+                d="M12 5l5 6M17 5l-5 6"
+                stroke="#FFFFFF"
+                strokeWidth="1.6"
+                fill="none"
+              />
+            ) : (
+              <path
+                d="M13 4a6 6 0 0 1 0 8"
+                stroke="#FFFFFF"
+                strokeWidth="1.6"
+                fill="none"
+              />
+            )}
           </svg>
-        </GlyphBox>
+        </GlyphButton>
+
         <span
           style={{
+            marginLeft: GLYPH_PAD_X,
             padding: "6px 12px",
             background: "rgba(255, 255, 255, 0.35)",
             fontFamily: "var(--v1-mono)",
             fontSize: 13,
             color: "#FFFFFF",
+            fontVariantNumeric: "tabular-nums",
           }}
         >
-          0:00/{duration}
+          {clock(time)}/{length > 0 ? clock(length) : durationLabel}
         </span>
+
         <span style={{ flex: 1 }} />
-        <GlyphBox>
+
+        <GlyphButton label="Fullscreen" disabled={!live} onClick={onFullscreen}>
           <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
             <path
               d="M2 7V2h5M16 11v5h-5M16 7V2h-5M2 11v5h5"
@@ -255,27 +417,63 @@ function ControlBar({ duration }: { duration: string }) {
               fill="none"
             />
           </svg>
-        </GlyphBox>
+        </GlyphButton>
       </div>
     </div>
   );
 }
 
-function GlyphBox({ children }: { children: React.ReactNode }) {
+/**
+ * The export's 38×32 glyph box, wrapped in transparent padding so the tappable
+ * area is 48px square without the artwork growing. The padding also supplies
+ * the gap between glyphs, so they don't need one.
+ */
+function GlyphButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <span
-      aria-hidden
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
       style={{
-        width: 38,
-        height: 32,
+        padding: `${GLYPH_PAD_Y}px ${GLYPH_PAD_X}px`,
+        border: "none",
+        background: "transparent",
+        cursor: disabled ? "default" : "pointer",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(255, 255, 255, 0.25)",
-        border: "1px solid rgba(255, 255, 255, 0.5)",
       }}
     >
-      {children}
-    </span>
+      <span
+        style={{
+          width: GLYPH_W,
+          height: GLYPH_H,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "rgba(255, 255, 255, 0.25)",
+          border: "1px solid rgba(255, 255, 255, 0.5)",
+          opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        {children}
+      </span>
+    </button>
   );
+}
+
+/** m:ss — every clip here is well under an hour. */
+function clock(seconds: number) {
+  const whole = Math.max(0, Math.floor(seconds));
+  const mins = Math.floor(whole / 60);
+  return `${mins}:${String(whole % 60).padStart(2, "0")}`;
 }
