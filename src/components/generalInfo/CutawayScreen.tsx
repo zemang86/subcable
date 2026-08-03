@@ -16,11 +16,13 @@ import {
 export default function CutawayScreen({
   screen,
   cycleKey,
-  counting,
+  barRepeat,
 }: { screen: CutawayData } & ScreenProps) {
   return (
     <div
       style={{
+        height: "100%",
+        boxSizing: "border-box",
         display: "flex",
         gap: 20,
         alignItems: "stretch",
@@ -34,9 +36,10 @@ export default function CutawayScreen({
         style={{
           flex: "0 0 54%",
           width: "54%",
+          height: "100%",
+          minHeight: 0,
           objectFit: "contain",
           objectPosition: "left center",
-          alignSelf: "center",
         }}
       />
 
@@ -96,7 +99,8 @@ export default function CutawayScreen({
           </tbody>
         </table>
 
-        <CopyCard cycleKey={`${cycleKey}-note`} counting={counting}>
+        <div style={{ marginTop: "auto" }} />
+        <CopyCard cycleKey={`${cycleKey}-note`} barRepeat={barRepeat}>
           <p style={{ ...CARD_BODY, fontSize: 13, lineHeight: "21px", margin: 0 }}>
             {screen.note}
           </p>

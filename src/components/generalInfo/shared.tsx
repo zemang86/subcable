@@ -15,7 +15,6 @@ import { INFO_SLIDE_MS } from "@/data/generalInfo";
 
 export const PANEL_PAD = 22;
 export const CARD_FILL = "rgba(255, 255, 255, 0.15)";
-export const HAIRLINE = "rgba(255, 255, 255, 0.6)";
 /** Minimum touch target on the kiosk. */
 export const TOUCH = 48;
 
@@ -23,8 +22,12 @@ export const TOUCH = 48;
 export type ScreenProps = {
   /** Changes on every advance or manual move — restarts the countdown bar. */
   cycleKey: string;
-  /** False for single-screen tabs and tabs that opt out of auto-advance. */
-  counting: boolean;
+  /**
+   * True on single-screen tabs: the bar keeps cycling because there is no next
+   * screen for the hold timer to move to. Multi-screen tabs run it once per
+   * hold and restart it from the new screen's cycleKey.
+   */
+  barRepeat: boolean;
   index: number;
   count: number;
   onStep: (delta: number) => void;
@@ -64,79 +67,71 @@ export function CardBrackets() {
 }
 
 /**
- * Copy card + its countdown bar, bracketed. `flex` lets a layout stretch the
- * card to fill its column.
+ * Copy card + its countdown bar, bracketed. Always sizes to its text — inside a
+ * fixed-height screen it's the photos that give up room, never the copy.
  */
 export function CopyCard({
   children,
   cycleKey,
-  counting,
-  flex,
+  barRepeat,
 }: {
   children: ReactNode;
   cycleKey: string;
-  counting: boolean;
-  flex?: boolean;
+  barRepeat: boolean;
 }) {
   return (
-    <div
-      style={{
-        position: "relative",
-        padding: "10px 12px",
-        ...(flex ? { flex: 1, display: "flex", flexDirection: "column" } : null),
-      }}
-    >
+    <div style={{ position: "relative", flex: "none", padding: "10px 12px" }}>
       <CardBrackets />
-      <div
-        style={{
-          background: CARD_FILL,
-          padding: "16px 18px",
-          ...(flex ? { flex: 1 } : null),
-        }}
-      >
+      <div style={{ background: CARD_FILL, padding: "16px 18px" }}>
         {children}
       </div>
-      <CountdownBar cycleKey={cycleKey} counting={counting} />
+      <CountdownBar cycleKey={cycleKey} repeat={barRepeat} />
     </div>
   );
 }
 
 /**
- * Orange fill over a red track, filling across INFO_SLIDE_MS — the same
- * constant that drives the hold timer, so bar and advance can't drift apart.
- * Tabs with a single screen render the rail unanimated: the design shows it,
- * but there is nothing to count down to.
+ * Orange fill running along a red track over INFO_SLIDE_MS — the same constant
+ * that drives the hold timer, so bar and advance can't drift apart. The fill
+ * animates its width (not a scale) so the transparent right border stays a
+ * constant gap between the fill's leading edge and the red remainder, the way
+ * the export draws it.
  */
+const BAR_HEIGHT = 6;
+const BAR_GAP = 10;
+
 export function CountdownBar({
   cycleKey,
-  counting,
+  repeat,
 }: {
   cycleKey: string;
-  counting: boolean;
+  repeat: boolean;
 }) {
   return (
     <div
       style={{
         position: "relative",
-        height: 3,
-        margin: "8px 4px 0",
+        height: BAR_HEIGHT,
+        margin: "10px 4px 0",
         background: "#ED1B2E",
+        overflow: "hidden",
       }}
     >
-      {counting && (
-        <span
-          key={cycleKey}
-          className="v1-gi-fill"
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "var(--v1-orange)",
-            backgroundClip: "padding-box",
-            borderRight: "4px solid transparent",
-            animationDuration: `${INFO_SLIDE_MS}ms`,
-          }}
-        />
-      )}
+      <span
+        key={cycleKey}
+        className="v1-gi-fill"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          background: "var(--v1-orange)",
+          backgroundClip: "padding-box",
+          borderRight: `${BAR_GAP}px solid transparent`,
+          animationDuration: `${INFO_SLIDE_MS}ms`,
+          animationIterationCount: repeat ? "infinite" : 1,
+        }}
+      />
     </div>
   );
 }

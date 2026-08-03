@@ -28,6 +28,13 @@ const PANEL_BG =
 
 const TITLE_STRIP_HEIGHT = 47;
 
+// The panel body is a fixed canvas: every tab renders into the same box, so
+// switching tabs never resizes or re-centres the card. 780px on the 1080px
+// kiosk; the viewport clamp only bites on a smaller dev screen. Layouts that
+// need less room leave space, and none of them may push the panel taller —
+// inside a screen it's the photos that absorb the slack, never the copy.
+const PANEL_BODY_HEIGHT = "min(780px, calc(100vh - 120px))";
+
 // Sizing: the Figma exports (temp/funfact/*.svg) are drawn at ~0.66 of the
 // kiosk canvas — their title strip measures 31px against the 47px every other
 // panel uses. Rather than shrink the panel to the export's ~712px, the card
@@ -52,6 +59,9 @@ export default function GeneralInfoDialog({
   const screen = screens[screenIndex];
   const count = screens.length;
   const counting = count > 1 && tab.autoAdvance !== false;
+  // Single-screen tabs still show the design's countdown rail, but with nothing
+  // to advance to it simply cycles.
+  const barRepeat = count < 2;
 
   // Auto-advance, looping back to the first screen of the same tab.
   useEffect(() => {
@@ -118,9 +128,11 @@ export default function GeneralInfoDialog({
         <div
           style={{
             position: "relative",
+            height: PANEL_BODY_HEIGHT,
             background: PANEL_BG,
             display: "flex",
             flexDirection: "column",
+            overflow: "hidden",
           }}
         >
           <PanelFrame />
@@ -134,13 +146,18 @@ export default function GeneralInfoDialog({
           <div
             key={`${tab.id}-${screen?.id ?? "empty"}`}
             className="v1-gi-fade"
-            style={{ position: "relative", zIndex: 3 }}
+            style={{
+              position: "relative",
+              zIndex: 3,
+              flex: 1,
+              minHeight: 0,
+            }}
           >
             {screen ? (
               <ScreenLayout
                 screen={screen}
                 cycleKey={`${tab.id}-${screenIndex}-${cycle}`}
-                counting={counting}
+                barRepeat={barRepeat}
                 index={screenIndex}
                 count={count}
                 onStep={step}

@@ -26,13 +26,24 @@ export default function VideoScreen({
   return (
     <div
       style={{
+        height: "100%",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         gap: 14,
         padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
       }}
     >
-      <div style={{ position: "relative", padding: "14px 16px" }}>
+      <div
+        style={{
+          position: "relative",
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          padding: "14px 16px",
+        }}
+      >
         <CardBrackets />
 
         <h2
@@ -51,8 +62,8 @@ export default function VideoScreen({
         <div
           style={{
             position: "relative",
-            aspectRatio: "16 / 9",
-            maxHeight: 420,
+            flex: 1,
+            minHeight: 0,
             overflow: "hidden",
             borderRadius: 8,
             border: "1px solid rgba(255, 255, 255, 0.85)",

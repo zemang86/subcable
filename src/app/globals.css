@@ -789,10 +789,9 @@ body {
 }
 
 .v1-gi-fill {
-  transform-origin: left center;
   animation: v1-gi-fill linear both;
 }
 @keyframes v1-gi-fill {
-  from { transform: scaleX(0); }
-  to   { transform: scaleX(1); }
+  from { width: 0%; }
+  to   { width: 100%; }
 }

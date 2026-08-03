@@ -21,11 +21,13 @@ import {
 export default function MaterialScreen({
   screen,
   cycleKey,
-  counting,
+  barRepeat,
 }: { screen: MaterialData } & ScreenProps) {
   return (
     <div
       style={{
+        height: "100%",
+        boxSizing: "border-box",
         display: "flex",
         gap: 26,
         alignItems: "stretch",
@@ -46,9 +48,9 @@ export default function MaterialScreen({
         <Photo
           src={screen.image.src}
           alt={screen.image.alt}
-          style={{ width: "100%", height: 250 }}
+          style={{ width: "100%", flex: "1 1 auto", minHeight: 90 }}
         />
-        <CopyCard cycleKey={`${cycleKey}-material`} counting={counting} flex>
+        <CopyCard cycleKey={`${cycleKey}-material`} barRepeat={barRepeat}>
           <h2 style={{ ...CARD_TITLE, fontSize: 26, lineHeight: "34px" }}>
             {screen.title}
           </h2>
@@ -75,7 +77,8 @@ export default function MaterialScreen({
       >
         <SectionStrip label={screen.factsTitle} />
         <FactRail facts={screen.facts} />
-        <CopyCard cycleKey={`${cycleKey}-description`} counting={counting} flex>
+        <div style={{ flex: 1, minHeight: 0 }} />
+        <CopyCard cycleKey={`${cycleKey}-description`} barRepeat={barRepeat}>
           <h2 style={{ ...CARD_TITLE, fontSize: 24, lineHeight: "32px" }}>
             {screen.descriptionTitle}
           </h2>
@@ -91,7 +94,7 @@ export default function MaterialScreen({
       <Photo
         src={screen.sideImage.src}
         alt={screen.sideImage.alt}
-        style={{ flex: "0 0 190px", width: 190, alignSelf: "stretch" }}
+        style={{ flex: "0 0 190px", width: 190, height: "100%", minHeight: 0 }}
       />
     </div>
   );

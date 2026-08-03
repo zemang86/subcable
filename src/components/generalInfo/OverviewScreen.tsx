@@ -12,12 +12,11 @@ import {
 } from "./shared";
 
 const IMAGE_WIDTH = 320;
-const IMAGE_RATIO = 150.08 / 108.62; // from the export's image frames
 
 export default function OverviewScreen({
   screen,
   cycleKey,
-  counting,
+  barRepeat,
   index,
   count,
   onStep,
@@ -25,6 +24,8 @@ export default function OverviewScreen({
   return (
     <div
       style={{
+        height: "100%",
+        boxSizing: "border-box",
         display: "flex",
         gap: 24,
         padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
@@ -44,10 +45,7 @@ export default function OverviewScreen({
             key={image.src}
             src={image.src}
             alt={image.alt}
-            style={{
-              width: IMAGE_WIDTH,
-              height: Math.round(IMAGE_WIDTH / IMAGE_RATIO),
-            }}
+            style={{ width: IMAGE_WIDTH, flex: 1, minHeight: 0 }}
           />
         ))}
       </div>
@@ -61,7 +59,7 @@ export default function OverviewScreen({
           gap: 12,
         }}
       >
-        <CopyCard cycleKey={cycleKey} counting={counting}>
+        <CopyCard cycleKey={cycleKey} barRepeat={barRepeat}>
           <h2 style={CARD_TITLE}>{screen.title}</h2>
           {screen.body.map((paragraph, i) => (
             <p key={i} style={{ ...CARD_BODY, margin: "14px 0 0" }}>
@@ -70,7 +68,14 @@ export default function OverviewScreen({
           ))}
         </CopyCard>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <div
+          style={{
+            marginTop: "auto",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+          }}
+        >
           {index > 0 && <StepButton direction="prev" onClick={() => onStep(-1)} />}
           {index < count - 1 && (
             <StepButton direction="next" onClick={() => onStep(1)} />

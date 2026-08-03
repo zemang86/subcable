@@ -12,7 +12,6 @@ import {
 } from "./shared";
 
 const IMAGE_WIDTH = 300;
-const IMAGE_RATIO = 150.08 / 108.62;
 
 /**
  * Then And Now — two photos and the era's copy, a six-tile spec grid, and the
@@ -22,7 +21,7 @@ const IMAGE_RATIO = 150.08 / 108.62;
 export default function EraScreen({
   screen,
   cycleKey,
-  counting,
+  barRepeat,
   index,
   onSelect,
 }: { screen: EraData } & ScreenProps) {
@@ -33,6 +32,8 @@ export default function EraScreen({
   return (
     <div
       style={{
+        height: "100%",
+        boxSizing: "border-box",
         display: "flex",
         gap: 24,
         padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
@@ -52,10 +53,7 @@ export default function EraScreen({
             key={image.src}
             src={image.src}
             alt={image.alt}
-            style={{
-              width: IMAGE_WIDTH,
-              height: Math.round(IMAGE_WIDTH / IMAGE_RATIO),
-            }}
+            style={{ width: IMAGE_WIDTH, flex: 1, minHeight: 0 }}
           />
         ))}
       </div>
@@ -69,7 +67,7 @@ export default function EraScreen({
           gap: 14,
         }}
       >
-        <CopyCard cycleKey={cycleKey} counting={counting}>
+        <CopyCard cycleKey={cycleKey} barRepeat={barRepeat}>
           <h2 style={CARD_TITLE}>{screen.title}</h2>
           {screen.body.map((paragraph, i) => (
             <p key={i} style={{ ...CARD_BODY, margin: "12px 0 0" }}>
@@ -80,8 +78,11 @@ export default function EraScreen({
 
         <div
           style={{
+            flex: 1,
+            minHeight: 0,
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
+            gridTemplateRows: "repeat(3, 1fr)",
             gap: 12,
           }}
         >
