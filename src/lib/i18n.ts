@@ -40,7 +40,15 @@ const en: Dict = {
   idleReturningIn: "Returning to the start screen in",
   idleTapToContinue: "Tap anywhere to continue",
   loading: "Loading",
-  tapToBegin: "Tap anywhere to begin",
+  // Attract screen. The title is the exhibit's own name, so it stays English in
+  // both languages — translating a client's title without their say-so is not
+  // ours to do. The blurb and the call to action are translated; the Malay is
+  // ours and pending TM's sign-off, same as the General Information panel.
+  attractTitleLead: "Beneath",
+  attractTitleTail: "the Sea",
+  attractCopy:
+    "Explore an interactive map of submarine cables and trace the connections that link Malaysia to the global telecommunications network.",
+  tapToBegin: "Touch anywhere to start",
   startingIn: "Starting in",
   morseCodeMessage: "Morse Code Message",
   typeMessageHere: "Type Message Here",
@@ -103,6 +111,10 @@ const bm: Dict = {
   idleReturningIn: "Kembali ke skrin mula dalam",
   idleTapToContinue: "Sentuh di mana-mana untuk teruskan",
   loading: "Memuatkan",
+  attractTitleLead: "Beneath",
+  attractTitleTail: "the Sea",
+  attractCopy:
+    "Terokai peta interaktif kabel dasar laut dan jejaki hubungan yang menyambungkan Malaysia ke rangkaian telekomunikasi global.",
   tapToBegin: "Sentuh di mana-mana untuk mula",
   startingIn: "Bermula dalam",
   morseCodeMessage: "Mesej Kod Morse",

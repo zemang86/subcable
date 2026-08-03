@@ -27,6 +27,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
+import AttractOverlay from "./AttractOverlay";
 import type { Language } from "@/lib/types";
 
 // ⚠ DRAFT VIDEO SWAP (branch draft-video-swap) — temporary stand-ins from
@@ -514,14 +515,11 @@ function IntroSequence({
       {/* clip3 dissolves out over the clip1 loop on the way back to idle. */}
       <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} fadeMs={crossfading ? CROSSFADE_MS : 0} easing="linear" />
 
-      {/* Attract prompt — centred. Fades in PROMPT_DELAY_MS after the loop
-          resumes (promptReady). */}
+      {/* Attract screen — title, blurb, call to action and the partner marks.
+          Rises in PROMPT_DELAY_MS after the loop resumes (promptReady), so the
+          clip establishes itself before the copy lands on top of it. */}
       {phase === "attract" && promptReady && (
-        <div style={promptWrap}>
-          <span className="v1-pulse" style={promptText}>
-            {t("tapToBegin")}
-          </span>
-        </div>
+        <AttractOverlay language={language} />
       )}
 
       {/* Launch countdown — centred. */}
@@ -623,18 +621,6 @@ const promptWrap: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   pointerEvents: "none",
-};
-
-const promptText: React.CSSProperties = {
-  fontFamily: "var(--v1-heading)",
-  fontWeight: 500,
-  fontSize: 28,
-  letterSpacing: "0.30em",
-  textTransform: "uppercase",
-  color: "var(--v1-fg)",
-  padding: "16px 32px",
-  background: "rgba(0, 0, 0, 0.45)",
-  border: "1px solid rgba(255, 255, 255, 0.25)",
 };
 
 const countdownText: React.CSSProperties = {
