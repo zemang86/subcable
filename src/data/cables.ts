@@ -37,7 +37,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["smw4"],
     description:
-      "South East Asia–Middle East–Western Europe 4 (SEA-ME-WE 4) is a major international submarine fiber optic cable spanning approximately 18,800 km. Commissioned in 2005, it links Southeast Asia to Europe through the Middle East and serves as one of Malaysia’s primary global internet gateways. It supports high-capacity voice, internet, cloud, and enterprise traffic between 16 landing stations across Asia, Africa, and Europe.",
+      "South East Asia–Middle East–Western Europe 4 (SEA-ME-WE 4) is a major international submarine fiber optic cable spanning approximately 20,000 km. Commissioned in 2005, it links Southeast Asia to Europe through the Middle East and serves as one of Malaysia’s primary global internet gateways. It supports high-capacity voice, internet, cloud, and enterprise traffic between 16 landing stations across Asia, Africa, and Europe.",
   },
   {
     id: "smw5",
