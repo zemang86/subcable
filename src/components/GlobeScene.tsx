@@ -8,7 +8,7 @@ import Sidebar from "./Sidebar";
 import SystemButtons from "./SystemButtons";
 import LoadingScreen from "./LoadingScreen";
 import CableInformation from "./CableInformation";
-import GeneralInformation from "./GeneralInformation";
+import DidYouKnow from "./DidYouKnow";
 import { Header } from "./Header";
 import { LanguageToggle } from "./LanguageToggle";
 import { RightCluster } from "./RightCluster";
@@ -16,7 +16,7 @@ import { ClusterStem } from "./ClusterStem";
 import { LandingPointCallout } from "./LandingPointCallout";
 import IntroSequence from "./IntroSequence";
 import HowToGuideDialog from "./HowToGuideDialog";
-import FunFactDialog from "./FunFactDialog";
+import GeneralInfoDialog from "./GeneralInfoDialog";
 import MorseCodePop from "./MorseCodePop";
 
 import { cables, cablesById } from "@/data/cables";
@@ -1596,7 +1596,7 @@ export default function GlobeScene() {
               language={language}
             />
           ) : (
-            <GeneralInformation
+            <DidYouKnow
               className={chromeCls("v1-enter-right v1-delay-2", 2)}
               language={language}
             />
@@ -1674,7 +1674,10 @@ export default function GlobeScene() {
         />
       )}
       {openDialog === "funfact" && (
-        <FunFactDialog onClose={() => setOpenDialog(null)} language={language} />
+        <GeneralInfoDialog
+          onClose={() => setOpenDialog(null)}
+          language={language}
+        />
       )}
       {openDialog === "morse" && (
         <MorseCodePop

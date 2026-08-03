@@ -223,7 +223,7 @@ function PanelBackground() {
 /* ───────────────────────── TITLE STRIP ───────────────────────── */
 // 47px tall, translucent-white gradient fill, hairline white border,
 // crosshair (+) at each of the 4 corners, title 28px Chakra Petch 500.
-// Mirrors the FunFactDialog / CableInformation title strip exactly.
+// Mirrors the GeneralInfoDialog / CableInformation title strip exactly.
 
 function TitleStrip({
   title,

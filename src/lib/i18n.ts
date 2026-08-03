@@ -23,6 +23,7 @@ const en: Dict = {
   capacity: "Capacity",
   cableInformation: "Cable Information",
   generalInformation: "General Information",
+  didYouKnow: "Did You Know?",
   generalInfoBody:
     "Submarine cables are fiber-optic cables laid on the ocean floor that carry over 95% of international data and voice traffic worldwide — far exceeding satellite capacity in speed, volume, and reliability.",
   keyStatistic: "Key Statistic",
@@ -60,7 +61,6 @@ const en: Dict = {
   sendMessage: "Send Message",
   from: "From",
   to: "To",
-  funFactTitle: "Fun Fact About Submarine Cable",
   howToTitle: "How To Use Submarine Cable Map",
   tapToInteract: "Tap to Interact",
   tapToInteractBody: "Touch any cable system or landing point to inspect it.",
@@ -73,7 +73,6 @@ const en: Dict = {
   mute: "Mute Audio",
   unmute: "Unmute Audio",
   help: "Help",
-  funFact: "Fun Fact",
 };
 
 const bm: Dict = {
@@ -93,6 +92,7 @@ const bm: Dict = {
   capacity: "Kapasiti",
   cableInformation: "Maklumat Kabel",
   generalInformation: "Maklumat Umum",
+  didYouKnow: "Tahukah Anda?",
   generalInfoBody:
     "Kabel dasar laut ialah kabel gentian optik yang diletakkan di dasar lautan dan membawa lebih 95% trafik data dan suara antarabangsa di seluruh dunia — jauh melebihi kapasiti satelit dari segi kelajuan, isi padu dan kebolehpercayaan.",
   keyStatistic: "Statistik Utama",
@@ -130,7 +130,6 @@ const bm: Dict = {
   sendMessage: "Hantar Mesej",
   from: "Dari",
   to: "Ke",
-  funFactTitle: "Fakta Menarik Tentang Kabel Dasar Laut",
   howToTitle: "Cara Guna Peta Kabel Dasar Laut",
   tapToInteract: "Sentuh untuk Berinteraksi",
   tapToInteractBody: "Sentuh mana-mana sistem kabel atau titik pendaratan.",
@@ -143,7 +142,6 @@ const bm: Dict = {
   mute: "Senyapkan Audio",
   unmute: "Hidupkan Audio",
   help: "Bantuan",
-  funFact: "Fakta Menarik",
 };
 
 const DICT: Record<Language, Dict> = { en, bm };

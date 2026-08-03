@@ -5,7 +5,7 @@ import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
 
-interface GeneralInformationProps {
+interface DidYouKnowProps {
   language?: Language;
   className?: string;
 }
@@ -20,12 +20,12 @@ const ORANGE_MID = "#F05A22";
 
 // Memoized: shields the panel from GlobeScene's 30fps marker-tracking
 // re-renders (props are stable).
-export default memo(GeneralInformation);
+export default memo(DidYouKnow);
 
-function GeneralInformation({
+function DidYouKnow({
   language = "en",
   className,
-}: GeneralInformationProps) {
+}: DidYouKnowProps) {
   const t = useT(language);
 
   return (
@@ -44,7 +44,7 @@ function GeneralInformation({
         gap: 6,
       }}
     >
-      <TitleStrip title={t("generalInformation")} />
+      <TitleStrip title={t("didYouKnow")} />
 
       {/* PANEL BODY — bevel gradient + SVG frame. The gradient sits on its
           own wiping layer so the traced frame isn't clipped with it, and the

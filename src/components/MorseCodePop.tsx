@@ -893,7 +893,7 @@ function SendButton({
 }
 
 /* ───────────────────────── TITLE STRIP ───────────────────────── */
-// Shared title-strip pattern with FunFactDialog / HowToGuideDialog /
+// Shared title-strip pattern with GeneralInfoDialog / HowToGuideDialog /
 // CableInformation: 47px tall, translucent-white gradient fill, hairline
 // white border, crosshair `+` at each of the 4 corners, 28px Chakra
 // Petch 500 title.
