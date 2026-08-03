@@ -26,3 +26,21 @@ export const DID_YOU_KNOW_FACTS = [
   "Your messages, video calls, streaming, and online activities often travel through submarine cables before reaching their destination.",
   "Some modern submarine cables can also help scientists monitor earthquakes and study marine environments.",
 ] as const;
+
+/**
+ * At a Glance — the four stat cards under the fact deck. Every value carries
+ * the same orange; the old hot/mid alternation is gone.
+ *
+ * Labels wrap at roughly 28 characters a line (10px mono across the card's
+ * 168px text box) and the card holds two lines, so keep them under ~56
+ * characters. The longest below is 53.
+ */
+export const AT_A_GLANCE = [
+  { value: "25 Years", label: "Expected lifespan of modern submarine cables." },
+  { value: "95-99%", label: "Of global internet traffic transmitted." },
+  {
+    value: "1840s",
+    label: "Gutta percha revolutionised underwater communication.",
+  },
+  { value: "1.5M km+", label: "Of cables span the world’s oceans." },
+] as const;

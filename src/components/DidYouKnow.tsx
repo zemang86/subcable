@@ -2,7 +2,11 @@
 
 import { memo, useEffect, useState } from "react";
 import type { Language } from "@/lib/types";
-import { DID_YOU_KNOW_FACTS, FACT_SLIDE_MS } from "@/data/didYouKnow";
+import {
+  AT_A_GLANCE,
+  DID_YOU_KNOW_FACTS,
+  FACT_SLIDE_MS,
+} from "@/data/didYouKnow";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
 
@@ -15,9 +19,16 @@ const PANEL_WIDTH = 454;
 const TITLE_STRIP_HEIGHT = 47;
 const PANEL_BODY_HEIGHT = 362;
 
-// Orange-hot vs orange-mid alternation per Figma (key statistic 01–04).
-const ORANGE_HOT = "#FF4D00";
 const ORANGE_MID = "#F05A22";
+// At a Glance cards. The height is set by the copy, not by taste: the labels
+// wrap to two 13px lines under a 39px value, and 80 leaves the same bottom
+// padding the design shows. Two rows then land 14px clear of the panel floor.
+const GRID_TOP = 170;
+const CARD_HEIGHT = 80;
+const CARD_GAP = 18;
+// Card outline geometry, in the export's own units.
+const CARD_BOTTOM = CARD_HEIGHT - 1.15;
+const CHAMFER = 17.53;
 // Sampled from the design: the spent dots are a warm cream, not dimmed white —
 // white at any opacity goes grey against this panel's gradient.
 const DOT_IDLE = "#F1CCAA";
@@ -234,7 +245,7 @@ function DidYouKnow({
           <span style={{ position: "absolute", right: 0, top: 0, width: 4, height: 4, background: "#FFFFFF" }} />
         </div>
 
-        {/* ── "Key Statistic" heading ── */}
+        {/* ── "At a Glance" heading ── */}
         <span
           style={{
             position: "absolute",
@@ -247,14 +258,19 @@ function DidYouKnow({
             color: "#FFFFFF",
           }}
         >
-          {t("keyStatistic")}
+          {t("atAGlance")}
         </span>
 
-        {/* ── 2×2 key statistic grid ── */}
-        <StatCell left={11} top={170} value="95%+" color={ORANGE_HOT} label={t("globalInternetTraffic")} />
-        <StatCell left={11} top={247} value="1.3M" color={ORANGE_MID} label={t("kmOnSeafloors")} />
-        <StatCell left={221} top={170} value="600+" color={ORANGE_MID} label={t("cablesWorldwide")} />
-        <StatCell left={221} top={247} value="1866" color={ORANGE_HOT} label={t("firstTransAtlantic")} />
+        {/* ── 2×2 "At a Glance" grid, in reading order ── */}
+        {AT_A_GLANCE.map((stat, i) => (
+          <StatCell
+            key={stat.value}
+            left={i % 2 === 0 ? 11 : 221}
+            top={GRID_TOP + Math.floor(i / 2) * (CARD_HEIGHT + CARD_GAP)}
+            value={stat.value}
+            label={stat.label}
+          />
+        ))}
         </div>
       </div>
     </div>
@@ -267,13 +283,11 @@ function StatCell({
   left,
   top,
   value,
-  color,
   label,
 }: {
   left: number;
   top: number;
   value: string;
-  color: string;
   label: string;
 }) {
   return (
@@ -283,14 +297,16 @@ function StatCell({
         left,
         top,
         width: 194,
-        height: 66,
+        height: CARD_HEIGHT,
       }}
     >
       {/* Card shape from Figma (temp/done/keystats_card.svg) — chamfered bottom-left body +
-          open top-left bracket. Text paths stripped; value/label overlaid below. */}
+          open top-left bracket. Text paths stripped; value/label overlaid below.
+          The viewBox tracks the card height so the chamfer keeps the angle the
+          export drew instead of stretching with the card. */}
       <svg
         aria-hidden
-        viewBox="0 0 196 67"
+        viewBox={`0 0 196 ${CARD_HEIGHT}`}
         preserveAspectRatio="none"
         style={{
           position: "absolute",
@@ -301,7 +317,7 @@ function StatCell({
         }}
       >
         <path
-          d="M195.148 67.0047V1.14917H1.14844V49.4786L18.6683 67.0047H195.148Z"
+          d={`M195.148 ${CARD_BOTTOM}V1.14917H1.14844V${CARD_BOTTOM - CHAMFER}L18.6683 ${CARD_BOTTOM}H195.148Z`}
           fill="#034DA1"
           fillOpacity="0.44"
         />
@@ -322,7 +338,8 @@ function StatCell({
           fontWeight: 400,
           fontSize: 32,
           lineHeight: "39px",
-          color,
+          whiteSpace: "nowrap",
+          color: ORANGE_MID,
         }}
       >
         {value}
