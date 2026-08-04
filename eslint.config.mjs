@@ -12,7 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Reference material (design-system exports), not app code.
+    "docs/**",
   ]),
+  // Electron main/preload are plain CommonJS by design.
+  {
+    files: ["electron/**/*.js"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ]);
 
 export default eslintConfig;

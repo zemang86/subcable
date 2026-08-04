@@ -35,8 +35,9 @@ import type { Language } from "@/lib/types";
 // source idleloop was 10-bit HEVC 4K (won't decode in Chrome/Electron), so it
 // was re-encoded to H.264 8-bit 1080p; emerge/submerge are the drafts as-is and
 // are sub-1080p, so they upscale soft on a kiosk panel.
-// To revert: point these three back at the originals, which are still in
-// public/video untouched —
+// To revert: copy the originals back from docs/final-video/ into public/video
+// (parked there so 26MB of unused clips don't ship in every build) and point
+// these three at them —
 //   CLIP1 = "/video/tm-clip1-underwater-dolly-v2.mp4"
 //   CLIP2 = "/video/tm-clip2-fullseq-fast.mp4"
 //   CLIP3 = "/video/tm-clip3-submerge-loop.mp4"

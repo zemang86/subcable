@@ -50,7 +50,7 @@ import { useIdleAttractor } from "@/lib/useIdleAttractor";
 import { useT } from "@/lib/i18n";
 import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
 import { attachHologramRim } from "@/lib/hologramRim";
-// import { attachScanSweep } from "@/lib/scanSweep"; // radar sweep hidden (client)
+// import { attachScanSweep } from "@/lib/_archive/scanSweep"; // radar sweep hidden (client)
 import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
 
 // ───────── Tuning ─────────
@@ -1071,8 +1071,8 @@ export default function GlobeScene() {
   // }, [isLoaded]);
 
   // (v8) Idle umbilical tethers + underwater attract removed — the idle/emerge
-  // experience is now the IntroSequence video layer. src/lib/idleTethers.ts and
-  // UnderwaterOverlay.tsx are kept in the tree but no longer wired.
+  // experience is now the IntroSequence video layer. idleTethers and
+  // UnderwaterOverlay are archived (src/lib/_archive/, src/components/_archive/).
 
   // Render order: muted siblings first → halo rings → cores.
   // Later entries in pathsData paint over earlier ones in three-globe, so

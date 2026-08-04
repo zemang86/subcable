@@ -60,3 +60,4 @@ next-env.d.ts
 
 # per-developer working scratchpad (tasks/lessons.md stays tracked)
 /tasks/todo.md
+docs/temp-video/
