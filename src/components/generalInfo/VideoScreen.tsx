@@ -26,7 +26,10 @@ export default function VideoScreen({
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [started, setStarted] = useState(false);
-  const [paused, setPaused] = useState(false);
+  // Starts true so `playing` only goes high once the play event actually fires:
+  // if the clip never starts (decode failure, autoplay refusal) the idle hold
+  // below must never be raised, or the kiosk can't return to attract.
+  const [paused, setPaused] = useState(true);
   const [muted, setMuted] = useState(false);
   const [time, setTime] = useState(0);
   const [length, setLength] = useState(0);
@@ -48,9 +51,10 @@ export default function VideoScreen({
     const video = videoRef.current;
     if (!started || !video) {
       setStarted(true);
+      setPaused(true);
       return;
     }
-    if (video.paused) void video.play();
+    if (video.paused) void video.play().catch(() => setPaused(true));
     else video.pause();
   }, [playable, started]);
 
@@ -138,6 +142,15 @@ export default function VideoScreen({
                 onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
                 onEnded={() => {
                   setStarted(false);
+                  setPaused(true);
+                  setTime(0);
+                }}
+                // A clip that fails to load or decode must fall back to the
+                // poster and release the idle hold — otherwise the attractor
+                // never fires again for the rest of the exhibit day.
+                onError={() => {
+                  setStarted(false);
+                  setPaused(true);
                   setTime(0);
                 }}
                 // contain, not cover: the two clips aren't the same aspect (16:9

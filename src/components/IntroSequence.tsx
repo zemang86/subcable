@@ -82,6 +82,13 @@ const EMERGE_BLOOM_FALL_MS = 700;
 // LOOP_FADE_MS, hiding the seam. Roles then swap, ping-ponging forever.
 const LOOP_FADE_MS = 900;
 const LOOP_FADE_S = LOOP_FADE_MS / 1000;
+// Watchdog for the tap-dead phases (launching/emerge/submerge): every exit from
+// them is driven by a media event, so a clip that errors or stalls would strand
+// the kiosk on the opaque layer until a process restart. Deadline = the clip's
+// remaining runtime plus margin; the fallback covers a clip whose metadata
+// never arrived at all.
+const WATCHDOG_MARGIN_MS = 4000;
+const WATCHDOG_FALLBACK_MS = 15000;
 
 type Phase = "attract" | "launching" | "emerge" | "live" | "submerge";
 type Lead = "a" | "b";
@@ -389,6 +396,13 @@ function IntroSequence({
         return;
       }
       if (phase === "attract") {
+        // The *lead* ending here means the seam crossfade never fired (a
+        // timeupdate starved past the LOOP_FADE_S window): swap to the other
+        // element instead of parking the only visible layer at a frozen frame.
+        if (id === attractLeadRef.current && !loopFadingRef.current) {
+          loopSwap();
+          return;
+        }
         const v = leadEl(id);
         if (v) {
           v.pause();
@@ -396,7 +410,18 @@ function IntroSequence({
         }
       }
     },
-    [phase, leadEl],
+    [phase, leadEl, loopSwap],
+  );
+
+  // A broken lead can't fire `ended`: while launching, cut straight to the
+  // emerge clip rather than freezing on the countdown.
+  const handleClip1Error = useCallback(
+    (id: Lead) => {
+      if (phase === "launching" && id === attractLeadRef.current) {
+        setPhase("emerge");
+      }
+    },
+    [phase],
   );
 
   // clip1 `timeupdate`. Only the lead acts: launching drives the countdown;
@@ -459,6 +484,33 @@ function IntroSequence({
     }
   }, [phase, onReachedIdle]);
 
+  // Watchdog (see WATCHDOG_MARGIN_MS): forces the transition the missing media
+  // event would have driven. The forced paths are already idempotent —
+  // bloomReveal via clip2CutRef, handleClip3Ended via its phase guard — so a
+  // late real event after the watchdog fires is a no-op.
+  useEffect(() => {
+    if (phase !== "launching" && phase !== "emerge" && phase !== "submerge") {
+      return;
+    }
+    const clip =
+      phase === "launching"
+        ? leadEl(attractLeadRef.current)
+        : phase === "emerge"
+          ? v2Ref.current
+          : v3Ref.current;
+    const deadline =
+      clip && Number.isFinite(clip.duration) && clip.duration > 0
+        ? Math.max(0, clip.duration - clip.currentTime) * 1000 +
+          WATCHDOG_MARGIN_MS
+        : WATCHDOG_FALLBACK_MS;
+    const timer = setTimeout(() => {
+      if (phase === "launching") setPhase("emerge");
+      else if (phase === "emerge") bloomReveal();
+      else handleClip3Ended();
+    }, deadline);
+    return () => clearTimeout(timer);
+  }, [phase, leadEl, bloomReveal, handleClip3Ended]);
+
   // The layer covers the globe except in `live` (where it must let touches
   // through and stay transparent so the globe shows).
   const covering = phase !== "live";
@@ -496,6 +548,7 @@ function IntroSequence({
           preload="auto"
           onEnded={() => handleClip1Ended(id)}
           onTimeUpdate={() => handleClip1Time(id)}
+          onError={() => handleClip1Error(id)}
           style={{
             position: "absolute",
             inset: 0,
@@ -511,9 +564,9 @@ function IntroSequence({
       ))}
       {/* clip2 dissolves in over clip1 on emerge (emergeFading), then plays out
           to the bloom-masked globe reveal. */}
-      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onTimeUpdate={handleClip2Time} fadeMs={emergeFading ? EMERGE_FADE_MS : revealFading ? REVEAL_FADE_MS : 0} />
+      <Clip refEl={v2Ref} src={CLIP2} active={phase === "emerge"} onEnded={handleClip2Ended} onError={handleClip2Ended} onTimeUpdate={handleClip2Time} fadeMs={emergeFading ? EMERGE_FADE_MS : revealFading ? REVEAL_FADE_MS : 0} />
       {/* clip3 dissolves out over the clip1 loop on the way back to idle. */}
-      <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} fadeMs={crossfading ? CROSSFADE_MS : 0} easing="linear" />
+      <Clip refEl={v3Ref} src={CLIP3} active={phase === "submerge"} onEnded={handleClip3Ended} onError={handleClip3Ended} fadeMs={crossfading ? CROSSFADE_MS : 0} easing="linear" />
 
       {/* Attract screen — title, blurb, call to action and the partner marks.
           Rises in PROMPT_DELAY_MS after the loop resumes (promptReady), so the
@@ -573,6 +626,7 @@ function Clip({
   src,
   active,
   onEnded,
+  onError,
   onTimeUpdate,
   fadeMs = 0,
   easing = "ease",
@@ -581,6 +635,9 @@ function Clip({
   src: string;
   active: boolean;
   onEnded: () => void;
+  /** A clip that errors can never fire `ended` — the caller escapes the same
+   *  way (both handlers are phase-guarded, so a stray fire is a no-op). */
+  onError?: () => void;
   onTimeUpdate?: () => void;
   /** When >0, opacity changes animate over this duration (clip3→clip1 dissolve);
    *  0 = instant swap. */
@@ -597,6 +654,7 @@ function Clip({
       playsInline
       preload="auto"
       onEnded={onEnded}
+      onError={onError}
       onTimeUpdate={onTimeUpdate}
       style={{
         position: "absolute",

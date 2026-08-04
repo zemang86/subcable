@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { LANDING_POINT_IMAGES } from "@/data/landingPointImages";
 import type { LandingPoint } from "@/lib/types";
@@ -300,10 +300,21 @@ function ExpandedCard({
   // First photo in drop order; undefined for points with none yet.
   const photo = LANDING_POINT_IMAGES[point.id]?.[0];
 
+  // The shrink-then-close timer must die with the card: if the user taps
+  // another marker inside the 200ms window, a stale onClose would toggle the
+  // *new* selection and fly the camera back to the point they just left.
+  const closeTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    },
+    []
+  );
+
   const handleClose = () => {
     if (closing || !onClose) return;
     setClosing(true);
-    window.setTimeout(onClose, SHRINK_MS);
+    closeTimerRef.current = window.setTimeout(onClose, SHRINK_MS);
   };
 
   // Fixed panel: holds a spot right of the globe centre and vertically centred.

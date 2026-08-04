@@ -279,17 +279,10 @@ export default function GlobeScene() {
   // pointOfView(…, 0) frames with the same cubic in-out easing — and any
   // pointerdown cancels it instantly, handing control back to the finger.
   const flyRafRef = useRef<number | null>(null);
-  // Timer for the second leg of the emerge arrival (overshoot → settle); owned
-  // here so cancelling a flight also cancels its queued follow-up leg.
-  const arrivalSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelFly = useCallback(() => {
     if (flyRafRef.current !== null) {
       cancelAnimationFrame(flyRafRef.current);
       flyRafRef.current = null;
-    }
-    if (arrivalSettleRef.current) {
-      clearTimeout(arrivalSettleRef.current);
-      arrivalSettleRef.current = null;
     }
   }, []);
   const flyTo = useCallback(
@@ -686,6 +679,13 @@ export default function GlobeScene() {
   }, [isLoaded, booted, handleReveal]);
 
   // Initial view + globe controls
+  const bootHoldRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (bootHoldRef.current !== null) window.clearTimeout(bootHoldRef.current);
+    },
+    []
+  );
   const handleGlobeReady = useCallback(() => {
     if (globeRef.current) {
       globeRef.current.pointOfView(
@@ -716,7 +716,7 @@ export default function GlobeScene() {
     // Hold the loading screen for a minimum of 3000ms even when textures are
     // cached, so the kiosk gets a clean intro frame (§H.9) and the loading-bar
     // sweep (3s, see LoadingScreen.FILL_MS) plays out in full.
-    setTimeout(() => setIsLoaded(true), 3000);
+    bootHoldRef.current = window.setTimeout(() => setIsLoaded(true), 3000);
   }, []);
 
   // Drive controls.autoRotate from the React state. The state itself is set
@@ -1442,9 +1442,13 @@ export default function GlobeScene() {
           let changed = false;
           for (const p of markerPoints) {
             const xyz = globeRef.current.getCoords(p.lat, p.lng, 0.01);
-            const v = scratch.set(xyz.x, xyz.y, xyz.z).project(camera);
-            // v.z > 1 = point is behind the camera (far side of the globe)
-            const visible = v.z <= 1;
+            scratch.set(xyz.x, xyz.y, xyz.z);
+            // Near-hemisphere test: the marker is visible while the camera sits
+            // above the tangent plane at the point (dot(C,P) > |P|²). NDC z is
+            // useless for this — the far plane is ~125k units out, so every
+            // globe-surface point projects comfortably inside z ≤ 1.
+            const visible = scratch.dot(camera.position) > scratch.lengthSq();
+            const v = scratch.project(camera);
             const x = ((v.x + 1) / 2) * dom.clientWidth + offX;
             const y = ((1 - v.y) / 2) * dom.clientHeight;
             next[p.id] = { x, y, visible };
@@ -1709,6 +1713,12 @@ export default function GlobeScene() {
 
       {activeCall && (
         <CallAnimationOverlay
+          // Keyed per call: a second Morse send must remount the overlay, not
+          // update props on the live one — its one-shot effect would keep
+          // driving the camera along the stale route and its onDone would kill
+          // the new call mid-flight. The key change unmounts the old run,
+          // whose cleanup cancels its timers/rAF/audio.
+          key={activeCall.startedAt}
           message={activeCall.message}
           route={activeCall.route}
           onDone={() => setActiveCall(null)}
@@ -2199,6 +2209,9 @@ function CallAnimationOverlay({
       clearTimeout(messageTimer);
       cancelAnimationFrame(raf);
       disposeAll();
+      // Unmount can arrive mid-call (a new call replaces this one via the
+      // overlay key); scheduled morse beeps must not outlive the run.
+      stopAllAudio();
       skipRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
