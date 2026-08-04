@@ -23,7 +23,7 @@ export const landingPoints: LandingPoint[] = [
     region: "Malaysia",
     lat: 4.1259,
     lng: 103.3939,
-    cableIds: ["mct", "skr1m", "apcn2", "mdscs"],
+    cableIds: ["mct", "skr1m", "mdscs"],
   },
   {
     id: "kuantan",

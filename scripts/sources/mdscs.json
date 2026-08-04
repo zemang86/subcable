@@ -1,0 +1,54 @@
+{
+  "cableId": "mdscs",
+  "note": "Hand-traced (MDSCS is short Malaysian domestic, not in the TeleGeography dataset). Ring: Cherating -> Mersing down the peninsula east coast ~25km offshore, Mersing -> Kuching across the South China Sea passing north of Tanjung Datu, then along the Sarawak/Brunei/Sabah shelf (Kuching -> Bintulu -> Miri -> Labuan -> Kota Kinabalu, bowing offshore around the coastal bulges and the Klias peninsula), closing Kota Kinabalu -> Cherating across the SCS north of the Natuna islands. Endpoints match landingPoints.ts coords exactly so the call-route graph stitches them.",
+  "segments": [
+    [
+      [4.1259, 103.3939],
+      [3.7, 103.65],
+      [3.1, 103.8],
+      [2.7, 103.85],
+      [2.4309, 103.8361]
+    ],
+    [
+      [2.4309, 103.8361],
+      [2.3, 105.0],
+      [2.2, 107.5],
+      [2.2, 109.6],
+      [1.95, 110.05],
+      [1.5531, 110.345]
+    ],
+    [
+      [1.5531, 110.345],
+      [1.95, 110.5],
+      [2.6, 111.0],
+      [3.1, 111.6],
+      [3.2, 112.3],
+      [3.35, 112.95],
+      [3.1943, 113.0953]
+    ],
+    [
+      [3.1943, 113.0953],
+      [3.8, 113.45],
+      [4.3995, 113.9914]
+    ],
+    [
+      [4.3995, 113.9914],
+      [4.75, 114.3],
+      [5.05, 114.85],
+      [5.28, 115.25]
+    ],
+    [
+      [5.28, 115.25],
+      [5.55, 115.35],
+      [5.85, 115.75],
+      [5.9804, 116.0735]
+    ],
+    [
+      [5.9804, 116.0735],
+      [5.5, 113.0],
+      [5.0, 109.0],
+      [4.6, 105.5],
+      [4.1259, 103.3939]
+    ]
+  ]
+}

@@ -179,7 +179,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["cm"],
     description:
-      "CM (Cable Malaysia) is a regional cable system supporting data exchange between Malaysia and neighbouring Asian hubs such as Japan, Hong Kong, Singapore, and the Philippines. It strengthens regional bandwidth capacity and provides additional redundancy for mission-critical network services.",
+      "Cahaya Malaysia (CM) is a regional cable system supporting data exchange between Malaysia and neighbouring Asian hubs such as Japan, Hong Kong, Singapore, and the Philippines. It strengthens regional bandwidth capacity and provides additional redundancy for mission-critical network services.",
   },
   {
     id: "bdm",
@@ -364,13 +364,13 @@ export const cables: CableSystem[] = [
     routeSummary: "Peninsular ↔ Sarawak ↔ Sabah loop",
     owners: ["Telekom Malaysia"],
     landingPointIds: [
+      "cherating",
       "mersing",
       "kuching",
+      "bintulu",
       "miri",
       "labuan",
       "kota-kinabalu",
-      "cherating",
-      "bintulu",
     ],
     color: CABLE_COLORS["mdscs"],
     description:
@@ -438,7 +438,7 @@ export const cables: CableSystem[] = [
     ],
     color: CABLE_COLORS["skr1m"],
     description:
-      "SKRM (Submarine Kabel Rakyat Malaysia) was introduced to extend broadband access to underserved communities in East Malaysia and coastal regions. It supports rural digital inclusion by connecting remote landing stations to the national backbone.",
+      "SKRM (Sistem Kabel Rakyat Malaysia) was introduced to extend broadband access to underserved communities in East Malaysia and coastal regions. It supports rural digital inclusion by connecting remote landing stations to the national backbone.",
   },
   {
     id: "stingray-pangkor",
