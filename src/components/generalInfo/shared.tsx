@@ -45,7 +45,7 @@ export type ScreenProps = {
 
 const BRACKET = 22;
 
-export function CardBrackets() {
+function CardBrackets() {
   const line = "1px solid #FFFFFF";
   const corners: CSSProperties[] = [
     { top: 0, left: 0, borderTop: line, borderLeft: line },
@@ -386,34 +386,88 @@ export function Photo({
   );
 }
 
-/* ── Step arrow ── */
+/* ── Cut-corner box ── */
 
 /**
- * Drawn verbatim from temp/funfact/next-button.svg: a translucent orange body
- * with its leading top corner cut away, a solid orange tab filling that notch,
- * a white chevron, and a small tick at each of the three square corners.
+ * One drawing, used at two sizes: the step arrows at 48px in orange
+ * (next-button.svg) and the video player's control glyphs at 27px in white
+ * (video-box.svg). Normalised they are the same box — the cut starts at 69.13%
+ * of the width in both, ends at 31.15% of the height, and both are 1.009:1 —
+ * so it lives here once.
  *
- * pre-button.svg is the same artwork mirrored — checked point for point, the
- * two agree to four decimal places once translated — so this renders one set of
- * paths and flips it. The flip carries everything correctly: the notch and its
- * tab move to the other top corner, the ticks follow, and the chevron turns.
+ * A translucent body with one top corner cut away, a solid tab filling the
+ * notch, and a tick at each of the three square corners. `flip` mirrors it so
+ * the cut sits top-right: that is the prev arrow, and every control glyph.
  *
- * The viewBox is cropped to the art (the export leaves it off-centre on an
- * 18-unit canvas) so the body fills the touch target rather than floating at
- * 84% of it. Strokes come out as true hairlines at this size: the body's 0.5px,
- * the ticks' 1px, the chevron's 3.9px.
+ * pre-button.svg is next-button.svg mirrored — checked point for point, the two
+ * agree to four decimals once translated — which is why one path set covers
+ * both. Anything that must not reverse with the mirror (the control icons) is
+ * drawn outside this box; the step chevron passes through as a child because a
+ * mirrored right chevron is exactly the left one.
+ *
+ * The viewBox is cropped to the art, which the export leaves off-centre at 84%
+ * of an 18-unit canvas, so the body fills its target rather than floating in
+ * it. non-scaling-stroke keeps the outlines hairline at either size.
  */
-const STEP_VIEWBOX = "1.7 1.7 15.9 15.9";
-const STEP_BODY =
+export const CUT_VIEWBOX = "1.7 1.7 15.9 15.9";
+const CUT_BODY =
   "M6.80509 2.03052L17.2609 2.03052L17.2609 17.0181L2.13684 17.0181L2.13684 6.69877L6.80509 2.03052Z";
-const STEP_TAB =
+const CUT_TAB =
   "M6.12639 1.83447L1.88983 6.19901L1.88979 1.83451L6.12639 1.83447Z";
-const STEP_CHEVRON = "M8.22192 13.8059L12.587 9.44083L8.22192 5.07574";
-const STEP_TICKS = [
+const CUT_TICKS = [
   "M1.96802 16.0391L1.96802 17.0355L3.04636 17.0355",
   "M17.2559 3.04102L17.2559 2.04458L16.1775 2.04458",
   "M16.2217 17.0186L17.2181 17.0186L17.2181 15.9402",
 ];
+
+export function CutBox({
+  tone,
+  flip = false,
+  children,
+}: {
+  tone: string;
+  flip?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <svg
+      aria-hidden
+      viewBox={CUT_VIEWBOX}
+      fill="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        transform: flip ? "scaleX(-1)" : undefined,
+      }}
+    >
+      <path
+        d={CUT_BODY}
+        fill={tone}
+        fillOpacity={0.54}
+        stroke={tone}
+        strokeWidth={0.187029}
+        vectorEffect="non-scaling-stroke"
+      />
+      <path d={CUT_TAB} fill={tone} />
+      {CUT_TICKS.map((tick) => (
+        <path
+          key={tick}
+          d={tick}
+          stroke={tone}
+          strokeWidth={0.357056}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+      {children}
+    </svg>
+  );
+}
+
+/* ── Step arrow ── */
+
+const STEP_CHEVRON = "M8.22192 13.8059L12.587 9.44083L8.22192 5.07574";
 
 export function StepButton({
   direction,
@@ -429,6 +483,7 @@ export function StepButton({
       aria-label={direction === "next" ? "Next" : "Previous"}
       className="v1-pressable"
       style={{
+        position: "relative",
         width: TOUCH,
         height: TOUCH,
         display: "block",
@@ -438,35 +493,9 @@ export function StepButton({
         border: "none",
       }}
     >
-      <svg
-        width={TOUCH}
-        height={TOUCH}
-        viewBox={STEP_VIEWBOX}
-        fill="none"
-        aria-hidden
-        style={{
-          display: "block",
-          transform: direction === "prev" ? "scaleX(-1)" : undefined,
-        }}
-      >
-        <path
-          d={STEP_BODY}
-          fill="var(--v1-orange)"
-          fillOpacity={0.54}
-          stroke="var(--v1-orange)"
-          strokeWidth={0.187029}
-        />
-        <path d={STEP_TAB} fill="var(--v1-orange)" />
-        {STEP_TICKS.map((tick) => (
-          <path
-            key={tick}
-            d={tick}
-            stroke="var(--v1-orange)"
-            strokeWidth={0.357056}
-          />
-        ))}
+      <CutBox tone="var(--v1-orange)" flip={direction === "prev"}>
         <path d={STEP_CHEVRON} stroke="#FFFFFF" strokeWidth={1.45503} />
-      </svg>
+      </CutBox>
     </button>
   );
 }

@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { VideoScreen as VideoData } from "@/data/generalInfo";
-import { CardBrackets, PANEL_PAD, StepButton, type ScreenProps } from "./shared";
+import {
+  CutBox,
+  PANEL_PAD,
+  StepButton,
+  TOUCH,
+  type ScreenProps,
+} from "./shared";
 
 /**
  * Videos — poster, player chrome and pagination.
@@ -91,7 +97,7 @@ export default function VideoScreen({
           padding: "14px 16px",
         }}
       >
-        <CardBrackets />
+        <VideoFrame />
 
         <h2
           style={{
@@ -276,16 +282,95 @@ export default function VideoScreen({
   );
 }
 
-/* ── Player chrome ── */
-// Drawn to the export: grey wash, orange scrub with a round knob, glyph boxes
-// and the time pill. Always on screen — a kiosk has no hover to reveal it, and
-// because it never hides it sits under the picture rather than over it.
+/* ── Screen frame ── */
 
-const GLYPH_W = 38;
-const GLYPH_H = 32;
-/** Transparent padding that lifts each glyph to the 48px touch minimum. */
-const GLYPH_PAD_X = (48 - GLYPH_W) / 2;
-const GLYPH_PAD_Y = (48 - GLYPH_H) / 2;
+/**
+ * The outline around the whole screen, verbatim from video-box.svg: a chamfer
+ * at the top-left and again at the bottom-right, with the run between them left
+ * open — the top edge stops a third of the way across after stepping down once,
+ * the right rail climbs only a third of the way up, and the bottom edge breaks
+ * in two. Nothing about it is symmetric, which is the point.
+ *
+ * Three stroked paths and no fill, so it is the export's own data under a
+ * preserveAspectRatio="none". The frame is 1.80:1 in the export against 1.64:1
+ * here, which tilts each chamfer by about a degree; reconstructing six runs and
+ * two 45° cuts in CSS to avoid that would be far more code and no more faithful.
+ * non-scaling-stroke holds every line at the export's ~2px.
+ */
+const VIDEO_FRAME_VIEWBOX = "0 0 439 244";
+const VIDEO_FRAME = [
+  "M0.439697 229.557V14.161L14.5096 0.439697H65.5129L70.051 4.9778H135.542",
+  "M371.506 242.91H423.683L438.077 229.185L438.077 85.2459",
+  "M364.907 242.91L240.923 242.91",
+];
+
+function VideoFrame() {
+  return (
+    <svg
+      aria-hidden
+      viewBox={VIDEO_FRAME_VIEWBOX}
+      preserveAspectRatio="none"
+      fill="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
+    >
+      {VIDEO_FRAME.map((d) => (
+        <path
+          key={d}
+          d={d}
+          stroke="#FFFFFF"
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </svg>
+  );
+}
+
+/* ── Player chrome ── */
+
+/**
+ * Metrics off video-box.svg, scaled by this player's 964px against the
+ * export's 414.18-unit picture (x2.328).
+ *
+ * The bar itself is the export's: 44px of solid #868585 under a hairline top
+ * edge, with the scrub line straddling that edge rather than sitting in a lane
+ * of its own. The glyphs are the cut-corner box again — the same drawing as the
+ * step arrows, in white with an orange icon — at 27px, which is why they carry
+ * their own transparent hit area to reach the kiosk's 48px minimum.
+ *
+ * One departure, kept from before: the export overlays this strip on the bottom
+ * of the picture. Here it sits below. On a kiosk the controls never hide, so an
+ * opaque overlay would permanently cover the bottom 44px of every clip.
+ */
+const BAR_H = 44;
+const GLYPH = 27;
+/** Between glyphs, and how far the row starts in from each end of the bar. */
+const GLYPH_GAP = 20;
+const BAR_PAD_L = 16;
+const BAR_PAD_R = 21;
+/** The export seats the glyphs high in the bar: 7px clear above, 10px below. */
+const GLYPH_TOP = 7;
+const PILL_W = 106;
+const TRACK_H = 3;
+const KNOB = 11;
+/** Lifts each 27px glyph to the 48px touch minimum without growing the art. */
+const GLYPH_REACH = (TOUCH - GLYPH) / 2;
+
+/**
+ * Icons are the export's own paths, moved to the box's local origin by a
+ * translate rather than by hand-editing curves. Each box is 11.5374 x 11.433
+ * export units, so that is the icon viewBox.
+ */
+const ICON_VIEWBOX = "0 0 11.5374 11.433";
+const PAUSE_ORIGIN = "translate(-17.6527, -186.317)";
+const VOLUME_ORIGIN = "translate(-37.7364, -186.317)";
+const FULLSCREEN_ORIGIN = "translate(-404.373, -186.317)";
 
 function ControlBar({
   live,
@@ -323,14 +408,18 @@ function ControlBar({
   return (
     <div
       style={{
+        position: "relative",
         flex: "none",
-        background: "rgba(140, 140, 140, 0.72)",
+        height: BAR_H,
+        boxSizing: "border-box",
+        background: "#868585",
+        borderTop: "1px solid #FFFFFF",
       }}
     >
-      {/* The visible track is 3px; the hit area around it is 24px so a finger
-          can find it. The strip sits below the picture rather than over it, so
-          the track is centred in its hit area instead of being pulled up onto
-          the video's bottom edge. */}
+      {/* The scrub line straddles the bar's own top edge, so the played run is
+          orange and the rest is that hairline. The hit area reaches 10px up
+          into the picture and 10px down into the bar — the line itself is 3px
+          and no finger would find it otherwise. */}
       <div
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -340,52 +429,47 @@ function ControlBar({
           if (e.buttons === 1) scrub(e);
         }}
         style={{
-          position: "relative",
-          height: 24,
-          display: "flex",
-          alignItems: "center",
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: -11,
+          height: 20,
           cursor: live ? "pointer" : "default",
           touchAction: "none",
         }}
       >
-        <div
+        <span
           style={{
-            position: "relative",
-            width: "100%",
-            height: 3,
-            background: "rgba(255, 255, 255, 0.5)",
+            position: "absolute",
+            left: 0,
+            top: (20 - TRACK_H) / 2,
+            width: `${progress * 100}%`,
+            height: TRACK_H,
+            background: "var(--v1-orange)",
           }}
-        >
-          <span
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: `${progress * 100}%`,
-              background: "var(--v1-orange)",
-            }}
-          />
-          <span
-            style={{
-              position: "absolute",
-              left: `${progress * 100}%`,
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: "var(--v1-orange)",
-            }}
-          />
-        </div>
+        />
+        <span
+          style={{
+            position: "absolute",
+            left: `${progress * 100}%`,
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            width: KNOB,
+            height: KNOB,
+            borderRadius: "50%",
+            background: "var(--v1-orange)",
+          }}
+        />
       </div>
 
       <div
         style={{
+          position: "absolute",
+          inset: 0,
           display: "flex",
-          alignItems: "center",
-          padding: `4px ${12 - GLYPH_PAD_X}px 4px`,
+          alignItems: "flex-start",
+          gap: GLYPH_GAP,
+          padding: `${GLYPH_TOP}px ${BAR_PAD_R}px 0 ${BAR_PAD_L}px`,
         }}
       >
         <GlyphButton
@@ -393,16 +477,33 @@ function ControlBar({
           disabled={!live}
           onClick={onToggle}
         >
-          {playing ? (
-            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden>
-              <rect x="1" y="1" width="4" height="14" fill="#FFFFFF" />
-              <rect x="9" y="1" width="4" height="14" fill="#FFFFFF" />
-            </svg>
-          ) : (
-            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden>
-              <polygon points="2,1 13,8 2,15" fill="#FFFFFF" />
-            </svg>
-          )}
+          <g transform={PAUSE_ORIGIN}>
+            {playing ? (
+              <>
+                <rect
+                  x="20.3555"
+                  y="189.156"
+                  width="2.02503"
+                  height="6.07509"
+                  fill="var(--v1-orange)"
+                />
+                <rect
+                  x="24.0654"
+                  y="189.156"
+                  width="2.02503"
+                  height="6.07509"
+                  fill="var(--v1-orange)"
+                />
+              </>
+            ) : (
+              // No play state in the export — the clip is running in it. Drawn
+              // to the pause bars' own bounds so the two glyphs share a weight.
+              <polygon
+                points="20.356,189.156 26.090,192.194 20.356,195.231"
+                fill="var(--v1-orange)"
+              />
+            )}
+          </g>
         </GlyphButton>
 
         <GlyphButton
@@ -410,33 +511,39 @@ function ControlBar({
           disabled={!live}
           onClick={onMute}
         >
-          <svg width="18" height="16" viewBox="0 0 18 16" aria-hidden>
-            <path d="M1 5h4l5-4v14l-5-4H1z" fill="#FFFFFF" />
+          <g transform={VOLUME_ORIGIN}>
+            <path
+              d="M39.7086 193.785V190.437L44.0948 188.706V195.401L39.7086 193.785Z"
+              fill="var(--v1-orange)"
+            />
             {muted ? (
+              // Also not in the export. The wave's own box, crossed out.
               <path
-                d="M12 5l5 6M17 5l-5 6"
-                stroke="#FFFFFF"
-                strokeWidth="1.6"
-                fill="none"
+                d="M45.0202 190.207L46.6362 193.669M46.6362 190.207L45.0202 193.669"
+                stroke="var(--v1-orange)"
+                strokeWidth={0.923413}
               />
             ) : (
               <path
-                d="M13 4a6 6 0 0 1 0 8"
-                stroke="#FFFFFF"
-                strokeWidth="1.6"
-                fill="none"
+                d="M45.0202 190.207H46.6362V193.669H45.0202"
+                stroke="var(--v1-orange)"
+                strokeWidth={0.923413}
               />
             )}
-          </svg>
+          </g>
         </GlyphButton>
 
         <span
           style={{
-            marginLeft: GLYPH_PAD_X,
-            padding: "6px 12px",
-            background: "rgba(255, 255, 255, 0.35)",
+            flex: "none",
+            width: PILL_W,
+            height: GLYPH,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(217, 217, 217, 0.54)",
             fontFamily: "var(--v1-mono)",
-            fontSize: 13,
+            fontSize: 12,
             color: "#FFFFFF",
             fontVariantNumeric: "tabular-nums",
           }}
@@ -447,14 +554,12 @@ function ControlBar({
         <span style={{ flex: 1 }} />
 
         <GlyphButton label="Fullscreen" disabled={!live} onClick={onFullscreen}>
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
-            <path
-              d="M2 7V2h5M16 11v5h-5M16 7V2h-5M2 11v5h5"
-              stroke="#FFFFFF"
-              strokeWidth="1.6"
-              fill="none"
-            />
-          </svg>
+          {/* The export's own expand glyph: two arrows on the diagonal, not the
+              four corner brackets this carried before. */}
+          <g transform={FULLSCREEN_ORIGIN} fill="var(--v1-orange)">
+            <path d="M405.95 187.584C405.765 187.584 405.615 187.733 405.615 187.918L405.615 190.931C405.615 191.116 405.765 191.266 405.95 191.266C406.134 191.266 406.284 191.116 406.284 190.931L406.284 188.253L408.962 188.253C409.147 188.253 409.297 188.103 409.297 187.918C409.297 187.733 409.147 187.584 408.962 187.584L405.95 187.584ZM409.494 191.463L409.731 191.226L406.186 187.682L405.95 187.918L405.713 188.155L409.257 191.699L409.494 191.463Z" />
+            <path d="M414.219 196.524C414.404 196.524 414.554 196.374 414.554 196.189V193.176C414.554 192.991 414.404 192.841 414.219 192.841C414.034 192.841 413.884 192.991 413.884 193.176V195.854H411.206C411.021 195.854 410.872 196.004 410.872 196.189C410.872 196.374 411.021 196.524 411.206 196.524H414.219ZM410.872 192.841L410.635 193.078L413.982 196.425L414.219 196.189L414.456 195.952L411.108 192.605L410.872 192.841Z" />
+          </g>
         </GlyphButton>
       </div>
     </div>
@@ -462,9 +567,13 @@ function ControlBar({
 }
 
 /**
- * The export's 38×32 glyph box, wrapped in transparent padding so the tappable
- * area is 48px square without the artwork growing. The padding also supplies
- * the gap between glyphs, so they don't need one.
+ * A control glyph: the export's cut-corner box in white, with the icon drawn
+ * over it in the box's own export units.
+ *
+ * The box is 27px, so the button carries a transparent span reaching 10.5px
+ * past it on every side to make the 48px touch target. That exactly fills the
+ * 20px gap the export leaves between glyphs, so neighbouring targets meet
+ * without overlapping.
  */
 function GlyphButton({
   label,
@@ -484,27 +593,30 @@ function GlyphButton({
       disabled={disabled}
       onClick={onClick}
       style={{
-        padding: `${GLYPH_PAD_Y}px ${GLYPH_PAD_X}px`,
+        position: "relative",
+        flex: "none",
+        width: GLYPH,
+        height: GLYPH,
+        padding: 0,
         border: "none",
-        background: "transparent",
+        background: "none",
         cursor: disabled ? "default" : "pointer",
-        display: "flex",
+        opacity: disabled ? 0.6 : 1,
       }}
     >
       <span
-        style={{
-          width: GLYPH_W,
-          height: GLYPH_H,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "rgba(255, 255, 255, 0.25)",
-          border: "1px solid rgba(255, 255, 255, 0.5)",
-          opacity: disabled ? 0.6 : 1,
-        }}
+        aria-hidden
+        style={{ position: "absolute", inset: -GLYPH_REACH }}
+      />
+      <CutBox tone="#FFFFFF" flip />
+      <svg
+        aria-hidden
+        viewBox={ICON_VIEWBOX}
+        fill="none"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       >
         {children}
-      </span>
+      </svg>
     </button>
   );
 }
