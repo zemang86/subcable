@@ -33,34 +33,36 @@ const SCRIM = "2, 18, 38";
 /**
  * Partner marks along the bottom.
  *
- * Every mark sits on a white plate. That isn't only for legibility over the
- * clip: TM's brand sheet (docs/TMGlobal_quickreference.pdf) says to use the
- * blue logotype on white "wherever possible", and its DON'Ts panel crosses out
- * the logo sitting straight on a busy photograph — which is what the attract
- * clip is. The plate turns a prohibited backdrop into the sanctioned one.
+ * These are the reversed (all-white, transparent) cuts the client supplied in
+ * temp/logo. That is what retires the white plates each mark used to sit on:
+ * the plates weren't decoration but compliance — TM's brand sheet
+ * (docs/TMGlobal_quickreference.pdf) says to use the blue logotype on white
+ * "wherever possible" and its DON'Ts panel crosses out the logo sitting
+ * straight on a busy photograph, which is exactly what the attract clip is. A
+ * reversed cut is the sheet's own answer for imagery, so with it in hand the
+ * marks belong on the clip and the plates are what would now look wrong.
  *
- * Note on the TM Global file: neither public/tm-logo.png nor the design
- * system's docs/.../assets/logo-tm-global.png is a TM Global logo despite the
- * filename — both are the plain TM corporate mark, missing the GLOBAL
- * wordmark. public/logo-tm-global.png is the real lockup, and it is the RGB
- * cut: its blue is #1800E6, which is the sheet's digital primary (#1800E7).
- * The client also supplies a CMYK-derived cut at #005EAD — that one is for
- * print and must not be used here.
+ * The colour cuts they replace are gone from public/ (they were the only thing
+ * using them) but remain in temp/logo and in git. Note if they ever come back:
+ * neither public/tm-logo.png nor the design system's assets/logo-tm-global.png
+ * is a TM Global logo despite the filename — both are the plain TM corporate
+ * mark, missing the GLOBAL wordmark — and of the two real cuts, the RGB one
+ * (#1800E6, the sheet's digital primary) is for screen and the CMYK-derived
+ * #005EAD is for print.
  *
- * `scale` is the mark's height as a fraction of the plate, and the three
- * values are not a guess: matching heights would leave the Yayasan lockup
- * (5.0:1) looming and the Muzium one (1.1:1) looking undersized. Each mark's
- * artwork was measured for the share of its box that is actually inked —
- * 31% / 17% / 24% — and the heights solve for equal ink area, which is what
- * the eye weighs. Anchor is TM Global at 78px on a 1080p kiosk, comfortably
- * over the sheet's 56px digital floor.
+ * `units` is each mark's own height in the export, so the row keeps the
+ * relative sizing the client drew rather than the equal-ink-area heights that
+ * were derived here when only the colour rasters existed. It reads differently
+ * — Muzium Telegraf is nearly twice TM Global now, where it used to be 1.27x —
+ * but that mark stacks a building over two lines of type where the other two
+ * are single-line lockups, so it needs the height to stay legible.
  */
-type Mark = { name: string; src: string; scale: number };
+type Mark = { name: string; src: string; units: number };
 
 const MARKS: Mark[] = [
-  { name: "Yayasan TM", src: "/logo-yayasan-tm.webp", scale: 0.442 },
-  { name: "Muzium Telegraf Taiping", src: "/logo-muzium-telegraf.webp", scale: 0.767 },
-  { name: "TM Global", src: "/logo-tm-global.png", scale: 0.605 },
+  { name: "Yayasan TM", src: "/logo-yayasan-tm.svg", units: 22 },
+  { name: "Muzium Telegraf Taiping", src: "/logo-muzium-telegraf.svg", units: 51 },
+  { name: "TM Global", src: "/logo-tm-global.svg", units: 27 },
 ];
 
 /** Stagger for the entrance — title leads, the call to action trails. */
@@ -108,9 +110,13 @@ export default function AttractOverlay({
         className="v1-brand-rise"
         style={{ ...markRow, animationDelay: `${RISE_MS}ms` }}
       >
-        {MARKS.map((mark) => (
-          <LogoMark key={mark.name} mark={mark} />
-        ))}
+        <span style={attribution}>{t("broughtToYouBy")}</span>
+        <div style={markBand}>
+          <span aria-hidden style={markGlow} />
+          {MARKS.map((mark) => (
+            <LogoMark key={mark.name} mark={mark} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -118,17 +124,15 @@ export default function AttractOverlay({
 
 function LogoMark({ mark }: { mark: Mark }) {
   return (
-    <span style={markPlate}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
-      <img
-        src={mark.src}
-        alt={mark.name}
-        style={{
-          ...markImage,
-          height: `calc(${PLATE_HEIGHT} * ${mark.scale})`,
-        }}
-      />
-    </span>
+    /* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */
+    <img
+      src={mark.src}
+      alt={mark.name}
+      style={{
+        ...markImage,
+        height: `calc(${MARK_UNIT} * ${mark.units})`,
+      }}
+    />
   );
 }
 
@@ -209,12 +213,12 @@ const cta: CSSProperties = {
 };
 
 /**
- * Every plate is this tall and only as wide as its mark needs, so the row reads
- * as one band rather than three floating tiles. The lower bound is what keeps
- * TM Global over the sheet's 56px digital floor once its 0.605 scale is applied
- * (93 × 0.605 ≈ 56) — a short dev window shrinks the gaps, never the marks.
+ * One export unit, in screen pixels. It sets the whole row: at the 1080p kiosk
+ * this puts TM Global's 27 units at 64px, Muzium Telegraf's 51 at 121 and
+ * Yayasan's 22 at 52. The lower bound is what holds TM Global over the brand
+ * sheet's 56px digital floor (27 × 2.07 ≈ 56) on a short dev window.
  */
-const PLATE_HEIGHT = "clamp(93px, 11.9vh, 129px)";
+const MARK_UNIT = "clamp(2.07px, 0.22vh, 2.7px)";
 
 const markRow: CSSProperties = {
   position: "absolute",
@@ -222,28 +226,58 @@ const markRow: CSSProperties = {
   right: 0,
   bottom: "5vh",
   display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  // Anchored at the bottom, so the attribution line grows upward off the marks
+  // and they stay where they were.
+  gap: "clamp(14px, 2.1vh, 24px)",
+};
+
+const attribution: CSSProperties = {
+  fontFamily: "var(--v1-heading)",
+  fontWeight: 500,
+  fontSize: "clamp(11px, 1.7vh, 20px)",
+  letterSpacing: "0.34em",
+  textTransform: "uppercase",
+  // A shade under the call to action's own white — it labels the row, it isn't
+  // asking to be read first.
+  color: "rgba(255, 255, 255, 0.76)",
+  textShadow: `0 1px 14px rgba(${SCRIM}, 0.9)`,
+};
+
+const markBand: CSSProperties = {
+  position: "relative",
+  display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  gap: "clamp(40px, 6vw, 104px)",
+  gap: "clamp(36px, 4vw, 84px)",
 };
 
 /**
- * The white plate. Square, not rounded — the brand sheet's own DO panel shows
- * the logo on a plain rectangle, and the rest of this app's chrome is
- * hard-edged. Fixed height, auto width: the side padding is the clear space,
- * so a wide lockup and a near-square one keep the same margin.
+ * The soft light bar the marks sit on, from temp/logo/blurbg-behindlogo.svg:
+ * a 28.8-unit band of #83B4F9 at 67%, gaussian-blurred at sigma 25 units. It
+ * does the legibility work the white plates used to, without putting a box
+ * around anything — over a bright frame it disappears, over a dark one it
+ * lifts the marks off the water.
+ *
+ * `filter`, not `backdrop-filter`: the bar blurs itself, not the clip behind
+ * it, so it composites once instead of every video frame. It overhangs the row
+ * because a blurred rectangle has to start outside the thing it's lighting.
  */
-const markPlate: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  height: PLATE_HEIGHT,
-  padding: "0 clamp(16px, 2.2vh, 26px)",
-  boxSizing: "border-box",
-  background: "#FFFFFF",
+const markGlow: CSSProperties = {
+  position: "absolute",
+  left: "-11%",
+  right: "-11%",
+  top: "50%",
+  height: `calc(${MARK_UNIT} * 28.8)`,
+  transform: "translateY(-50%)",
+  background: "rgba(131, 180, 249, 0.67)",
+  filter: `blur(calc(${MARK_UNIT} * 25))`,
+  pointerEvents: "none",
 };
 
 const markImage: CSSProperties = {
+  position: "relative",
   display: "block",
   width: "auto",
   objectFit: "contain",
