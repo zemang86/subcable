@@ -212,20 +212,27 @@ export default function VideoScreen({
                       top: "50%",
                       left: "50%",
                       transform: "translate(-50%, -50%)",
-                      width: 108,
-                      height: 108,
-                      borderRadius: "50%",
+                      width: PLAY_SIZE,
+                      height: PLAY_SIZE,
                       border: "none",
-                      background: "var(--v1-blue)",
+                      background: "none",
                       cursor: playable ? "pointer" : "default",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      display: "block",
                       padding: 0,
                     }}
                   >
-                    <svg width="36" height="40" viewBox="0 0 24 24" aria-hidden>
-                      <polygon points="7,4 21,12 7,20" fill="var(--v1-orange)" />
+                    <svg
+                      aria-hidden
+                      viewBox={PLAY_VIEWBOX}
+                      style={{ display: "block", width: "100%", height: "100%" }}
+                    >
+                      <circle
+                        cx={PLAY_R}
+                        cy={PLAY_R}
+                        r={PLAY_R}
+                        fill="var(--v1-blue)"
+                      />
+                      <path d={PLAY_TRIANGLE} fill="var(--v1-orange)" />
                     </svg>
                   </button>
                 </>
@@ -358,6 +365,23 @@ const FRAME_PAD_X = 38;
 const FRAME_PAD_T = 28;
 const FRAME_PAD_B = 12;
 const TITLE_GAP = 16;
+
+/**
+ * The poster's play button, verbatim from video-playbutton.svg: a solid blue
+ * disc with an orange triangle whose three corners are rounded — which is why
+ * it is the export's path rather than a polygon. Both fills are already this
+ * app's tokens (#034DA1 and #F05A22, exact).
+ *
+ * The circle is drawn cx=cy=r, so it fills its own box and the viewBox is just
+ * the diameter. 119px is that diameter at the panel's scale: the export sets it
+ * at 53.441 units against a 465.63-unit panel, which is 12.9% of the picture's
+ * width — the same fraction of the 920px box this player now uses.
+ */
+const PLAY_R = 26.7205;
+const PLAY_VIEWBOX = `0 0 ${PLAY_R * 2} ${PLAY_R * 2}`;
+const PLAY_SIZE = 119;
+const PLAY_TRIANGLE =
+  "M36.1928 25.4593C37.1645 26.0203 37.1645 27.4227 36.1928 27.9837L23.0755 35.557C22.1038 36.118 20.8893 35.4167 20.8893 34.2948L20.8893 19.1482C20.8893 18.0262 22.1038 17.325 23.0755 17.886L36.1928 25.4593Z";
 
 const VIDEO_FRAME_VIEWBOX = "0 0 439 244";
 const VIDEO_FRAME = [
