@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef } from "react";
 import type { CableSystem, Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
@@ -14,33 +14,75 @@ interface CableInformationProps {
 const PANEL_WIDTH = 454;
 const TITLE_STRIP_HEIGHT = 47;
 
-// Owner chips wrap three to a row (3 × 130 + 2 × 12 = 414 inside the 418px
-// content box) and no cable in src/data/cables.ts has more than six owners,
-// so two rows is the ceiling. The area is held at two rows for EVERY cable:
-// a one- or two-owner cable shows an empty second row rather than letting the
-// block below slide up. Deliberately not clipped — a seventh owner should
-// visibly break the layout rather than silently vanish.
-const OWNER_CHIP_HEIGHT = 35;
-const OWNER_ROW_GAP = 12;
-const OWNERS_AREA_HEIGHT = OWNER_CHIP_HEIGHT * 2 + OWNER_ROW_GAP;
+/**
+ * The card is a fixed frame, so every block is placed at the coordinate the
+ * export draws it at rather than stacked in flow. temp/cablesystem/card.svg is
+ * 455 x 363 against this panel's 454, so its numbers are used literally.
+ *
+ * 363 is what the body comes back to now that the client has dropped the owner
+ * chips. It used to be 409 — the original Figma frame was 362 and an earlier
+ * pass added a second owner row (35 + 12) on top of it so cables with four or
+ * six owners stopped pushing the description through the floor. With the chips
+ * gone that reservation goes with them, and the description takes the space:
+ * it is 180 tall here against 104 before.
+ */
+const PANEL_BODY_HEIGHT = 363;
 
-// 362 was the Figma height, and it only ever fitted one owner row — the two
-// cables that wrap (CM with 4 owners, BBG with 6) pushed the description
-// block clean through the panel floor. Reserving the second row grows the
-// panel by exactly that row, so every other block keeps its design spacing.
-const PANEL_BODY_HEIGHT = 362 + OWNER_CHIP_HEIGHT + OWNER_ROW_GAP;
+/**
+ * Cable name. The export's cap box is y 18.67-39.71; a flex-centred line box
+ * puts the caps 1.15px above its own centre (Rajdhani's ascent and descent
+ * aren't symmetric about the cap height), so the box starts at 15.15 rather
+ * than 14 to land them where the export draws them.
+ */
+const NAME_TOP = 15.15;
+const NAME_HEIGHT = 30;
+const NAME_SIZE = 32.5;
+
+/** Field chips. Rows at the export's y, 27 tall, 17 apart. */
+const CHIP_LEFT = 17.8;
+const ROW1_TOP = 58.75;
+const ROW2_TOP = 107.67;
+const CHIP_HEIGHT = 27;
+const CHIP_GAP = 17;
+const LABEL_WIDTH = 78;
+const LABEL_WIDTH_WIDE = 134;
+
+/**
+ * Value-cell widths. Row 2 is the export's 57 exactly. Row 1 is not: the export
+ * draws LENGTH at 84 and RFS at 115 because it mocks them with "3,000 KM" and
+ * "June 2017", and our data is longer than both — ten cables carry a six-figure
+ * length and eleven an RFS month of 13-14 characters, all of which would have
+ * to condense. Widening the two cells to 100 and 145 lands the row at exactly
+ * 418, which is the panel's full content width, so it now closes 18 from the
+ * right edge the way it opens 18 from the left.
+ */
+const VALUE_WIDTH_LENGTH = 100;
+const VALUE_WIDTH_RFS = 145;
+const VALUE_WIDTH_COUNT = 57;
+
+/** Description frame — the export's rect, panel-relative. */
+const DESC_LEFT = 19.1;
+const DESC_TOP = 160.6;
+const DESC_WIDTH = 411.27;
+const DESC_HEIGHT = 180.42;
 
 // Pull out the leading number group + a unit hint from a free-form string.
 // "3,000 km" → { value: "3,000", unit: "KM" }
-// "10 Tbps (MY–Japan)" → { value: "10", unit: "Tbps" }
+// "~21,700 km (planned)" → { value: "~21,700", unit: "km" }
+//
+// The tilde and the trailing parenthetical are the four planned cables' way of
+// saying the figure isn't final. The tilde is kept — it is the hedge, and it
+// costs one character; "(planned)" is dropped, because at the card's type size
+// it would condense the whole value to a third of its width to say what the
+// red name and the offline indicator already say.
 function splitValueUnit(raw: string | undefined, fallbackUnit?: string): {
   value: string;
   unit: string;
 } {
   if (!raw) return { value: "—", unit: fallbackUnit ?? "" };
-  const m = raw.match(/^([\d,.]+)\s*([A-Za-z/]+)?/);
+  const m = raw.match(/^(~?)\s*([\d,.]+)\s*([A-Za-z/]+)?/);
   if (!m) return { value: raw, unit: "" };
-  return { value: m[1], unit: (m[2] ?? fallbackUnit ?? "").trim() };
+  return { value: m[1] + m[2], unit: (m[3] ?? fallbackUnit ?? "").trim() };
 }
 
 // Memoized: shields the panel from GlobeScene's 30fps marker-tracking
@@ -55,13 +97,11 @@ function CableInformation({
 }: CableInformationProps) {
   const t = useT(language);
   const inactive = cable.status !== "active";
-  const nameColor = inactive ? "#FF3F3F" : "#00FF4D";
+  const nameColor = inactive ? "#FF3F3F" : "#01FF4E";
   const indicatorAccent = inactive ? "#FF3F3F" : "#8FFF3F";
   const indicatorMiddle = inactive ? "#642E2E" : "#3F642E";
 
   const length = splitValueUnit(cable.length);
-  const capacity = splitValueUnit(cable.capacity, "Gbps");
-  const displayName = useScramble(cable.name);
 
   return (
     <div
@@ -103,90 +143,131 @@ function CableInformation({
         <PanelFrame />
         <OnlineIndicator accent={indicatorAccent} middle={indicatorMiddle} />
 
-        {/* Body content — padded inset */}
         <div
           className="v7-mat-body"
-          style={{
-            position: "absolute",
-            inset: "13px 18px 12px 18px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
+          style={{ position: "absolute", inset: 0 }}
         >
-          <EyebrowChip label={t("fullName")} />
+          <CableName name={cable.name} color={nameColor} />
 
           <div
             style={{
-              fontFamily: "var(--v1-heading)",
-              fontWeight: 700,
-              fontSize: 15,
-              lineHeight: "19px",
-              color: nameColor,
-              marginTop: 2,
-              marginBottom: 4,
-            }}
-          >
-            {displayName}
-          </div>
-
-          {/* 2x2 field chip grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 8,
-              marginTop: 2,
+              position: "absolute",
+              left: CHIP_LEFT,
+              top: ROW1_TOP,
+              display: "flex",
+              gap: CHIP_GAP,
             }}
           >
             <FieldChip
               label={t("length").toUpperCase()}
+              labelWidth={LABEL_WIDTH}
+              valueWidth={VALUE_WIDTH_LENGTH}
               value={length.value}
               unit={length.unit || "KM"}
             />
             <FieldChip
-              label={t("built").toUpperCase()}
-              value={cable.buildYear ? String(cable.buildYear) : "—"}
-            />
-            <FieldChip
-              label={t("capacity").toUpperCase()}
-              value={capacity.value}
-              unit={capacity.unit || "Gbps"}
-            />
-            <FieldChip
               label={t("rfs").toUpperCase()}
+              labelWidth={LABEL_WIDTH}
+              valueWidth={VALUE_WIDTH_RFS}
               value={cable.rfs || "—"}
             />
           </div>
 
-          {/* Owners — fixed two-row area so the description below always
-              starts at the same y, whatever the owner count. */}
-          <div style={{ marginTop: 10 }}>
-            <EyebrowChip label={t("owners")} />
-            <div
-              style={{
-                display: "flex",
-                gap: OWNER_ROW_GAP,
-                marginTop: 6,
-                flexWrap: "wrap",
-                // Pack rows to the top; the reserved second row stays empty.
-                alignContent: "flex-start",
-                height: OWNERS_AREA_HEIGHT,
-              }}
-            >
-              {cable.owners.map((owner) => (
-                <FilmStripChip key={owner} label={owner.toUpperCase()} />
-              ))}
-            </div>
+          <div
+            style={{ position: "absolute", left: CHIP_LEFT, top: ROW2_TOP }}
+          >
+            <FieldChip
+              label={t("totalLandingPoints").toUpperCase()}
+              labelWidth={LABEL_WIDTH_WIDE}
+              valueWidth={VALUE_WIDTH_COUNT}
+              value={String(cable.landingPointIds.length)}
+            />
           </div>
 
-          {/* Description */}
           <DescriptionBlock
             label={t("description")}
             text={cable.description}
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── CABLE NAME ───────────────────────── */
+
+// The card's headline, straight off the export: Rajdhani Bold at 32.5px in the
+// live green, sitting on its own row above the field chips.
+//
+// At that size the name is the one block that can't be trusted to fit — the
+// export mocks it with "SEA-ME-WE 4" at 176px, and the longest name we carry
+// ("Malaysia Domestic Submarine Cable System") is 595. It scales uniformly to
+// the width instead of wrapping, because wrapping would move the chips.
+function CableName({ name, color }: { name: string; color: string }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const probeRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const display = useScramble(name);
+
+  // Measured off a hidden copy of the settled name, never off what's on
+  // screen: the scramble swaps glyphs every 30ms and Rajdhani is proportional,
+  // so mid-animation the visible node is not the width we have to fit.
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const probe = probeRef.current;
+    const text = textRef.current;
+    if (!box || !probe || !text) return;
+    const fit = () => {
+      const ratio = box.clientWidth / Math.max(1, probe.offsetWidth);
+      text.style.transform = ratio < 1 ? `scale(${ratio})` : "none";
+    };
+    fit();
+    // Re-fit once webfonts land — the fallback's metrics aren't Rajdhani's.
+    void document.fonts?.ready.then(fit);
+  }, [name]);
+
+  const type = {
+    fontFamily: "var(--v1-heading)",
+    fontWeight: 700,
+    fontSize: NAME_SIZE,
+    lineHeight: 1,
+    whiteSpace: "nowrap" as const,
+  };
+
+  return (
+    <div
+      ref={boxRef}
+      style={{
+        position: "absolute",
+        left: 18,
+        top: NAME_TOP,
+        // Stops short of the online indicator at x=426.
+        width: 400,
+        height: NAME_HEIGHT,
+        display: "flex",
+        alignItems: "center",
+        color,
+        ...type,
+      }}
+    >
+      <span
+        ref={textRef}
+        style={{ display: "inline-block", transformOrigin: "left center" }}
+      >
+        {display}
+      </span>
+      <span
+        aria-hidden
+        ref={probeRef}
+        style={{
+          position: "absolute",
+          visibility: "hidden",
+          pointerEvents: "none",
+          ...type,
+        }}
+      >
+        {name}
+      </span>
     </div>
   );
 }
@@ -290,6 +371,7 @@ function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
 // Tactical bracket frame: 50px top + 50px bottom horizontal brackets, plus
 // two vertical side lines spanning the middle. viewBox sized to panel so
 // y=50 renders at literal 50px (preserveAspectRatio="none" stretches).
+// The side rules' 58.45 / 305.22 are the export's own.
 function PanelFrame() {
   return (
     <svg
@@ -323,7 +405,7 @@ function PanelFrame() {
       <path
         className="v7-mat-trace"
         pathLength={1}
-        d={`M${PANEL_WIDTH - 0.5} 60 V${PANEL_BODY_HEIGHT - 60}`}
+        d={`M${PANEL_WIDTH - 0.5} 58.45 V305.22`}
         stroke="#FFFFFF"
         strokeLinecap="round"
         fill="none"
@@ -331,7 +413,7 @@ function PanelFrame() {
       <path
         className="v7-mat-trace"
         pathLength={1}
-        d={`M0.5 60 V${PANEL_BODY_HEIGHT - 60}`}
+        d="M0.5 58.45 V305.22"
         stroke="#FFFFFF"
         strokeLinecap="round"
         fill="none"
@@ -342,7 +424,8 @@ function PanelFrame() {
 
 /* ───────────────────────── ONLINE INDICATOR ───────────────────────── */
 
-// 15px concentric-ring status indicator at top-right inside the panel.
+// Concentric-ring status indicator at top-right inside the panel. Ring, mid
+// disc and core are the export's 7.19 / 5.07 / 3.30 radii on a 15.75 box.
 function OnlineIndicator({
   accent,
   middle,
@@ -356,10 +439,10 @@ function OnlineIndicator({
       className="v7-mat-body"
       style={{
         position: "absolute",
-        top: 12,
-        right: 16,
-        width: 15.43,
-        height: 15,
+        top: 12.5,
+        right: 13,
+        width: 15.75,
+        height: 15.12,
         borderRadius: "50%",
         border: `1.37px solid ${accent}`,
         boxShadow: `0 0 4px ${accent}80`,
@@ -368,7 +451,7 @@ function OnlineIndicator({
       <span
         style={{
           position: "absolute",
-          inset: 2.2,
+          inset: 2.8,
           borderRadius: "50%",
           background: middle,
         }}
@@ -376,7 +459,7 @@ function OnlineIndicator({
       <span
         style={{
           position: "absolute",
-          inset: 4.3,
+          inset: 4.57,
           borderRadius: "50%",
           background: accent,
         }}
@@ -385,41 +468,27 @@ function OnlineIndicator({
   );
 }
 
-/* ───────────────────────── EYEBROW CHIP ───────────────────────── */
-
-// Small white-bordered tag for section labels ("Full name", "Owners", etc).
-function EyebrowChip({ label }: { label: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        border: "0.26px solid #FFFFFF",
-        padding: "2px 7px",
-        fontFamily: "var(--v1-mono)",
-        fontWeight: 400,
-        fontSize: 8.5,
-        lineHeight: 1.3,
-        color: "#FFF6F6",
-        letterSpacing: "0.02em",
-        alignSelf: "flex-start",
-        boxSizing: "border-box",
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
 /* ───────────────────────── FIELD CHIP ───────────────────────── */
 
 // Label on the left + translucent-white value cell on the right with a
-// large mono number and an optional small unit suffix.
+// large mono number and an optional small unit suffix. Both boxes are fixed
+// width — the card never reflows between cables.
+//
+// Type is measured off the export: the label is 8.7px with no tracking (its
+// "TOTAL LANDING POINTS" run is 103.4 wide over 20 characters, which is IBM
+// Plex Mono's 0.6em advance exactly), the value 16.5 and the unit 7.5. The
+// value is centred in its cell, not right-aligned — all three of the export's
+// cells pad it to within 2px on both sides.
 function FieldChip({
   label,
+  labelWidth,
+  valueWidth,
   value,
   unit,
 }: {
   label: string;
+  labelWidth: number;
+  valueWidth: number;
   value: string;
   unit?: string;
 }) {
@@ -452,36 +521,43 @@ function FieldChip({
   return (
     <div
       style={{
-        position: "relative",
-        height: 27,
+        display: "flex",
+        width: labelWidth + valueWidth,
+        height: CHIP_HEIGHT,
         border: "0.29px solid #FFFFFF",
-        display: "grid",
-        gridTemplateColumns: "minmax(60px, auto) 1fr",
-        alignItems: "stretch",
         boxSizing: "border-box",
       }}
     >
       <div
         style={{
+          flex: `0 0 ${labelWidth}px`,
           display: "flex",
           alignItems: "center",
-          padding: "0 8px",
+          paddingLeft: 10,
+          boxSizing: "border-box",
           fontFamily: "var(--v1-mono)",
           fontWeight: 300,
-          fontSize: 9,
+          fontSize: 8.7,
+          lineHeight: 1.3,
           color: "#FFF6F6",
-          letterSpacing: "0.04em",
         }}
       >
         {label}
       </div>
       <div
         ref={cellRef}
+        // flex:1 rather than a second fixed basis — the chip is border-box, so
+        // the two fixed widths would together overrun its content box by the
+        // border and push the cell half a pixel past the right edge.
         style={{
+          flex: 1,
+          minWidth: 0,
           background: "rgba(255, 255, 255, 0.3)",
+          borderLeft: "0.285px solid #FFFFFF",
+          boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
-          justifyContent: "flex-end",
+          justifyContent: "center",
           padding: "0 10px",
           overflow: "hidden",
         }}
@@ -491,8 +567,7 @@ function FieldChip({
           style={{
             display: "inline-flex",
             alignItems: "baseline",
-            gap: 3,
-            transformOrigin: "right center",
+            gap: 5,
             whiteSpace: "nowrap",
           }}
         >
@@ -500,7 +575,7 @@ function FieldChip({
             style={{
               fontFamily: "var(--v1-mono)",
               fontWeight: 400,
-              fontSize: 17,
+              fontSize: 16.5,
               lineHeight: 1,
               color: "#FFF6F6",
             }}
@@ -512,7 +587,7 @@ function FieldChip({
               style={{
                 fontFamily: "var(--v1-mono)",
                 fontWeight: 300,
-                fontSize: 8,
+                fontSize: 7.5,
                 lineHeight: 1,
                 color: "#FFFFFF",
               }}
@@ -526,142 +601,44 @@ function FieldChip({
   );
 }
 
-/* ───────────────────────── FILM-STRIP OWNER CHIP ───────────────────────── */
-
-// Owner chip — single continuous L-shape outline (tab + main body) lifted
-// directly from temp/owner-cableinfocard.svg. The tab area at top-left is
-// outline-only (panel gradient shows through); only the main 75×12 inner
-// rectangle is filled #D9D9D9.
-function FilmStripChip({ label }: { label: string }) {
-  const boxRef = useRef<HTMLSpanElement>(null);
-  const textRef = useRef<HTMLSpanElement>(null);
-
-  // Autoscale long owner names to fit the fixed-width strip: shrink the font
-  // uniformly down to 80%, then condense width-only (scaleX) beyond that so
-  // even the longest names ("Reliance Globalcom (TM IRU)") stay inside.
-  // offsetWidth is layout width (ignores transform) so re-measuring is safe.
-  useLayoutEffect(() => {
-    const box = boxRef.current;
-    const text = textRef.current;
-    if (!box || !text) return;
-    const fit = () => {
-      const ratio = box.clientWidth / Math.max(1, text.offsetWidth);
-      text.style.transform =
-        ratio < 1 ? `scale(${ratio}, ${Math.max(ratio, 0.8)})` : "none";
-    };
-    fit();
-    // Re-fit once webfonts land — the heading font swap changes metrics.
-    void document.fonts?.ready.then(fit);
-  }, [label]);
-
-  return (
-    <span
-      style={{
-        position: "relative",
-        display: "inline-block",
-        width: 130,
-        height: OWNER_CHIP_HEIGHT,
-        flexShrink: 0,
-      }}
-    >
-      <svg
-        viewBox="0 0 86 23"
-        preserveAspectRatio="none"
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
-        }}
-      >
-        {/* Inner gray fill — main body only; the tab area stays transparent
-            so the panel gradient shows through it. */}
-        <rect x="6.6" y="7.6" width="75.4" height="12.6" fill="#D9D9D9" />
-        {/* L-shaped outer outline — exact path from Figma export. */}
-        <path
-          d="M10.7158 5.33203 H85.1221 V22.5771 H4.81934 V10.7168 H0.183594 V0.18457 H10.7158 Z"
-          stroke="#FFFFFF"
-          strokeWidth="1"
-          fill="none"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      {/* Text overlay — positioned inside the main body region only, skipping
-          the tab area (≈13% from left). */}
-      <span
-        ref={boxRef}
-        style={{
-          position: "absolute",
-          top: "33%",
-          bottom: "12.2%",
-          left: "13%",
-          right: "5%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "var(--v1-heading)",
-          fontWeight: 700,
-          fontSize: 10,
-          color: "#F05A22",
-          letterSpacing: "0.06em",
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
-        }}
-      >
-        <span ref={textRef} style={{ display: "inline-block" }}>
-          {label}
-        </span>
-      </span>
-    </span>
-  );
-}
-
 /* ───────────────────────── DESCRIPTION BLOCK ───────────────────────── */
 
-// Integrated frame from temp/description.svg — eyebrow chip is part of the
-// container's outer outline as one continuous stroke (no overlapping borders).
-// Includes a chamfered top-right corner, a bottom-left staircase, and an
-// open-ended inner L-bracket on the left. Text overlays are positioned
-// inside the corresponding viewBox regions.
+// Integrated frame from temp/cablesystem/card.svg — the eyebrow chip is part
+// of the container's outer outline as one continuous stroke (no overlapping
+// borders), with a chamfered top-right corner, a bottom-left staircase, and an
+// open-ended inner L-bracket on the left.
 //
-// The frame is a fixed 104px (the panel body is a fixed Figma frame, so the
-// block can't grow). Copy that doesn't fit used to be silently clipped; now
-// overflow is detected and the text becomes drag-scrollable (pointer-driven —
-// the kiosk root sets touch-action:none, so native pan never fires), with a
-// bottom fade + chevron so the user can SEE there's more.
+// The shape is the one that was here before, stretched: every corner keeps its
+// absolute size and only the left wall's straight run grows, from 91.6 to
+// 170.8. That is what the owner chips paid for.
+//
+// It no longer scrolls. The block holds ten 13px lines at a 320px measure —
+// 53 characters of IBM Plex Mono, whose 0.6em advance makes that arithmetic
+// rather than a guess — and the longest description we carry (SMW4 and SMW5,
+// 426 characters) wraps to nine. So the copy fits outright and the drag-scroll,
+// the fade mask and the "more below" chevron are gone with it. The ceiling is
+// real though: a description past ~500 characters would clip silently.
+const DESC_FRAME =
+  "M132.5034 0 L5.9222 0 H0 V50.425 L29.724 82.952 V170.832 L39.7182 180.418 H411.2734 V38.993 L391.5984 19.338 L151.8604 19.338 Z";
+const DESC_BRACKET =
+  "M61.5715 59.388 H46.2428 L39.0311 50.882 H10.8827 V14.984 H28.476";
+
 function DescriptionBlock({ label, text }: { label: string; text: string }) {
-  const bodyRef = useRef<HTMLParagraphElement | null>(null);
-  const dragRef = useRef<{ y: number; top: number } | null>(null);
-  const [overflowing, setOverflowing] = useState(false);
-  const [atEnd, setAtEnd] = useState(false);
-
-  // Re-measure whenever the copy changes (cable switch / language flip).
-  useEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    el.scrollTop = 0;
-    setOverflowing(el.scrollHeight > el.clientHeight + 1);
-    setAtEnd(false);
-  }, [text]);
-
-  const updateAtEnd = () => {
-    const el = bodyRef.current;
-    if (!el) return;
-    setAtEnd(el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
-  };
-
   return (
     <div
       style={{
-        position: "relative",
-        marginTop: 16,
-        width: "100%",
-        height: 104,
+        position: "absolute",
+        left: DESC_LEFT,
+        top: DESC_TOP,
+        width: DESC_WIDTH,
+        height: DESC_HEIGHT,
       }}
     >
+      {/* Half a pixel of margin in the viewBox so the outline's 1px stroke
+          sits inside the box instead of being clipped in half on all four
+          edges — the path runs along the box's own boundary. */}
       <svg
-        viewBox="0 0 413 103"
+        viewBox={`-0.5 -0.5 ${DESC_WIDTH + 1} ${DESC_HEIGHT + 1}`}
         preserveAspectRatio="none"
         style={{
           position: "absolute",
@@ -671,10 +648,8 @@ function DescriptionBlock({ label, text }: { label: string; text: string }) {
           pointerEvents: "none",
         }}
       >
-        {/* Outer frame — integrated eyebrow chip + container + bottom-left
-            staircase, all as one continuous path. */}
         <path
-          d="M132.941 0.316406L6.24404 0.316763H0.316406V50.7876L30.0676 83.3441V91.6193L40.071 102.077H411.966V39.3451L392.274 19.6723L152.316 19.6719L132.941 0.316406Z"
+          d={DESC_FRAME}
           stroke="#FFFFFF"
           strokeWidth="1"
           fill="none"
@@ -682,19 +657,18 @@ function DescriptionBlock({ label, text }: { label: string; text: string }) {
         />
         {/* Inner L-bracket — open at both ends with a chamfered diagonal. */}
         <path
-          d="M61.9423 59.7585H46.5995L39.3812 51.2446H11.207V15.3145H28.8164"
+          d={DESC_BRACKET}
           stroke="#FFFFFF"
           strokeWidth="1"
           fill="none"
           vectorEffect="non-scaling-stroke"
         />
-        {/* Tight box around the "Description" eyebrow label inside the
-            integrated chip area at top-left. */}
+        {/* Box around the "Description" eyebrow inside the integrated chip. */}
         <rect
-          x="33"
-          y="3"
-          width="64"
-          height="16"
+          x="29.1062"
+          y="6.121"
+          width="71.6179"
+          height="15.145"
           stroke="#FFFFFF"
           strokeWidth="1"
           fill="none"
@@ -702,58 +676,36 @@ function DescriptionBlock({ label, text }: { label: string; text: string }) {
         />
       </svg>
 
-      {/* Eyebrow label — inside the integrated chip area at top-left
-          (matches Figma "Description" glyph position at x≈37, y≈11). */}
       <span
         style={{
           position: "absolute",
-          top: 5,
-          left: "9%",
+          left: 29.1062,
+          top: 6.121,
+          width: 71.6179,
+          height: 15.145,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           fontFamily: "var(--v1-mono)",
           fontWeight: 400,
           fontSize: 8.5,
-          color: "#FFF6F6",
           lineHeight: 1.3,
-          letterSpacing: "0.02em",
+          color: "#FFF6F6",
         }}
       >
         {label}
       </span>
 
-      {/* Body text — right of inner bracket, below the eyebrow chip,
-          above the bottom-left staircase. Drag-scrollable when it overflows;
-          the fade mask lifts once scrolled to the end. */}
+      {/* Body copy — right of the inner bracket, below the eyebrow chip, clear
+          of the bottom-left staircase. 320 wide so it wraps where the export
+          wraps; 130 tall is ten lines, one more than the longest copy needs. */}
       <p
-        ref={bodyRef}
-        onPointerDown={(e) => {
-          if (!overflowing) return;
-          dragRef.current = {
-            y: e.clientY,
-            top: bodyRef.current?.scrollTop ?? 0,
-          };
-        }}
-        onPointerMove={(e) => {
-          const d = dragRef.current;
-          const el = bodyRef.current;
-          if (!d || !el) return;
-          el.scrollTop = d.top - (e.clientY - d.y);
-          updateAtEnd();
-        }}
-        onPointerUp={() => {
-          dragRef.current = null;
-        }}
-        onPointerCancel={() => {
-          dragRef.current = null;
-        }}
-        onPointerLeave={() => {
-          dragRef.current = null;
-        }}
         style={{
           position: "absolute",
-          top: "26%",
-          left: "17%",
-          right: "3%",
-          bottom: "13%",
+          left: 69,
+          top: 40,
+          width: 320,
+          height: 130,
           margin: 0,
           fontFamily: "var(--v1-mono)",
           fontWeight: 300,
@@ -761,41 +713,10 @@ function DescriptionBlock({ label, text }: { label: string; text: string }) {
           lineHeight: "13px",
           color: "#FFFFFF",
           overflow: "hidden",
-          userSelect: "none",
-          touchAction: "none",
-          ...(overflowing && !atEnd
-            ? {
-                WebkitMaskImage:
-                  "linear-gradient(180deg, #000 62%, transparent 100%)",
-                maskImage:
-                  "linear-gradient(180deg, #000 62%, transparent 100%)",
-              }
-            : null),
         }}
       >
         {text}
       </p>
-
-      {/* "More below" chevron — only while overflowing copy hasn't been
-          scrolled to its end. */}
-      {overflowing && !atEnd && (
-        <span
-          aria-hidden
-          className="v1-pulse"
-          style={{
-            position: "absolute",
-            right: "4%",
-            bottom: 2,
-            fontFamily: "var(--v1-mono)",
-            fontSize: 11,
-            lineHeight: 1,
-            color: "#FFFFFF",
-            pointerEvents: "none",
-          }}
-        >
-          ⌄
-        </span>
-      )}
     </div>
   );
 }
