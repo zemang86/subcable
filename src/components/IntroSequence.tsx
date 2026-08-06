@@ -30,29 +30,44 @@ import { useT } from "@/lib/i18n";
 import AttractOverlay from "./AttractOverlay";
 import type { Language } from "@/lib/types";
 
-// ⚠ DRAFT VIDEO SWAP (branch draft-video-swap) — temporary stand-ins from
-// docs/temp-video, re-encoded/copied into public/video as draft-*.mp4. The
-// source idleloop was 10-bit HEVC 4K (won't decode in Chrome/Electron), so it
-// was re-encoded to H.264 8-bit 1080p; emerge/submerge are the drafts as-is and
-// are sub-1080p, so they upscale soft on a kiosk panel.
-// To revert: copy the originals back from docs/final-video/ into public/video
-// (parked there so 26MB of unused clips don't ship in every build) and point
-// these three at them —
-//   CLIP1 = "/video/tm-clip1-underwater-dolly-v2.mp4"
-//   CLIP2 = "/video/tm-clip2-fullseq-fast.mp4"
-//   CLIP3 = "/video/tm-clip3-submerge-loop.mp4"
-const CLIP1 = "/video/draft-idleloop.mp4";
-const CLIP2 = "/video/draft-emerge.mp4";
-const CLIP3 = "/video/draft-submerge.mp4";
+// Final clips, delivered 4K and transcoded to the kiosk's native 1080p (an
+// exact 2:1 downscale) at H.264 High / 8-bit yuv420p — 4K would buy nothing on a
+// 1080p panel while running four warm decoders next to the WebGL globe. Audio is
+// stripped (the emerge clip shipped with an AAC track; the layer is muted).
+// Sources live in temp/video-final/; re-encode with:
+//   ffmpeg -i <src> -vf scale=1920:1080:flags=lanczos -c:v libx264 \
+//     -profile:v high -pix_fmt yuv420p -crf 23 -preset slow -an \
+//     -movflags +faststart <out>
+// CLIP2 and CLIP3 are the same 389 frames forwards and backwards, so they share
+// a duration.
+//
+// CLIP1 is additionally CUT, and does not loop cleanly without it. The delivered
+// 64-frame clip eases its camera to a near-standstill at both ends — first and
+// last frames sit 29.7dB PSNR apart where an ordinary step is 21.3dB, i.e. the
+// wrap moves far LESS than a normal frame — so the dolly visibly pauses about a
+// quarter-second every cycle, and frame 0 is a frozen duplicate besides. Keeping
+// frames 2..61 drops the eased ends and puts the wrap at 21.6dB, back in line
+// with an ordinary step. Prepend to the -vf chain above:
+//   select='between(n\,2\,61)',setpts=N/24/TB   (with -r 24)
+// That fixes the camera but not the glow travelling along the cable, which has
+// no period fitting the clip and so only lines up at the delivered loop point —
+// the very point where the camera stalls. No cut satisfies both; the residual
+// glow shift is what LOOP_FADE_MS covers. The real fix is a re-render that
+// actually loops, not more post.
+const CLIP1 = "/video/idleloop.mp4";
+const CLIP2 = "/video/emerge.mp4";
+const CLIP3 = "/video/submerge.mp4";
 
 // clip1→clip2 handoff: clip2 fades IN over clip1 (held on its matching end
 // frame beneath) across CROSSFADE_MS — a soft dissolve so the emerge "merges"
 // naturally rather than hard-cutting.
 // clip2→globe handoff: cut the emerge clip EARLY_CUT_SEC before its end. The
-// reveal uses the CENTERED emerge bloom (EMERGE_BLOOM_*, 50% 50%) — the globe is
-// centered at this point — plus a slow clip2 dissolve (REVEAL_FADE_MS, below).
-// The shared bloom (BLOOM_RISE/FALL, 40% 50%) is left-biased and now masks ONLY
-// the globe→clip3 submerge, where the live globe sits offset-left.
+// reveal uses the emerge bloom (EMERGE_BLOOM_*) plus a slow clip2 dissolve
+// (REVEAL_FADE_MS, below). The shared bloom (BLOOM_RISE/FALL) masks ONLY the
+// globe→clip3 submerge. BOTH are centred (50% 50%): the submerge one used to be
+// biased left because the live globe sat in its offset working pose, but the
+// teardown now glides the globe back to centre before the bloom fires (GlobeScene
+// GLOBE_RETURN_MS), so a left-biased swell would peak off the globe.
 const EARLY_CUT_SEC = 1.0;
 const BLOOM_RISE_MS = 420;
 const BLOOM_FALL_MS = 700;
@@ -62,26 +77,36 @@ const BLOOM_FALL_MS = 700;
 // dissolve (GlobeScene GLOBE_SLIDE_DELAY_MS ≥ REVEAL_FADE_MS) before sliding left,
 // so there's no double-globe (a centered clip2 lingering over a sliding globe).
 const REVEAL_FADE_MS = 1200;
-// clip3→clip1: crossfade/dissolve over CROSSFADE_MS. Matched to the clip1 loop
-// seam (LOOP_FADE_MS, linear) so the submerge-end dissolve reads the same as the
-// loop seam. After the loop resumes the "tap to begin" prompt fades in after
-// PROMPT_DELAY_MS.
+// clip3→clip1: crossfade/dissolve over CROSSFADE_MS, linear like the loop seam.
+// Deliberately NOT tied to LOOP_FADE_MS any more: this one dissolves between two
+// different clips, so a long fade reads as a soft handoff rather than the
+// double-image a long fade causes at the loop seam (see LOOP_FADE_MS). After the
+// loop resumes the "tap to begin" prompt fades in after PROMPT_DELAY_MS.
 const CROSSFADE_MS = 900;
 const PROMPT_DELAY_MS = 2000;
 // clip1→clip2 (emerge start): longer dissolve so clip2's motion has time to
 // diverge from clip1's frozen matching end frame (a shorter fade reads as a
 // hard cut because the boundary frames are identical).
 const EMERGE_FADE_MS = 1800;
-// clip1→clip2 bloom — its own swell, CENTERED (the globe is still centre at the
-// emerge start; the shared reveal/submerge bloom is biased left for the
-// center→left move). Independent rise/fall so it can be tuned alone.
+// clip1→clip2 bloom — its own swell, centred like the submerge one. Kept as a
+// separate pair purely for independent rise/fall, so the emerge swell can be
+// tuned without touching the submerge's.
 const EMERGE_BLOOM_RISE_MS = 420;
 const EMERGE_BLOOM_FALL_MS = 700;
-// clip1 attract loop is a dolly (start frame ≠ end frame), so native looping
-// jump-cuts at the seam. Two layered clip1 elements (A/B) crossfade instead: as
-// the lead nears its end, the other starts from frame 0 and dissolves in over
-// LOOP_FADE_MS, hiding the seam. Roles then swap, ping-ponging forever.
-const LOOP_FADE_MS = 900;
+// clip1 attract loop is a dolly whose seam can't be made clean in the file (see
+// the CLIP1 note), so two layered elements (A/B) crossfade over it: as the lead
+// nears its end, the other starts from frame 0 and dissolves in over
+// LOOP_FADE_MS. Roles then swap, ping-ponging forever. Neither element ever uses
+// native `loop`, which also rules out the loop-point stall Chrome can hit.
+//
+// TUNING — this is the one dial for the seam, and it trades two artefacts off
+// against each other. The dissolve blends frames LOOP_FADE_MS apart in a moving
+// dolly, so raising it ghosts: measured on this clip, ~250ms visibly doubles the
+// cable's rings, while ~125ms reads as motion blur. Lowering it stops covering
+// the glow shift at the seam. 200ms splits them. Prefer adjusting this over
+// re-introducing any longer fade — past ~250ms the double-image is worse than
+// the glitch it hides.
+const LOOP_FADE_MS = 200;
 const LOOP_FADE_S = LOOP_FADE_MS / 1000;
 // Watchdog for the tap-dead phases (launching/emerge/submerge): every exit from
 // them is driven by a media event, so a clip that errors or stalls would strand
@@ -210,9 +235,9 @@ function IntroSequence({
     // the matching centered globe rather than cutting.
     revealFadingRef.current = true;
     setRevealFading(true);
-    // Centered bloom — the globe is centered at the reveal (clip2 ends centered),
-    // so reuse the clip1→clip2 emerge bloom (50% 50%), NOT the left-biased shared
-    // one (that's for the submerge, where the live globe sits offset-left).
+    // Reuse the clip1→clip2 emerge bloom rather than the shared one: both are
+    // centred now, but this pair has its own rise/fall so the reveal swell stays
+    // tunable apart from the submerge's.
     setEmergeBlooming(true);
     if (emergeBloomTimer.current) clearTimeout(emergeBloomTimer.current);
     emergeBloomTimer.current = setTimeout(() => {
@@ -586,14 +611,15 @@ function IntroSequence({
       )}
 
       {/* Soft bloom / light-bleed — masks the clip2→globe early cut. Radial,
-          biased toward the globe (left of centre), brighter in the core. */}
+          centred on the globe (which the teardown has recentred), brighter in
+          the core. */}
       <div
         aria-hidden
         style={{
           position: "absolute",
           inset: 0,
           background:
-            "radial-gradient(circle at 40% 50%, rgba(224,240,255,0.92) 0%, rgba(150,200,255,0.5) 28%, rgba(80,140,220,0.16) 52%, transparent 70%)",
+            "radial-gradient(circle at 50% 50%, rgba(224,240,255,0.92) 0%, rgba(150,200,255,0.5) 28%, rgba(80,140,220,0.16) 52%, transparent 70%)",
           opacity: blooming ? 1 : 0,
           transition: `opacity ${blooming ? BLOOM_RISE_MS : BLOOM_FALL_MS}ms ease`,
           pointerEvents: "none",
@@ -601,9 +627,9 @@ function IntroSequence({
         }}
       />
 
-      {/* Emerge bloom — clip1→clip2 seam only. CENTERED (globe still centre at
-          emerge start), with its own rise/fall so it tunes independently of the
-          left-biased reveal/submerge bloom above. */}
+      {/* Emerge bloom — clip1→clip2 seam and the clip2→globe reveal. Same centred
+          geometry as the submerge bloom above; kept separate only so its
+          rise/fall tunes independently. */}
       <div
         aria-hidden
         style={{
