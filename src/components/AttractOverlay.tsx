@@ -31,10 +31,7 @@ const TITLE_WHITE = "#FAFEFF";
 const SCRIM = "2, 18, 38";
 
 /**
- * Partner marks along the bottom. Real artwork drops in by setting `src` to a
- * path under public/; until then each falls back to its initials in the same
- * frame, so a partly-supplied set still reads as one row rather than a broken
- * one.
+ * Partner marks along the bottom.
  *
  * Every mark sits on a white plate. That isn't only for legibility over the
  * clip: TM's brand sheet (docs/TMGlobal_quickreference.pdf) says to use the
@@ -42,17 +39,28 @@ const SCRIM = "2, 18, 38";
  * the logo sitting straight on a busy photograph — which is what the attract
  * clip is. The plate turns a prohibited backdrop into the sanctioned one.
  *
- * Note for whoever adds the other two: neither public/tm-logo.png nor the
- * design system's docs/.../assets/logo-tm-global.png is a TM Global logo
- * despite the filename — both are the plain TM corporate mark, missing the
- * GLOBAL wordmark. public/logo-tm-global.png is the real lockup.
+ * Note on the TM Global file: neither public/tm-logo.png nor the design
+ * system's docs/.../assets/logo-tm-global.png is a TM Global logo despite the
+ * filename — both are the plain TM corporate mark, missing the GLOBAL
+ * wordmark. public/logo-tm-global.png is the real lockup, and it is the RGB
+ * cut: its blue is #1800E6, which is the sheet's digital primary (#1800E7).
+ * The client also supplies a CMYK-derived cut at #005EAD — that one is for
+ * print and must not be used here.
+ *
+ * `scale` is the mark's height as a fraction of the plate, and the three
+ * values are not a guess: matching heights would leave the Yayasan lockup
+ * (5.0:1) looming and the Muzium one (1.1:1) looking undersized. Each mark's
+ * artwork was measured for the share of its box that is actually inked —
+ * 31% / 17% / 24% — and the heights solve for equal ink area, which is what
+ * the eye weighs. Anchor is TM Global at 78px on a 1080p kiosk, comfortably
+ * over the sheet's 56px digital floor.
  */
-type Mark = { initials: string; name: string; src?: string };
+type Mark = { name: string; src: string; scale: number };
 
 const MARKS: Mark[] = [
-  { initials: "YTM", name: "Yayasan TM" },
-  { initials: "MT", name: "Muzium Telegraf" },
-  { initials: "TMG", name: "TM Global", src: "/logo-tm-global.png" },
+  { name: "Yayasan TM", src: "/logo-yayasan-tm.webp", scale: 0.442 },
+  { name: "Muzium Telegraf Taiping", src: "/logo-muzium-telegraf.webp", scale: 0.767 },
+  { name: "TM Global", src: "/logo-tm-global.png", scale: 0.605 },
 ];
 
 /** Stagger for the entrance — title leads, the call to action trails. */
@@ -110,18 +118,16 @@ export default function AttractOverlay({
 
 function LogoMark({ mark }: { mark: Mark }) {
   return (
-    <span style={markCell}>
-      <span style={markPlate}>
-        {mark.src ? (
-          // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer
-          <img src={mark.src} alt={mark.name} style={markImage} />
-        ) : (
-          <span style={markInitials}>{mark.initials}</span>
-        )}
-      </span>
-      {/* Only placeholders need naming — a real lockup carries its own
-          wordmark, so captioning it would just say the same thing twice. */}
-      {!mark.src && <span style={markName}>{mark.name}</span>}
+    <span style={markPlate}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
+      <img
+        src={mark.src}
+        alt={mark.name}
+        style={{
+          ...markImage,
+          height: `calc(${PLATE_HEIGHT} * ${mark.scale})`,
+        }}
+      />
     </span>
   );
 }
@@ -203,12 +209,12 @@ const cta: CSSProperties = {
 };
 
 /**
- * TM's sheet sets a 56px floor for the logo in digital and a clear space either
- * side of one 'X'. The floor is the clamp minimum rather than a mid value, so a
- * short dev window shrinks the gaps and never the mark itself; the row gap is
- * the clear space, generous because three brands sit side by side.
+ * Every plate is this tall and only as wide as its mark needs, so the row reads
+ * as one band rather than three floating tiles. The lower bound is what keeps
+ * TM Global over the sheet's 56px digital floor once its 0.605 scale is applied
+ * (93 × 0.605 ≈ 56) — a short dev window shrinks the gaps, never the marks.
  */
-const MARK_HEIGHT = "clamp(56px, 6.5vh, 78px)";
+const PLATE_HEIGHT = "clamp(93px, 11.9vh, 129px)";
 
 const markRow: CSSProperties = {
   position: "absolute",
@@ -216,61 +222,29 @@ const markRow: CSSProperties = {
   right: 0,
   bottom: "5vh",
   display: "flex",
-  alignItems: "flex-end",
+  alignItems: "center",
   justifyContent: "center",
   gap: "clamp(40px, 6vw, 104px)",
-};
-
-const markCell: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: 10,
 };
 
 /**
  * The white plate. Square, not rounded — the brand sheet's own DO panel shows
  * the logo on a plain rectangle, and the rest of this app's chrome is
- * hard-edged. The padding is the clear space the sheet asks for; the plate
- * sizes to whatever sits inside it, so a wide lockup and a short set of
- * initials both keep the same margin.
+ * hard-edged. Fixed height, auto width: the side padding is the clear space,
+ * so a wide lockup and a near-square one keep the same margin.
  */
 const markPlate: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minWidth: "clamp(104px, 14vh, 164px)",
-  padding: "clamp(10px, 1.4vh, 17px) clamp(16px, 2.2vh, 26px)",
+  height: PLATE_HEIGHT,
+  padding: "0 clamp(16px, 2.2vh, 26px)",
   boxSizing: "border-box",
   background: "#FFFFFF",
 };
 
 const markImage: CSSProperties = {
   display: "block",
-  height: MARK_HEIGHT,
   width: "auto",
   objectFit: "contain",
-};
-
-const markInitials: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  height: MARK_HEIGHT,
-  fontFamily: "var(--v1-display)",
-  fontWeight: 700,
-  fontSize: "clamp(15px, 2.6vh, 30px)",
-  letterSpacing: "0.08em",
-  // Neutral slate rather than any TM blue — a placeholder shouldn't imply a
-  // brand colour it hasn't been given.
-  color: "#22303F",
-};
-
-const markName: CSSProperties = {
-  fontFamily: "var(--v1-mono)",
-  fontWeight: 400,
-  fontSize: "clamp(9px, 1.35vh, 15px)",
-  letterSpacing: "0.16em",
-  textTransform: "uppercase",
-  color: "rgba(255, 255, 255, 0.72)",
 };
