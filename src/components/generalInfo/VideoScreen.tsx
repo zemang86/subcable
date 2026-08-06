@@ -83,7 +83,6 @@ export default function VideoScreen({
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        gap: 14,
         padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
       }}
     >
@@ -94,7 +93,9 @@ export default function VideoScreen({
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
-          padding: "14px 16px",
+          // Title and player start 25px down from the frame's top edge — the
+          // frame itself is drawn at inset 0, so only the contents move.
+          padding: "39px 16px 14px",
         }}
       >
         <VideoFrame />
@@ -115,167 +116,197 @@ export default function VideoScreen({
         {/* Player = picture stacked above its controls, both inside the one
             bordered frame. The control bar is in normal flow, not floated over
             the picture: on a kiosk it is always visible, so overlaying it would
-            permanently cover the bottom of every clip. The stage takes whatever
-            height is left, which is why the picture is shorter than the frame. */}
+            permanently cover the bottom of every clip.
+
+            The sizer holds the export's proportions. Left to fill the column
+            the player stretched to about 1.8:1, which reads as a tall box; the
+            export draws it 414.184 x 162.934 counting the bar. Shrink is still
+            allowed, so a short window loses height rather than overflowing.
+
+            The ratio sits on the sizer, not on the player: the player is what
+            goes fullscreen, and it has to fill the screen there rather than
+            hold a 2.54:1 letterbox in the middle of it. */}
         <div
-          ref={frameRef}
           style={{
-            position: "relative",
-            flex: 1,
+            flex: "0 1 auto",
             minHeight: 0,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            borderRadius: 8,
-            border: "1px solid rgba(255, 255, 255, 0.85)",
-            background: "#000000",
+            width: "100%",
+            aspectRatio: PLAYER_ASPECT,
           }}
         >
-          <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-            {started && screen.src ? (
-              <video
-                ref={videoRef}
-                src={screen.src}
-                poster={screen.poster.src}
-                autoPlay
-                muted={muted}
-                playsInline
-                onClick={toggle}
-                onPlay={() => setPaused(false)}
-                onPause={() => setPaused(true)}
-                onLoadedMetadata={(e) => setLength(e.currentTarget.duration)}
-                onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-                onEnded={() => {
-                  setStarted(false);
-                  setPaused(true);
-                  setTime(0);
-                }}
-                // A clip that fails to load or decode must fall back to the
-                // poster and release the idle hold — otherwise the attractor
-                // never fires again for the rest of the exhibit day.
-                onError={() => {
-                  setStarted(false);
-                  setPaused(true);
-                  setTime(0);
-                }}
-                // contain, not cover: the two clips aren't the same aspect (16:9
-                // and 4:3) and cropping a documentary frame to fill is worse than
-                // pillarboxing it against the black backing.
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                }}
-              />
-            ) : (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
-                <img
-                  src={screen.poster.src}
-                  alt={screen.poster.alt}
+          <div
+            ref={frameRef}
+            style={{
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              borderRadius: 8,
+              border: "1px solid rgba(255, 255, 255, 0.85)",
+              background: "#000000",
+            }}
+          >
+            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+              {started && screen.src ? (
+                <video
+                  ref={videoRef}
+                  src={screen.src}
+                  poster={screen.poster.src}
+                  autoPlay
+                  muted={muted}
+                  playsInline
+                  onClick={toggle}
+                  onPlay={() => setPaused(false)}
+                  onPause={() => setPaused(true)}
+                  onLoadedMetadata={(e) => setLength(e.currentTarget.duration)}
+                  onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+                  onEnded={() => {
+                    setStarted(false);
+                    setPaused(true);
+                    setTime(0);
+                  }}
+                  // A clip that fails to load or decode must fall back to the
+                  // poster and release the idle hold — otherwise the attractor
+                  // never fires again for the rest of the exhibit day.
+                  onError={() => {
+                    setStarted(false);
+                    setPaused(true);
+                    setTime(0);
+                  }}
+                  // contain, not cover: the two clips aren't the same aspect (16:9
+                  // and 4:3) and cropping a documentary frame to fill is worse than
+                  // pillarboxing it against the black backing.
                   style={{
                     position: "absolute",
                     inset: 0,
                     width: "100%",
                     height: "100%",
-                    objectFit: "cover",
+                    objectFit: "contain",
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={toggle}
-                  aria-label={playable ? `Play ${screen.title}` : "Video pending"}
-                  aria-disabled={!playable}
-                  className="v1-pressable"
+              ) : (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
+                  <img
+                    src={screen.poster.src}
+                    alt={screen.poster.alt}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    aria-label={playable ? `Play ${screen.title}` : "Video pending"}
+                    aria-disabled={!playable}
+                    className="v1-pressable"
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      width: 108,
+                      height: 108,
+                      borderRadius: "50%",
+                      border: "none",
+                      background: "var(--v1-blue)",
+                      cursor: playable ? "pointer" : "default",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                    }}
+                  >
+                    <svg width="36" height="40" viewBox="0 0 24 24" aria-hidden>
+                      <polygon points="7,4 21,12 7,20" fill="var(--v1-orange)" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+
+            <ControlBar
+              live={playable}
+              playing={playing}
+              muted={muted}
+              time={time}
+              length={length}
+              durationLabel={screen.duration}
+              onToggle={toggle}
+              onMute={() => setMuted((m) => !m)}
+              onSeek={seekTo}
+              onFullscreen={toggleFullscreen}
+            />
+          </div>
+        </div>
+
+        {/* Pager, inside the frame and under the player rather than under the
+            frame: the export lines the arrow's right edge up with the video
+            box's own, and centres the dots on that same box. Both fall out of
+            putting the row in the frame's padding box, which is exactly the
+            player's width. */}
+        <div
+          style={{
+            position: "relative",
+            marginTop: PAGER_GAP,
+            minHeight: TOUCH,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div style={{ display: "flex" }}>
+            {Array.from({ length: count }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onSelect(i)}
+                aria-label={`Video ${i + 1}`}
+                aria-current={i === index}
+                style={{
+                  // Each button is exactly the export's dot pitch wide, so the
+                  // hit areas tile without overlapping — widening one would eat
+                  // into its neighbour. They gain their reach vertically.
+                  width: DOT_PITCH,
+                  height: TOUCH,
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <span
                   style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: 108,
-                    height: 108,
+                    width: DOT,
+                    height: DOT,
                     borderRadius: "50%",
-                    border: "none",
-                    background: "var(--v1-blue)",
-                    cursor: playable ? "pointer" : "default",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 0,
+                    background: i === index ? DOT_ON : DOT_OFF,
                   }}
-                >
-                  <svg width="36" height="40" viewBox="0 0 24 24" aria-hidden>
-                    <polygon points="7,4 21,12 7,20" fill="var(--v1-orange)" />
-                  </svg>
-                </button>
-              </>
-            )}
+                />
+              </button>
+            ))}
           </div>
 
-          <ControlBar
-            live={playable}
-            playing={playing}
-            muted={muted}
-            time={time}
-            length={length}
-            durationLabel={screen.duration}
-            onToggle={toggle}
-            onMute={() => setMuted((m) => !m)}
-            onSeek={seekTo}
-            onFullscreen={toggleFullscreen}
-          />
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          minHeight: 48,
-        }}
-      >
-        <div style={{ display: "flex", gap: 10 }}>
-          {Array.from({ length: count }, (_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onSelect(i)}
-              aria-label={`Video ${i + 1}`}
-              aria-current={i === index}
-              style={{
-                width: 24,
-                height: 24,
-                padding: 0,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: "50%",
-                  background:
-                    i === index ? "var(--v1-blue)" : "rgba(255, 255, 255, 0.55)",
-                }}
-              />
-            </button>
-          ))}
-        </div>
-
-        <div style={{ position: "absolute", right: 0, display: "flex", gap: 10 }}>
-          {index > 0 && <StepButton direction="prev" onClick={() => onStep(-1)} />}
-          {index < count - 1 && (
-            <StepButton direction="next" onClick={() => onStep(1)} />
-          )}
+          <div
+            style={{ position: "absolute", right: 0, display: "flex", gap: 10 }}
+          >
+            {index > 0 && (
+              <StepButton direction="prev" onClick={() => onStep(-1)} />
+            )}
+            {index < count - 1 && (
+              <StepButton direction="next" onClick={() => onStep(1)} />
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -297,6 +328,21 @@ export default function VideoScreen({
  * two 45° cuts in CSS to avoid that would be far more code and no more faithful.
  * non-scaling-stroke holds every line at the export's ~2px.
  */
+/** The export's player box, control bar included: 414.184 x 162.934. */
+const PLAYER_ASPECT = 414.184 / 162.934;
+
+/**
+ * Pager dots, from video-dots.svg: r 2.41272 at a 9.651 centre-to-centre pitch,
+ * scaled by the panel's 1040 over the export's 472 (x2.203). The two tones are
+ * the export's own, and neither is a token this app already carries.
+ */
+const DOT = 11;
+const DOT_PITCH = 21;
+const DOT_ON = "#FF5E00";
+const DOT_OFF = "#FFCEB1";
+/** Clear between the bottom of the video box and the pager row. */
+const PAGER_GAP = 19;
+
 const VIDEO_FRAME_VIEWBOX = "0 0 439 244";
 const VIDEO_FRAME = [
   "M0.439697 229.557V14.161L14.5096 0.439697H65.5129L70.051 4.9778H135.542",
