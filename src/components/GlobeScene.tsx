@@ -65,6 +65,24 @@ const DEV_NO_IDLE =
   process.env.NODE_ENV !== "production" &&
   process.env.NEXT_PUBLIC_DEV_NO_IDLE === "1";
 
+// Sibling escape hatch: `NEXT_PUBLIC_DEV_IDLE_MS=10000` SHORTENS the idle window
+// so the submerge → attract → emerge cycle can be exercised without sitting
+// through the real one. Same reasoning as DEV_NO_IDLE — env file, not a source
+// constant, and NODE_ENV-guarded — because a shortened idle window hardcoded
+// here is precisely the bug 93e4609 had to fix. 0/unset = the real window.
+const DEV_IDLE_MS =
+  process.env.NODE_ENV !== "production"
+    ? Number(process.env.NEXT_PUBLIC_DEV_IDLE_MS) || 0
+    : 0;
+/** Kiosk idle window. */
+const IDLE_MS = DEV_IDLE_MS || 60_000;
+/**
+ * Pre-idle countdown toast. Capped at the usual 10s, but scaled down for a short
+ * dev window — at idleMs === warnMs the hook fires the warning at t=0, so a 10s
+ * dev window would sit under a permanent countdown instead of idling.
+ */
+const IDLE_WARN_MS = Math.min(10_000, Math.round(IDLE_MS * 0.3));
+
 // Quantized zoom buckets — three-globe rebuilds TextGeometry whenever
 // labelSize / labelDotRadius returns a new value. A continuous scalar from
 // piecewiseByZoom triggers ~163 dispose+tessellate-glyph-paths per zoom tick →
@@ -234,10 +252,18 @@ const COUNTRY_NAME_ALIASES: Record<string, string> = {
   "United States": "United States of America",
 };
 
-// Default + Malaysia-recenter coordinates.
+// Home pose. LOCKED TO THE VIDEO: the emerge clip was rendered from a globe
+// shot taken at exactly these coordinates, so its last frame — which is also
+// the submerge clip's first frame — shows the sphere in this pose. Anything
+// that hands off to or from a clip has to fly here, or the globe visibly
+// rotates under the bloom. Don't retune without re-rendering the clips.
 const DEFAULT_LAT = 5;
 const DEFAULT_LNG = 108;
 const DEFAULT_ALT = 2.2;
+// "Recenter on Malaysia" (compass button) only — a tighter framing on the
+// peninsula, and deliberately NOT the same as the home pose above, which sits
+// further east over the South China Sea to take in Sabah and Sarawak too.
+// Never use these for a video handoff.
 const MY_LAT = 4.2105;
 const MY_LNG = 101.9758;
 const MY_ALT = 2.2;
@@ -373,15 +399,16 @@ export default function GlobeScene() {
   // and the panel lowers it on unmount so closing mid-play can't strand it.
   const [holdIdle, setHoldIdle] = useState(false);
 
-  // Idle attractor (§H.12): fires after ~60s of no interaction. Suspended
-  // unless the live globe is up (the attract/emerge/submerge clips own those
-  // phases), and while a call animation or a Fun Fact clip runs — watching IS
-  // engagement, and both produce zero touches over well past the window (long
-  // routes travel >60s; the repair clip is 3:08). The timer re-arms fresh on
-  // unsuspend, so a finished clip buys a full 60s rather than a leftover slice.
+  // Idle attractor (§H.12): fires after IDLE_MS of no interaction (~60s, unless
+  // a dev override is set — see DEV_IDLE_MS). Suspended unless the live globe is
+  // up (the attract/emerge/submerge clips own those phases), and while a call
+  // animation or a Fun Fact clip runs — watching IS engagement, and both produce
+  // zero touches over well past the window (long routes travel >60s; the repair
+  // clip is 3:08). The timer re-arms fresh on unsuspend, so a finished clip buys
+  // a full window rather than a leftover slice.
   const { isIdle, warnSecondsLeft } = useIdleAttractor(
-    60_000,
-    undefined,
+    IDLE_MS,
+    IDLE_WARN_MS,
     DEV_NO_IDLE ||
       !revealed ||
       submerging ||
@@ -420,7 +447,12 @@ export default function GlobeScene() {
   // Reveal beats (from the moment the bare globe is shown): hold, then beam the
   // network on; then a further hold before the chrome panels boot in. Spreads
   // the reveal out instead of everything firing at once.
-  const BEAM_DELAY_MS = 500; // bare globe → network pulses on
+  // The hold is long enough to read the bare globe as a globe before the network
+  // draws itself over it, which also puts the beam just after the globe starts
+  // gliding left (GLOBE_SLIDE_DELAY_MS) — so the trace plays across the move
+  // rather than onto a static globe. The trace runs 3s from here (cableFlow
+  // BOOT_DURATION_SEC), overlapping the chrome boot by design.
+  const BEAM_DELAY_MS = 1500; // bare globe → network pulses on
   // Center→offset slide: globe is revealed centered (matching clip2's last
   // frame) and holds while clip2 dissolves out over it (IntroSequence
   // REVEAL_FADE_MS ≈ 1200ms — the hold MUST outlast it so clip2 isn't still
@@ -431,9 +463,21 @@ export default function GlobeScene() {
   // Chrome boots once the globe is most of the way through its slide (cleared the
   // right side) so the panels never appear over a still-centered globe.
   const CHROME_AT_SLIDE_FRAC = 0.65;
+  // Submerge return: the globe gives up its offset pose and slides back to
+  // centre while the camera recenters onto the canonical pose. Both have to
+  // happen — clip3 opens on a CENTRED globe, so leaving the viewport offset in
+  // place would hand the bloom off to a globe sitting left of where the video
+  // picks it up. One constant drives the slide and the flyTo so they land
+  // together.
+  const GLOBE_RETURN_MS = 1200;
   // Submerge: how long the chrome takes to animate OUT before clip3 blooms in —
   // the reverse cascade (last slot 760ms delay + 600ms slide ≈ 1360ms).
   const CHROME_EXIT_MS = 1450;
+  // Then a beat on the bare, centred globe before the video takes over, so the
+  // teardown (network out → panels out → globe back to centre) is allowed to
+  // land before clip3 blooms over it. Counted from the END of the chrome exit,
+  // which outlasts GLOBE_RETURN_MS, so everything is settled when it starts.
+  const SUBMERGE_HOLD_MS = 1000;
   const [chromeReady, setChromeReady] = useState(false);
   const [bootStage, setBootStage] = useState(0);
   // `chromeExiting` keeps the panels mounted (with v1-exit-* classes) while they
@@ -497,17 +541,28 @@ export default function GlobeScene() {
   }, []);
 
   // Inactivity while live (useIdleAttractor fires only when revealed) →
-  // submerge: recenter the globe to the canonical recenter pose (so it matches
-  // clip3's framing — the bloom must hand off at the same position/zoom), the
-  // chrome reverses out (panels slide back to their edges), then once they're
-  // gone IntroSequence blooms the globe into clip3. The 1200ms recenter lands
-  // well before the bloom (CHROME_EXIT_MS).
+  // submerge, torn down in the reverse order it was built: the network powers
+  // down, the chrome reverses out (panels slide back to their edges) and the
+  // globe recenters to the HOME pose (so it matches clip3's framing — the bloom
+  // must hand off at the same position/zoom). Once all three have landed,
+  // a SUBMERGE_HOLD_MS beat on the bare globe, then IntroSequence blooms it into
+  // clip3. The 1200ms recenter finishes inside the chrome exit, so the hold
+  // starts with everything already settled.
   useEffect(() => {
     if (isIdle && revealed && !submerging) {
       setSubmerging(true);
       setChromeExiting(true); // panels animate out (still mounted)
+      setNetworkDormant(true); // lines drop out ahead of the handoff
+      setCableBootAt(0); // so the next reveal re-runs the power-on trace
+      setGlobeSlid(false); // viewport offset glides back to centre
       cancelFly();
-      flyTo({ lat: MY_LAT, lng: MY_LNG, altitude: MY_ALT }, 1200); // recenter
+      // ...and the camera recenters over the same window (see GLOBE_RETURN_MS).
+      // DEFAULT_*, not MY_*: clip3 opens on the globe in the home pose, so
+      // handing off from anywhere else rotates the sphere under the bloom.
+      flyTo(
+        { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
+        GLOBE_RETURN_MS,
+      );
       setOpenDialog(null);
       setSelectedCable(null);
       setSelectedLandingPoint(null);
@@ -517,7 +572,9 @@ export default function GlobeScene() {
         setChromeExiting(false);
         setChromeReady(false); // unmount the (now hidden) panels
         setBootStage(0);
-        setSubmergePlay(true); // → IntroSequence blooms into clip3
+        submergeTimer.current = setTimeout(() => {
+          setSubmergePlay(true); // → IntroSequence blooms into clip3
+        }, SUBMERGE_HOLD_MS);
       }, CHROME_EXIT_MS);
     }
   }, [isIdle, revealed, submerging, cancelFly, flyTo]);
@@ -1500,12 +1557,17 @@ export default function GlobeScene() {
           // clip2 ends centered, so the globe is revealed centered then slides
           // left into its working pose (clears the right-side panels). The bleed
           // margin keeps the oversized canvas edges off-screen throughout the
-          // slide. `globeSlid` false→true animates; the reset back to false
-          // happens while the globe is hidden, so it's left non-transitioning. (v8)
+          // slide, in both directions. `globeSlid` false→true animates out over
+          // GLOBE_SLIDE_MS; on submerge it animates back to centre over the
+          // shorter GLOBE_RETURN_MS, so clip3 blooms onto a centred globe. The
+          // final reset (handleReachedIdle) lands while the globe is hidden and
+          // is already at centre by then, so it's left non-transitioning. (v8)
           transform: `translateX(${globeSlid ? globeOffsetX(dimensions.width) : 0}px)`,
           transition: globeSlid
             ? `transform ${GLOBE_SLIDE_MS}ms cubic-bezier(0.45, 0, 0.55, 1)`
-            : "none",
+            : submerging
+              ? `transform ${GLOBE_RETURN_MS}ms cubic-bezier(0.45, 0, 0.55, 1)`
+              : "none",
           willChange: "transform",
         }}
       >
