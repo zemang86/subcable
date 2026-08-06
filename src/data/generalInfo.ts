@@ -2,10 +2,9 @@
  * Content for the General Information panel (the "i" cluster button).
  *
  * Five tabs, each with its own layout and composition — so a screen carries a
- * `kind` and the panel renders the matching layout component. Screens inside a
- * tab auto-advance every INFO_SLIDE_MS and loop back to the first; the bar
- * under the copy is that countdown. Videos opt out (`autoAdvance: false`) —
- * rotating away from a playing clip would be wrong.
+ * `kind` and the panel renders the matching layout component. A tab's screens
+ * are stepped by hand; the panel used to advance them itself every 10s with a
+ * countdown bar under the copy, and the client dropped both.
  *
  * ── Bilingual ──────────────────────────────────────────────────────────────
  * Every visible string is an `L` pair: { en, bm }. The screen components still
@@ -120,8 +119,6 @@ type InfoTabSource = {
   id: string;
   label: L;
   screens: InfoScreenSource[];
-  /** Defaults to true; false parks the hold timer for that tab. */
-  autoAdvance?: boolean;
 };
 
 export type InfoImage = Resolved<InfoImageSource>;
@@ -132,9 +129,6 @@ export type EraScreen = Resolved<EraScreenSource>;
 export type VideoScreen = Resolved<VideoScreenSource>;
 export type InfoScreen = Resolved<InfoScreenSource>;
 export type InfoTab = Resolved<InfoTabSource>;
-
-/** How long one screen holds before the tab advances to its next screen. */
-export const INFO_SLIDE_MS = 10_000;
 
 const INFO_TABS_SOURCE: InfoTabSource[] = [
   {
@@ -480,7 +474,6 @@ const INFO_TABS_SOURCE: InfoTabSource[] = [
     id: "videos",
     // BM doesn't inflect for plural — "Video" covers both.
     label: { en: "Videos", bm: "Video" },
-    autoAdvance: false,
     screens: [
       {
         kind: "video",

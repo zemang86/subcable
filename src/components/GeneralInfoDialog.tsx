@@ -1,14 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
-import {
-  INFO_SLIDE_MS,
-  getInfoTabs,
-  type InfoScreen,
-} from "@/data/generalInfo";
+import { getInfoTabs, type InfoScreen } from "@/data/generalInfo";
 import { PANEL_PAD, type ScreenProps } from "./generalInfo/shared";
 import OverviewScreen from "./generalInfo/OverviewScreen";
 import MaterialScreen from "./generalInfo/MaterialScreen";
@@ -54,11 +50,10 @@ export default function GeneralInfoDialog({
 }: GeneralInfoDialogProps) {
   const t = useT(language);
   const [tabIndex, setTabIndex] = useState(0);
-  // Screen within the active tab. `cycle` bumps on any manual move so the hold
-  // timer and the countdown bar restart together, even when the target screen
-  // is the one already showing.
+  // Screen within the active tab. Nothing moves it but a touch — the panel used
+  // to hold each screen for 10s and advance itself, with the bar under the copy
+  // as its countdown. The client dropped both.
   const [screenIndex, setScreenIndex] = useState(0);
-  const [cycle, setCycle] = useState(0);
 
   // Same structure in both languages — only the strings differ, so the active
   // tab and screen survive a language switch.
@@ -68,37 +63,14 @@ export default function GeneralInfoDialog({
   const screens = tab.screens;
   const screen = screens[screenIndex];
   const count = screens.length;
-  const counting = count > 1 && tab.autoAdvance !== false;
-  // Single-screen tabs still show the design's countdown rail, but with nothing
-  // to advance to it simply cycles.
-  const barRepeat = count < 2;
-
-  // Auto-advance, looping back to the first screen of the same tab.
-  useEffect(() => {
-    if (!counting) return;
-    const hold = setTimeout(
-      () => setScreenIndex((i) => (i + 1) % count),
-      INFO_SLIDE_MS,
-    );
-    return () => clearTimeout(hold);
-  }, [screenIndex, cycle, count, counting]);
 
   const selectTab = useCallback((i: number) => {
     setTabIndex(i);
     setScreenIndex(0);
-    setCycle((c) => c + 1);
-  }, []);
-
-  const selectScreen = useCallback((i: number) => {
-    setScreenIndex(i);
-    setCycle((c) => c + 1);
   }, []);
 
   const step = useCallback(
-    (delta: number) => {
-      setScreenIndex((i) => (i + delta + count) % count);
-      setCycle((c) => c + 1);
-    },
+    (delta: number) => setScreenIndex((i) => (i + delta + count) % count),
     [count],
   );
 
@@ -166,12 +138,10 @@ export default function GeneralInfoDialog({
             {screen ? (
               <ScreenLayout
                 screen={screen}
-                cycleKey={`${tab.id}-${screenIndex}-${cycle}`}
-                barRepeat={barRepeat}
                 index={screenIndex}
                 count={count}
                 onStep={step}
-                onSelect={selectScreen}
+                onSelect={setScreenIndex}
                 siblings={screens}
                 onHoldIdle={onHoldIdle}
               />
@@ -344,73 +314,101 @@ function PendingTab({ label }: { label: string }) {
 // at any fluid panel size. Top + bottom 50px U-brackets, plus left + right
 // vertical rails that stop short of the brackets to create the HUD gap.
 
-const FRAME_BRACKET_HEIGHT = 50;
-const FRAME_RAIL_INSET = 60; // rails start 60px from top/bottom (10px gap past bracket)
+/**
+ * Geometry from temp/funfact/general-infoframe.svg, a 470-unit-wide drawing
+ * scaled onto this 1040px panel (×2.213). It replaces a pair of full-width U
+ * brackets: the export draws an L at each corner instead, twice the weight of
+ * everything else (exactly 2 — 1.33813 against 0.669067), with hairline edges
+ * running between them.
+ *
+ * Two things about it are deliberately not symmetric, and are what make it read
+ * as a HUD rather than a box:
+ *   · the top and bottom edges each break once near the middle, at different
+ *     places and different widths;
+ *   · the side rails stop well short of the lower brackets, the right one
+ *     ~30px further clear than the left.
+ *
+ * The export is 470×287 where the panel is 1040×780, so the vertical measures
+ * can't come from its own height — a rail expressed as a fraction of 287 would
+ * land nowhere near its bracket here. They're taken relative to the bracket
+ * arm instead, which keeps one scale for the whole frame.
+ */
+const FRAME_ARM_X = 57;
+const FRAME_ARM_Y = 43;
+/** Corner brackets are drawn at twice the weight of the rails and edges. */
+const FRAME_ARM_WEIGHT = 2;
+/** Break where an edge meets a bracket — the export runs 7–12px, near enough. */
+const FRAME_GAP = 10;
+const RAIL_TOP = FRAME_ARM_Y + 16;
+const RAIL_BOTTOM_LEFT = FRAME_ARM_Y + 54;
+const RAIL_BOTTOM_RIGHT = FRAME_ARM_Y + 85;
+/** Mid-edge breaks: where the gap is centred, and how wide it runs. */
+const TOP_BREAK = { at: 55.56, width: 9 };
+const BOTTOM_BREAK = { at: 44.67, width: 18 };
 
 function PanelFrame() {
-  const lineColor = "#FFFFFF";
+  const line = "1px solid #FFFFFF";
+  const arm = `${FRAME_ARM_WEIGHT}px solid #FFFFFF`;
+  const edgeEnd = FRAME_ARM_X + FRAME_GAP;
+
+  const parts: CSSProperties[] = [
+    // Corner brackets.
+    { top: 0, left: 0, borderTop: arm, borderLeft: arm },
+    { top: 0, right: 0, borderTop: arm, borderRight: arm },
+    { bottom: 0, left: 0, borderBottom: arm, borderLeft: arm },
+    { bottom: 0, right: 0, borderBottom: arm, borderRight: arm },
+  ].map((corner) => ({
+    width: FRAME_ARM_X,
+    height: FRAME_ARM_Y,
+    ...corner,
+  }));
+
+  const edges: CSSProperties[] = [
+    // Top edge, either side of its break.
+    {
+      top: 0,
+      left: edgeEnd,
+      right: `calc(${100 - TOP_BREAK.at}% + ${TOP_BREAK.width / 2}px)`,
+      borderTop: line,
+    },
+    {
+      top: 0,
+      left: `calc(${TOP_BREAK.at}% + ${TOP_BREAK.width / 2}px)`,
+      right: edgeEnd,
+      borderTop: line,
+    },
+    // Bottom edge, either side of its own.
+    {
+      bottom: 0,
+      left: edgeEnd,
+      right: `calc(${100 - BOTTOM_BREAK.at}% + ${BOTTOM_BREAK.width / 2}px)`,
+      borderBottom: line,
+    },
+    {
+      bottom: 0,
+      left: `calc(${BOTTOM_BREAK.at}% + ${BOTTOM_BREAK.width / 2}px)`,
+      right: edgeEnd,
+      borderBottom: line,
+    },
+    // Side rails.
+    { left: 0, top: RAIL_TOP, bottom: RAIL_BOTTOM_LEFT, borderLeft: line },
+    { right: 0, top: RAIL_TOP, bottom: RAIL_BOTTOM_RIGHT, borderRight: line },
+  ];
+
   return (
     <>
-      {/* Top U bracket — top + left + right borders, no bottom */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: FRAME_BRACKET_HEIGHT,
-          borderTop: `1px solid ${lineColor}`,
-          borderLeft: `1px solid ${lineColor}`,
-          borderRight: `1px solid ${lineColor}`,
-          pointerEvents: "none",
-          zIndex: 2,
-        }}
-      />
-      {/* Bottom U bracket — bottom + left + right borders, no top */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: FRAME_BRACKET_HEIGHT,
-          borderBottom: `1px solid ${lineColor}`,
-          borderLeft: `1px solid ${lineColor}`,
-          borderRight: `1px solid ${lineColor}`,
-          pointerEvents: "none",
-          zIndex: 2,
-        }}
-      />
-      {/* Left vertical rail */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: FRAME_RAIL_INSET,
-          bottom: FRAME_RAIL_INSET,
-          left: 0,
-          width: 1,
-          background: lineColor,
-          pointerEvents: "none",
-          zIndex: 2,
-        }}
-      />
-      {/* Right vertical rail */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: FRAME_RAIL_INSET,
-          bottom: FRAME_RAIL_INSET,
-          right: 0,
-          width: 1,
-          background: lineColor,
-          pointerEvents: "none",
-          zIndex: 2,
-        }}
-      />
+      {[...parts, ...edges].map((part, i) => (
+        <span
+          key={i}
+          aria-hidden
+          style={{
+            position: "absolute",
+            pointerEvents: "none",
+            zIndex: 2,
+            ...part,
+          }}
+        />
+      ))}
     </>
   );
 }

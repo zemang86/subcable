@@ -38,8 +38,6 @@ const INNER_GAP = 14;
 const STRIP_INSET = 46;
 export default function MaterialScreen({
   screen,
-  cycleKey,
-  barRepeat,
 }: { screen: MaterialData } & ScreenProps) {
   return (
     <div
@@ -69,7 +67,7 @@ export default function MaterialScreen({
           alt={screen.image.alt}
           style={{ width: "100%", flex: "1 1 auto", minHeight: 90 }}
         />
-        <CopyCard cycleKey={`${cycleKey}-material`} barRepeat={barRepeat}>
+        <CopyCard>
           <h2 style={{ ...CARD_TITLE, fontSize: 26, lineHeight: "34px" }}>
             {screen.title}
           </h2>
@@ -125,10 +123,7 @@ export default function MaterialScreen({
               />
               <FactRail facts={screen.facts} />
             </div>
-            <CopyCard
-              cycleKey={`${cycleKey}-description`}
-              barRepeat={barRepeat}
-            >
+            <CopyCard>
               <h2 style={{ ...CARD_TITLE, fontSize: 24, lineHeight: "32px" }}>
                 {screen.descriptionTitle}
               </h2>

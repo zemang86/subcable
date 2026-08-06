@@ -651,10 +651,10 @@ body {
 }
 
 /* ── General Information panel ──
-   Tabbed panel whose screens auto-advance (GeneralInfoDialog). `v1-gi-fade`
-   cross-fades a screen in on advance or tab change; `v1-gi-fill` is the
-   countdown bar under the copy — its duration is set inline from
-   INFO_SLIDE_MS so the bar and the hold timer can never drift apart. */
+   `v1-gi-fade` cross-fades a screen in on a step or tab change
+   (GeneralInfoDialog). `v1-gi-fill` fills a countdown track left to right, its
+   duration set inline by whoever uses it — that is now only Did You Know's
+   ten-second rail; General Information's bar and auto-advance were dropped. */
 .v1-gi-fade {
   animation: v1-gi-fade 420ms ease-in-out both;
 }

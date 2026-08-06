@@ -1,11 +1,11 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { INFO_SLIDE_MS, type InfoScreen } from "@/data/generalInfo";
+import type { InfoScreen } from "@/data/generalInfo";
 
 /**
  * Pieces every General Information tab layout shares: the bracketed copy card,
- * the countdown bar, the small section strips and the panel's touch minimums.
+ * the small section strips and the panel's touch minimums.
  *
  * Sizing note (also in GeneralInfoDialog): the Figma exports are drawn at ~0.66
  * of the kiosk canvas, so their measurements are scaled onto the panel's
@@ -20,14 +20,6 @@ export const TOUCH = 48;
 
 /** Props the panel hands every screen layout. */
 export type ScreenProps = {
-  /** Changes on every advance or manual move — restarts the countdown bar. */
-  cycleKey: string;
-  /**
-   * True on single-screen tabs: the bar keeps cycling because there is no next
-   * screen for the hold timer to move to. Multi-screen tabs run it once per
-   * hold and restart it from the new screen's cycleKey.
-   */
-  barRepeat: boolean;
   index: number;
   count: number;
   onStep: (delta: number) => void;
@@ -81,71 +73,83 @@ export function CardBrackets() {
 }
 
 /**
- * Copy card + its countdown bar, bracketed. Always sizes to its text — inside a
- * fixed-height screen it's the photos that give up room, never the copy.
+ * The copy card's frame, from temp/funfact/box.svg: the four brackets, a
+ * hairline rail down each side and across the top, and the orange/red rule
+ * that closes the bottom. Every rail stops short of the bracket it meets, so
+ * each corner reads as a break rather than a join.
+ *
+ * Positioned 1px borders rather than the export's rects, because the brackets
+ * are a fixed size while the rails have to stretch: these cards run from a
+ * third of the panel to nearly all of it, and one exported box can only be one
+ * of those widths. The break is 5px, the export's ~0.22 of a bracket arm.
+ *
+ * The rule sits on the same line as the two lower bracket arms and starts where
+ * the side rails do, so the bottom edge breaks at its corners like the others.
+ * It is static: this used to be the countdown, and the export catches it 32%
+ * along, but the panel no longer counts down. Segment split and colours are the
+ * export's.
  */
-export function CopyCard({
-  children,
-  cycleKey,
-  barRepeat,
-}: {
-  children: ReactNode;
-  cycleKey: string;
-  barRepeat: boolean;
-}) {
+const FRAME_BREAK = 5;
+const RAIL_INSET = BRACKET + FRAME_BREAK;
+const RULE_HEIGHT = 2;
+/** Of the rule's own run: orange, then a break, then red for the remainder. */
+const RULE_ORANGE_PCT = 31.9;
+const RULE_BREAK_PCT = 0.7;
+
+export function CardFrame() {
+  const line = "1px solid #FFFFFF";
+  const rails: CSSProperties[] = [
+    { left: 0, top: RAIL_INSET, bottom: RAIL_INSET, borderLeft: line },
+    { right: 0, top: RAIL_INSET, bottom: RAIL_INSET, borderRight: line },
+    { top: 0, left: RAIL_INSET, right: RAIL_INSET, borderTop: line },
+  ];
   return (
-    <div style={{ position: "relative", flex: "none", padding: "10px 12px" }}>
+    <>
       <CardBrackets />
-      <div style={{ background: CARD_FILL, padding: "16px 18px" }}>
-        {children}
-      </div>
-      <CountdownBar cycleKey={cycleKey} repeat={barRepeat} />
-    </div>
+      {rails.map((rail, i) => (
+        <span
+          key={i}
+          aria-hidden
+          style={{ position: "absolute", pointerEvents: "none", ...rail }}
+        />
+      ))}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: RAIL_INSET,
+          right: RAIL_INSET,
+          bottom: 0,
+          height: RULE_HEIGHT,
+          display: "flex",
+          pointerEvents: "none",
+        }}
+      >
+        <span
+          style={{ width: `${RULE_ORANGE_PCT}%`, background: "var(--v1-orange)" }}
+        />
+        <span style={{ width: `${RULE_BREAK_PCT}%` }} />
+        <span style={{ flex: 1, background: "#ED1B2E" }} />
+      </span>
+    </>
   );
 }
 
 /**
- * Orange fill running along a red track over INFO_SLIDE_MS — the same constant
- * that drives the hold timer, so bar and advance can't drift apart. The fill
- * animates its width (not a scale) so the transparent right border stays a
- * constant gap between the fill's leading edge and the red remainder, the way
- * the export draws it.
+ * Bracketed copy card. Always sizes to its text — inside a fixed-height screen
+ * it's the photos that give up room, never the copy.
+ *
+ * It used to carry a countdown bar under the copy, driving a 10s auto-advance.
+ * The client dropped both: these screens are read at the reader's pace, and
+ * every tab is now stepped by hand.
  */
-const BAR_HEIGHT = 6;
-const BAR_GAP = 10;
-
-export function CountdownBar({
-  cycleKey,
-  repeat,
-}: {
-  cycleKey: string;
-  repeat: boolean;
-}) {
+export function CopyCard({ children }: { children: ReactNode }) {
   return (
-    <div
-      style={{
-        position: "relative",
-        height: BAR_HEIGHT,
-        margin: "10px 4px 0",
-        background: "#ED1B2E",
-        overflow: "hidden",
-      }}
-    >
-      <span
-        key={cycleKey}
-        className="v1-gi-fill"
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          background: "var(--v1-orange)",
-          backgroundClip: "padding-box",
-          borderRight: `${BAR_GAP}px solid transparent`,
-          animationDuration: `${INFO_SLIDE_MS}ms`,
-          animationIterationCount: repeat ? "infinite" : 1,
-        }}
-      />
+    <div style={{ position: "relative", flex: "none", padding: "10px 12px" }}>
+      <CardFrame />
+      <div style={{ background: CARD_FILL, padding: "16px 18px" }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -383,7 +387,33 @@ export function Photo({
 }
 
 /* ── Step arrow ── */
-// Orange translucent square with a white chevron, bottom-right of a screen.
+
+/**
+ * Drawn verbatim from temp/funfact/next-button.svg: a translucent orange body
+ * with its leading top corner cut away, a solid orange tab filling that notch,
+ * a white chevron, and a small tick at each of the three square corners.
+ *
+ * pre-button.svg is the same artwork mirrored — checked point for point, the
+ * two agree to four decimal places once translated — so this renders one set of
+ * paths and flips it. The flip carries everything correctly: the notch and its
+ * tab move to the other top corner, the ticks follow, and the chevron turns.
+ *
+ * The viewBox is cropped to the art (the export leaves it off-centre on an
+ * 18-unit canvas) so the body fills the touch target rather than floating at
+ * 84% of it. Strokes come out as true hairlines at this size: the body's 0.5px,
+ * the ticks' 1px, the chevron's 3.9px.
+ */
+const STEP_VIEWBOX = "1.7 1.7 15.9 15.9";
+const STEP_BODY =
+  "M6.80509 2.03052L17.2609 2.03052L17.2609 17.0181L2.13684 17.0181L2.13684 6.69877L6.80509 2.03052Z";
+const STEP_TAB =
+  "M6.12639 1.83447L1.88983 6.19901L1.88979 1.83451L6.12639 1.83447Z";
+const STEP_CHEVRON = "M8.22192 13.8059L12.587 9.44083L8.22192 5.07574";
+const STEP_TICKS = [
+  "M1.96802 16.0391L1.96802 17.0355L3.04636 17.0355",
+  "M17.2559 3.04102L17.2559 2.04458L16.1775 2.04458",
+  "M16.2217 17.0186L17.2181 17.0186L17.2181 15.9402",
+];
 
 export function StepButton({
   direction,
@@ -401,22 +431,41 @@ export function StepButton({
       style={{
         width: TOUCH,
         height: TOUCH,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        display: "block",
         padding: 0,
         cursor: "pointer",
-        background: "rgba(240, 90, 34, 0.54)",
-        border: "1px solid var(--v1-orange)",
+        background: "none",
+        border: "none",
       }}
     >
-      <svg width="16" height="26" viewBox="0 0 16 26" fill="none" aria-hidden>
+      <svg
+        width={TOUCH}
+        height={TOUCH}
+        viewBox={STEP_VIEWBOX}
+        fill="none"
+        aria-hidden
+        style={{
+          display: "block",
+          transform: direction === "prev" ? "scaleX(-1)" : undefined,
+        }}
+      >
         <path
-          d={direction === "next" ? "M3 2 L13 13 L3 24" : "M13 2 L3 13 L13 24"}
-          stroke="#FFFFFF"
-          strokeWidth="3"
-          strokeLinecap="square"
+          d={STEP_BODY}
+          fill="var(--v1-orange)"
+          fillOpacity={0.54}
+          stroke="var(--v1-orange)"
+          strokeWidth={0.187029}
         />
+        <path d={STEP_TAB} fill="var(--v1-orange)" />
+        {STEP_TICKS.map((tick) => (
+          <path
+            key={tick}
+            d={tick}
+            stroke="var(--v1-orange)"
+            strokeWidth={0.357056}
+          />
+        ))}
+        <path d={STEP_CHEVRON} stroke="#FFFFFF" strokeWidth={1.45503} />
       </svg>
     </button>
   );

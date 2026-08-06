@@ -15,8 +15,6 @@ const IMAGE_WIDTH = 320;
 
 export default function OverviewScreen({
   screen,
-  cycleKey,
-  barRepeat,
   index,
   count,
   onStep,
@@ -59,7 +57,7 @@ export default function OverviewScreen({
           gap: 12,
         }}
       >
-        <CopyCard cycleKey={cycleKey} barRepeat={barRepeat}>
+        <CopyCard>
           <h2 style={CARD_TITLE}>{screen.title}</h2>
           {screen.body.map((paragraph, i) => (
             <p key={i} style={{ ...CARD_BODY, margin: "14px 0 0" }}>
@@ -68,9 +66,12 @@ export default function OverviewScreen({
           ))}
         </CopyCard>
 
+        {/* Sits directly under the card rather than on the column's floor, per
+            the export: the column's own 12px gap is the whole spacing, and
+            flex-end lines the arrow up with the card frame's right rail, since
+            the frame runs to the column edge while the copy is inset 12px. */}
         <div
           style={{
-            marginTop: "auto",
             display: "flex",
             justifyContent: "flex-end",
             gap: 10,

@@ -15,13 +15,11 @@ const IMAGE_WIDTH = 300;
 
 /**
  * Then And Now — two photos and the era's copy, a six-tile spec grid, and the
- * Then/Now pill that switches eras. The pill is this tab's manual control (no
- * step arrows), and the countdown flips it on its own every 10s.
+ * Then/Now pill that switches eras. The pill is this tab's only control; it
+ * draws no step arrows.
  */
 export default function EraScreen({
   screen,
-  cycleKey,
-  barRepeat,
   index,
   onSelect,
   siblings,
@@ -70,7 +68,7 @@ export default function EraScreen({
           gap: 14,
         }}
       >
-        <CopyCard cycleKey={cycleKey} barRepeat={barRepeat}>
+        <CopyCard>
           <h2 style={CARD_TITLE}>{screen.title}</h2>
           {screen.body.map((paragraph, i) => (
             <p key={i} style={{ ...CARD_BODY, margin: "12px 0 0" }}>
@@ -106,39 +104,120 @@ export default function EraScreen({
   );
 }
 
-/** Spec tile — bevelled top-left and bottom-right, per the export. */
+/* ── Spec tile ── */
+// Straight off the export's badge (thenandnow-card.svg): a hairline frame with
+// a lighter plate sitting just inside it, both cut at the top-left corner only
+// — not the top-left/bottom-right pair the tile used to carry.
+//
+// Both outlines are stroked *along* that diagonal, which CSS can't do: a border
+// gets clipped away on a clip-path's cut edge. So the frame is the export's own
+// two paths, inline. preserveAspectRatio="none" stretches them to the grid
+// cell — the cell's ~3.7:1 is the badge's own ratio, so nothing skews at the
+// nominal size, and away from it the cut simply stays proportional to the box.
+// non-scaling-stroke keeps both lines a true hairline at any cell size.
+
+const BADGE_VIEWBOX = "0 0 1413 381";
+const BADGE_FRAME =
+  "M1412.05 0.425781V379.782H0.426547V59.9404L90.8025 0.425781H1412.05Z";
+// The export insets the plate unevenly — more on the right and bottom — so the
+// frame reads as an offset outline rather than a concentric border. Kept as
+// drawn.
+const BADGE_PLATE =
+  "M1384.66 15.3257V357.407H19.0594V68.9946L105.597 15.3257H1384.66Z";
+
+// Type is measured off the badge: both lines are IBM Plex Mono Bold, the label
+// at half the value's size in white at 50%, and the text origin sits 6.4% of
+// the card's width in from its left edge — 21px on the 330px cell.
+const BADGE_INSET = 21;
+/** Value size at its widest — the badge's own, and the cap for shorter values. */
+const BADGE_VALUE_PX = 22;
+/**
+ * Every value is set on one line, shrinking only as far as it has to.
+ *
+ * IBM Plex Mono advances exactly 0.6em per glyph at every weight (measured, all
+ * five faces), so a string's width is arithmetic, not something to measure: n
+ * characters need `0.6 · n · fontSize`. Turning that around gives the largest
+ * size that still fits, and `min()` keeps the badge's 22px wherever there's
+ * room. The design mocks these cards in English; the BM values run to 26
+ * characters ("Internet, Panggilan, Video") and would otherwise wrap.
+ *
+ * The width comes from `cqi` rather than a hardcoded cell width so it tracks
+ * the panel, which is fluid below 1130px. Two spare pixels absorb rounding —
+ * with nowrap an under-estimate would spill into the neighbouring tile.
+ */
+function valueFontSize(value: string) {
+  const room = BADGE_INSET * 2 + 2;
+  const advance = (0.6 * Math.max(1, value.length)).toFixed(2);
+  return `min(${BADGE_VALUE_PX}px, calc((100cqi - ${room}px) / ${advance}))`;
+}
+
 function SpecTile({ label, value }: { label: string; value: string }) {
-  const cut = 16;
   return (
     <div
       style={{
         position: "relative",
-        padding: "10px 16px 12px",
-        background: "rgba(255, 255, 255, 0.18)",
-        border: "1px solid rgba(255, 255, 255, 0.5)",
-        clipPath: `polygon(${cut}px 0, 100% 0, 100% calc(100% - ${cut}px), calc(100% - ${cut}px) 100%, 0 100%, 0 ${cut}px)`,
+        display: "flex",
+        flexDirection: "column",
+        // The badge centres its text block in the card to within 3% of height.
+        justifyContent: "center",
+        padding: `0 ${BADGE_INSET}px`,
+        minWidth: 0,
+        // Gives the value's cqi something to resolve against. Safe on a grid
+        // item whose track is 1fr — the width comes from the track, never from
+        // the text, so nothing circles back on itself.
+        containerType: "inline-size",
       }}
     >
+      <svg
+        aria-hidden
+        viewBox={BADGE_VIEWBOX}
+        preserveAspectRatio="none"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      >
+        <path
+          d={BADGE_FRAME}
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          d={BADGE_PLATE}
+          fill="#D9D9D9"
+          fillOpacity={0.55}
+          stroke="#FFFFFF"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+
+      {/* Both lines are positioned so they paint over the absolute frame —
+          in-flow content would sit under it whatever the DOM order. */}
       <span
         style={{
+          position: "relative",
           display: "block",
-          fontFamily: "var(--v1-heading)",
-          fontWeight: 500,
-          fontSize: 13,
-          letterSpacing: "0.04em",
-          color: "rgba(255, 255, 255, 0.7)",
+          fontFamily: "var(--v1-mono)",
+          fontWeight: 700,
+          fontSize: 12,
+          lineHeight: "16px",
+          color: "rgba(255, 255, 255, 0.5)",
         }}
       >
         {label}
       </span>
       <span
         style={{
+          position: "relative",
           display: "block",
-          marginTop: 2,
+          marginTop: 3,
           fontFamily: "var(--v1-mono)",
-          fontWeight: 500,
-          fontSize: 22,
-          lineHeight: "30px",
+          fontWeight: 700,
+          fontSize: valueFontSize(value),
+          // Ratio, not a fixed height, so a shrunk value keeps the badge's
+          // leading instead of floating in a 28px box.
+          lineHeight: 1.27,
+          whiteSpace: "nowrap",
           color: "var(--v1-fg)",
         }}
       >

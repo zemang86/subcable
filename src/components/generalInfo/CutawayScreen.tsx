@@ -15,8 +15,6 @@ import {
  */
 export default function CutawayScreen({
   screen,
-  cycleKey,
-  barRepeat,
 }: { screen: CutawayData } & ScreenProps) {
   return (
     <div
@@ -29,6 +27,12 @@ export default function CutawayScreen({
         padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
       }}
     >
+      {/* The asset's own left edge is the cable's cut face — a vertical rule at
+          x=0 — so it is drawn to run off the frame, not to sit inside it. The
+          negative margin cancels the panel's left padding and lands that rule
+          on the PanelFrame rail, where the two read as one line. It shifts the
+          box rather than widening it, so the diagram translates left at the
+          same size and the 20px gap to the table is unchanged. */}
       {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
       <img
         src={screen.diagram.src}
@@ -36,6 +40,7 @@ export default function CutawayScreen({
         style={{
           flex: "0 0 54%",
           width: "54%",
+          marginLeft: -PANEL_PAD,
           height: "100%",
           minHeight: 0,
           objectFit: "contain",
@@ -100,7 +105,7 @@ export default function CutawayScreen({
         </table>
 
         <div style={{ marginTop: "auto" }} />
-        <CopyCard cycleKey={`${cycleKey}-note`} barRepeat={barRepeat}>
+        <CopyCard>
           <p style={{ ...CARD_BODY, fontSize: 13, lineHeight: "21px", margin: 0 }}>
             {screen.note}
           </p>

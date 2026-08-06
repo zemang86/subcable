@@ -10,10 +10,9 @@ import { CardBrackets, PANEL_PAD, StepButton, type ScreenProps } from "./shared"
  *
  * The chrome from the export *is* the player: no native `controls`, so the
  * kiosk never shows browser UI. A screen with a `src` plays on tap; one without
- * keeps the same chrome with the controls inert. This tab doesn't auto-advance
- * (see INFO_TABS) — rotating away from a playing clip would be wrong — so the
- * dots and the arrow are the only way through it. Stepping away remounts the
- * screen (the panel keys it by id), which stops playback.
+ * keeps the same chrome with the controls inert. The dots and the arrow are the
+ * only way through the tab; stepping away remounts the screen (the panel keys
+ * it by id), which stops playback.
  */
 export default function VideoScreen({
   screen,
