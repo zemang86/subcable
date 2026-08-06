@@ -30,18 +30,26 @@ const PANEL_BG =
 const TITLE_STRIP_HEIGHT = 47;
 
 // The panel body is a fixed canvas: every tab renders into the same box, so
-// switching tabs never resizes or re-centres the card. 780px on the 1080px
+// switching tabs never resizes or re-centres the card. 634px on the 1080px
 // kiosk; the viewport clamp only bites on a smaller dev screen. Layouts that
 // need less room leave space, and none of them may push the panel taller —
 // inside a screen it's the photos that absorb the slack, never the copy.
-const PANEL_BODY_HEIGHT = "min(780px, calc(100vh - 120px))";
+//
+// 634 is the export's own height, not a guess. Every General Information screen
+// in temp/funfact draws the panel body at a slightly different scale, but each
+// one resolves to the same box against the 1040px width this card has always
+// had: 285.37/468.53 (overview), 291.60/478.76 (how it's made), 286.16/469.84
+// (inside the cable), 287.81/472.55 and 283.66/465.73 (then and now),
+// 283.60/465.63 (videos) — all six land on 633.4px. The panel used to be 780,
+// which read 4:3 against the export's 16:9.8.
+const PANEL_BODY_HEIGHT = "min(634px, calc(100vh - 120px))";
 
-// Sizing: the Figma exports (temp/funfact/*.svg) are drawn at ~0.66 of the
-// kiosk canvas — their title strip measures 31px against the 47px every other
-// panel uses. Rather than shrink the panel to the export's ~712px, the card
-// keeps the 1040px footprint already tuned to sit clear of the left cluster and
-// the right-hand panels, and the design's proportions are scaled onto it. Body
-// copy is held at a readable size: a straight scale lands near 8px.
+// Sizing: one scale governs the whole panel — 1040 / 468.5 design units, or
+// x2.22. That is what puts the body at 634, and the type follows it: the card
+// titles land at 29/38, the copy at 12.5, the Then And Now badge value at 22.5.
+// The exception is the tab row, which the export draws 31px tall against the
+// 48px the kiosk's touch minimum demands; the 17px it costs comes out of the
+// space above each screen's content, not out of the content itself.
 
 export default function GeneralInfoDialog({
   onClose,

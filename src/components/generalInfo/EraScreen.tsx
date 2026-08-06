@@ -11,7 +11,15 @@ import {
   type ScreenProps,
 } from "./shared";
 
-const IMAGE_WIDTH = 300;
+/**
+ * Widths from thennow-1.svg at the panel's x2.20: the photos are 334 wide with
+ * 17 between them, the copy column clears them by 28, and the Then/Now pill
+ * closes the screen 22 above the frame's floor.
+ */
+const IMAGE_WIDTH = 334;
+const COLUMN_GAP = 28;
+const PHOTO_GAP = 17;
+const STACK_GAP = 12;
 
 /**
  * Then And Now — two photos and the era's copy, a six-tile spec grid, and the
@@ -36,8 +44,8 @@ export default function EraScreen({
         height: "100%",
         boxSizing: "border-box",
         display: "flex",
-        gap: 24,
-        padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
+        gap: COLUMN_GAP,
+        padding: `15px ${PANEL_PAD}px 14px`,
       }}
     >
       <div
@@ -46,7 +54,7 @@ export default function EraScreen({
           width: IMAGE_WIDTH,
           display: "flex",
           flexDirection: "column",
-          gap: 14,
+          gap: PHOTO_GAP,
         }}
       >
         {screen.images.map((image) => (
@@ -65,7 +73,7 @@ export default function EraScreen({
           minWidth: 0,
           display: "flex",
           flexDirection: "column",
-          gap: 14,
+          gap: STACK_GAP,
         }}
       >
         <CopyCard>
@@ -199,8 +207,8 @@ function SpecTile({ label, value }: { label: string; value: string }) {
           display: "block",
           fontFamily: "var(--v1-mono)",
           fontWeight: 700,
-          fontSize: 12,
-          lineHeight: "16px",
+          fontSize: 11,
+          lineHeight: "15px",
           color: "rgba(255, 255, 255, 0.5)",
         }}
       >

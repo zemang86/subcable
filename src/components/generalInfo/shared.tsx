@@ -159,7 +159,9 @@ export function CopyCard({ children }: { children: ReactNode }) {
 // Information") — same translucent-white gradient as the panel title strip at
 // two thirds the height.
 
-export const STRIP_HEIGHT = 34;
+/** Both from howitsmade.svg at its own scale: a 25.2px strip carrying 13.2px. */
+export const STRIP_HEIGHT = 25;
+const STRIP_FONT = 13;
 
 /**
  * How far the broken outline sits outside the strip it wraps. The export puts
@@ -249,7 +251,7 @@ export function SectionStrip({
         height: STRIP_HEIGHT,
         display: "flex",
         alignItems: "center",
-        padding: "0 14px",
+        padding: "0 11px",
         boxSizing: "border-box",
       }}
     >
@@ -271,7 +273,7 @@ export function SectionStrip({
           position: "relative",
           fontFamily: mono ? "var(--v1-mono)" : "var(--v1-display)",
           fontWeight: 600,
-          fontSize: 16,
+          fontSize: STRIP_FONT,
           letterSpacing: mono ? "0.14em" : "0.04em",
           textTransform: mono ? "uppercase" : "none",
           color: "#FFFFFF",
@@ -342,20 +344,32 @@ export function ColumnBracket({
 
 /* ── Typography ── */
 
+/**
+ * Both sizes are the export's, scaled by the panel's own factor (x2.22): the
+ * card title is set at 13.27 design units against a 17-unit leading in every
+ * one of overview-1/2, thennow-1/2 and video-1 — 29.5/37.7 here — and the copy
+ * at 5.31–5.69 on a 7-unit leading, 11.8–12.6.
+ *
+ * The copy is rounded up to 13 and given a 20px leading rather than the 15.5
+ * the export implies: at 1.24 the export's lines are tighter than any of this
+ * panel's other copy, and the extra 4.5px buys back the descender room that a
+ * kiosk read at arm's length needs. Screens that carry more copy than the panel
+ * has room for (How It's Made, the layer table) override it downward.
+ */
 export const CARD_TITLE: CSSProperties = {
   margin: 0,
   fontFamily: "var(--v1-mono)",
   fontWeight: 600,
-  fontSize: 28,
-  lineHeight: "36px",
+  fontSize: 29,
+  lineHeight: "38px",
   color: "var(--v1-fg)",
 };
 
 export const CARD_BODY: CSSProperties = {
   fontFamily: "var(--v1-mono)",
   fontWeight: 300,
-  fontSize: 15,
-  lineHeight: "23px",
+  fontSize: 13,
+  lineHeight: "20px",
   color: "var(--v1-fg)",
 };
 

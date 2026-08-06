@@ -11,7 +11,16 @@ import {
   type ScreenProps,
 } from "./shared";
 
-const IMAGE_WIDTH = 320;
+/**
+ * Every measure here is overview-1.svg's, scaled by the panel's x2.22: the
+ * photos are 149.744 units wide and 108.284 tall with 7.82 between them, and
+ * the copy column's frame starts 14.7 clear of them. The content band itself
+ * runs 44.0 to 268.4 below the panel's top edge — 97.7px to 595.7px — and the
+ * tab row above it eats 83 of that first 97.7, which is what leaves 15.
+ */
+const IMAGE_WIDTH = 332;
+const COLUMN_GAP = 32;
+const PHOTO_GAP = 17;
 
 export default function OverviewScreen({
   screen,
@@ -25,8 +34,8 @@ export default function OverviewScreen({
         height: "100%",
         boxSizing: "border-box",
         display: "flex",
-        gap: 24,
-        padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
+        gap: COLUMN_GAP,
+        padding: `15px ${PANEL_PAD}px 24px`,
       }}
     >
       <div
@@ -35,7 +44,7 @@ export default function OverviewScreen({
           width: IMAGE_WIDTH,
           display: "flex",
           flexDirection: "column",
-          gap: 14,
+          gap: PHOTO_GAP,
         }}
       >
         {screen.images.map((image) => (
@@ -60,7 +69,7 @@ export default function OverviewScreen({
         <CopyCard>
           <h2 style={CARD_TITLE}>{screen.title}</h2>
           {screen.body.map((paragraph, i) => (
-            <p key={i} style={{ ...CARD_BODY, margin: "14px 0 0" }}>
+            <p key={i} style={{ ...CARD_BODY, margin: "12px 0 0" }}>
               {paragraph}
             </p>
           ))}

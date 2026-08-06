@@ -83,7 +83,7 @@ export default function VideoScreen({
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        padding: `20px ${PANEL_PAD}px ${PANEL_PAD}px`,
+        padding: `6px ${PANEL_PAD}px 12px`,
       }}
     >
       <div
@@ -93,19 +93,19 @@ export default function VideoScreen({
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
-          // Title and player start 25px down from the frame's top edge — the
-          // frame itself is drawn at inset 0, so only the contents move.
-          padding: "39px 16px 14px",
+          // The frame itself is drawn at inset 0, so this padding is the clear
+          // between its rails and everything the screen puts inside them.
+          padding: `${FRAME_PAD_T}px ${FRAME_PAD_X}px ${FRAME_PAD_B}px`,
         }}
       >
         <VideoFrame />
 
         <h2
           style={{
-            margin: "0 0 14px",
+            margin: `0 0 ${TITLE_GAP}px`,
             fontFamily: "var(--v1-mono)",
             fontWeight: 600,
-            fontSize: 30,
+            fontSize: 29,
             lineHeight: "38px",
             color: "var(--v1-fg)",
           }}
@@ -341,7 +341,23 @@ const DOT_PITCH = 21;
 const DOT_ON = "#FF5E00";
 const DOT_OFF = "#FFCEB1";
 /** Clear between the bottom of the video box and the pager row. */
-const PAGER_GAP = 19;
+const PAGER_GAP = 16;
+
+/**
+ * The screen frame's own padding, from video-1.svg at the panel's x2.23: the
+ * video box sits 38.6px inside the panel's left edge and the frame's rails run
+ * either side of it, so 38 is what separates the box from the frame. The 28 on
+ * top is the export's clear from the frame's top rail to the title, and the 12
+ * below closes it under the pager.
+ *
+ * Together with the panel's 22px side padding these fix the box at 920 x 362 —
+ * the export draws it 414.184 x 162.934, so the width decides the height and
+ * everything else on the screen is sized around what is left.
+ */
+const FRAME_PAD_X = 38;
+const FRAME_PAD_T = 28;
+const FRAME_PAD_B = 12;
+const TITLE_GAP = 16;
 
 const VIDEO_FRAME_VIEWBOX = "0 0 439 244";
 const VIDEO_FRAME = [
@@ -381,8 +397,8 @@ function VideoFrame() {
 /* ── Player chrome ── */
 
 /**
- * Metrics off video-box.svg, scaled by this player's 964px against the
- * export's 414.18-unit picture (x2.328).
+ * Metrics off video-box.svg, scaled by this player's 920px against the
+ * export's 414.18-unit picture (x2.221).
  *
  * The bar itself is the export's: 44px of solid #868585 under a hairline top
  * edge, with the scrub line straddling that edge rather than sitting in a lane
