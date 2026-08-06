@@ -22,10 +22,41 @@ interface GeneralInfoDialogProps {
   onHoldIdle: (holding: boolean) => void;
 }
 
-// Panel gradient lifted from temp/facts_bg_gradient.css — same stack the
-// Cable System / Cable Information panels use.
+/**
+ * Panel gradient, straight from temp/funfact/facts_bg_gradient.css — the
+ * export's own stops, unchanged.
+ *
+ * This panel reads more see-through than the Cable System / Cable Information
+ * / Did You Know panels even though it isn't: they share one gradient that
+ * bottoms out at 46% composite alpha against this one's 58%. What differs is
+ * what's behind them. They sit on the right edge over starfield; this one
+ * covers the middle of the globe, where continent edges read straight through.
+ * So the frost is the fix, not the stops.
+ *
+ * FROST_TINT is a flat base under both layers — CSS paints a background's
+ * colour beneath its images — which takes the thin middle band from 58% to 77%
+ * opaque. It is the panel's own blue, so the band deepens instead of greying.
+ */
+const FROST_TINT = "rgba(3, 77, 161, 0.45)";
 const PANEL_BG =
-  "linear-gradient(0.55deg, #034DA1 0.51%, rgba(3, 77, 161, 0.3) 33.81%), linear-gradient(180deg, #F05A22 0%, rgba(240, 90, 34, 0.4) 36.77%)";
+  "linear-gradient(0.55deg, #034DA1 0.51%, rgba(3, 77, 161, 0.3) 33.81%), " +
+  "linear-gradient(180deg, #F05A22 0%, rgba(240, 90, 34, 0.4) 36.77%), " +
+  FROST_TINT;
+
+/**
+ * The tint alone still leaves the continents legible as broad shapes — the
+ * land/sea boundary is a large-scale feature that a flat tint only dims. Blur
+ * is what removes it, and the two together are what read as frosted glass.
+ *
+ * This is live work: the globe keeps rendering behind an open dialog (it only
+ * pauses for the attract video — see the `revealed` effect in GlobeScene), so
+ * Chrome re-blurs the backdrop on every frame the globe moves. Chrome
+ * downsamples before blurring, so 24px costs about what 8px would; the cost is
+ * the extra compositing pass over this panel's 1040x634, not the radius. If it
+ * ever shows on the kiosk, the answer is to pause the globe while a
+ * full-screen dialog covers it, not to drop the frost.
+ */
+const FROST_BLUR = "blur(24px)";
 
 const TITLE_STRIP_HEIGHT = 47;
 
@@ -112,14 +143,16 @@ export default function GeneralInfoDialog({
       >
         <TitleStrip title={t("generalInformation")} onClose={onClose} />
 
-        {/* Panel body — gradient bg matches cable-system/cable-info treatment.
-            Tactical-HUD bracket frame: top + bottom U-brackets (50px tall) +
-            left + right vertical side rails with small gaps. */}
+        {/* Panel body — frosted gradient over the globe. Tactical-HUD bracket
+            frame: top + bottom U-brackets (50px tall) + left + right vertical
+            side rails with small gaps. */}
         <div
           style={{
             position: "relative",
             height: PANEL_BODY_HEIGHT,
             background: PANEL_BG,
+            backdropFilter: FROST_BLUR,
+            WebkitBackdropFilter: FROST_BLUR,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
