@@ -184,11 +184,25 @@ const TAB_HEIGHT = 48;
 
 const NUB: React.CSSProperties = {
   position: "absolute",
-  width: 4,
+  width: 6,
   height: 4,
   background: "#FFFFFF",
   pointerEvents: "none",
 };
+
+/**
+ * A selected tab gives up the bottom of its slot to the red rule instead of
+ * hanging it underneath, so the row's height never changes and the rule sits
+ * inside the tab's own footprint.
+ *
+ * Split is the export's (selected-tab.svg, confirmed against the full
+ * overview-1 render, where the selected body measures 12.10 units against the
+ * unselected tab's 13.78): body 12.097, then a gap and a rule of 1.05 each —
+ * the two are equal to four decimals. Scaled onto the 48px slot that's
+ * 40.9/3.55/3.55, rounded to whole pixels so the rule stays crisp at 1x.
+ */
+const TAB_RULE = 4;
+const TAB_RULE_GAP = 4;
 
 function TabRow({
   labels,
@@ -223,27 +237,44 @@ function TabRow({
               onClick={() => onSelect(i)}
               className="v1-pressable"
               style={{
+                // A bare shell holding the slot: it keeps the full 48px as the
+                // touch target whether or not the body inside it has shrunk.
                 position: "relative",
                 flex: 1,
                 height: TAB_HEIGHT,
                 padding: 0,
                 cursor: "pointer",
-                background: active
-                  ? "var(--v1-orange)"
-                  : "rgba(3, 77, 161, 0.31)",
-                border: "1px solid #FFFFFF",
-                boxSizing: "border-box",
-                fontFamily: "var(--v1-heading)",
-                fontWeight: active ? 700 : 400,
-                fontSize: 16,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: "var(--v1-fg)",
+                background: "none",
+                border: "none",
               }}
             >
-              {label}
-              <span aria-hidden style={{ ...NUB, top: 1, left: 1 }} />
-              <span aria-hidden style={{ ...NUB, bottom: 1, right: 1 }} />
+              <span
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: active ? TAB_RULE + TAB_RULE_GAP : 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: active
+                    ? "var(--v1-orange)"
+                    : "rgba(3, 77, 161, 0.31)",
+                  border: "1px solid #FFFFFF",
+                  boxSizing: "border-box",
+                  fontFamily: "var(--v1-heading)",
+                  fontWeight: active ? 700 : 400,
+                  fontSize: 16,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: "var(--v1-fg)",
+                }}
+              >
+                {label}
+                <span aria-hidden style={{ ...NUB, top: 1, left: 1 }} />
+                <span aria-hidden style={{ ...NUB, bottom: 1, right: 1 }} />
+              </span>
               {active && (
                 <span
                   aria-hidden
@@ -251,8 +282,8 @@ function TabRow({
                     position: "absolute",
                     left: 0,
                     right: 0,
-                    bottom: -5,
-                    height: 3,
+                    bottom: 0,
+                    height: TAB_RULE,
                     background: "#ED1B2E",
                   }}
                 />
