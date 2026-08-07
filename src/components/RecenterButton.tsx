@@ -9,9 +9,11 @@ type RecenterButtonProps = {
 
 // Re-center control (Figma). The button is the SVG itself — a framed compass
 // that swaps to a pressed graphic while held (pointer captured) and fires on
-// release. Function unchanged — see resetView in GlobeScene (deselect cable,
-// clear callout, camera home). Lives in the right-edge system column, above
-// the audio toggle — sized 48×48 to match the audio/back buttons.
+// release. Camera only — see recenterView in GlobeScene: it re-frames the
+// selected cable's default view (home pose if nothing is selected) and
+// dismisses nothing, so an open location panel stays open. Lives in the
+// right-edge system column, above the audio toggle — sized 48×48 to match the
+// audio/back buttons.
 const SIZE = 48;
 
 export function RecenterButton({

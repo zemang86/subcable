@@ -260,13 +260,39 @@ const COUNTRY_NAME_ALIASES: Record<string, string> = {
 const DEFAULT_LAT = 5;
 const DEFAULT_LNG = 108;
 const DEFAULT_ALT = 2.2;
-// "Recenter on Malaysia" (compass button) only — a tighter framing on the
-// peninsula, and deliberately NOT the same as the home pose above, which sits
-// further east over the South China Sea to take in Sabah and Sarawak too.
-// Never use these for a video handoff.
-const MY_LAT = 4.2105;
-const MY_LNG = 101.9758;
-const MY_ALT = 2.2;
+const HOME_POSE = { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT };
+
+// A cable system's "default view": the zoom-to-fit framing of its landing
+// points. This is the destination for every control that means "show me the
+// thing I'm looking at" — selecting the cable, Back out of a landing point,
+// and Centre. With no cable in play it degrades to the home pose, which is
+// also what the two buttons mean by "default centre view".
+function cablePose(cable: CableSystem | null) {
+  if (!cable) return HOME_POSE;
+  const points = landingPoints.filter((p) =>
+    cable.landingPointIds.includes(p.id),
+  );
+  if (points.length === 0) return HOME_POSE;
+  // Unwrap longitudes around the first point so trans-Pacific systems
+  // (AAG: Malaysia → Guam → Hawaii → US) average across the antimeridian
+  // instead of cancelling out to the wrong side of the planet.
+  const anchor = points[0].lng;
+  const lngs = points.map((p) => {
+    let lng = p.lng;
+    while (lng - anchor > 180) lng -= 360;
+    while (lng - anchor < -180) lng += 360;
+    return lng;
+  });
+  const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
+  const avgLng = lngs.reduce((s, lng) => s + lng, 0) / lngs.length;
+  const latSpread =
+    Math.max(...points.map((p) => p.lat)) -
+    Math.min(...points.map((p) => p.lat));
+  const lngSpread = Math.max(...lngs) - Math.min(...lngs);
+  const spread = Math.max(latSpread, lngSpread);
+  const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
+  return { lat: avgLat, lng: avgLng, altitude };
+}
 
 // Zoom clamps. three-globe camera distance = 100 × (1 + altitude), so these
 // bound the OrbitControls dolly: MAX caps zoom-out at ~altitude 3.4 (a touch
@@ -825,39 +851,17 @@ export default function GlobeScene() {
 
   const zoomBucket = useMemo(() => bucketForAltitude(zoomLevel), [zoomLevel]);
 
-  // Cable selection — zoom-to-fit the selected cable's landing points.
-  const handleSelectCable = useCallback((cable: CableSystem | null) => {
-    setSelectedCable(cable);
-    setSelectedLandingPoint(null);
-    setExpandedPointId(null);
-    if (cable && globeRef.current) {
-      const points = landingPoints.filter((p) =>
-        cable.landingPointIds.includes(p.id),
-      );
-      if (points.length === 0) return;
-      // Unwrap longitudes around the first point so trans-Pacific systems
-      // (AAG: Malaysia → Guam → Hawaii → US) average across the antimeridian
-      // instead of cancelling out to the wrong side of the planet.
-      const anchor = points[0].lng;
-      const lngs = points.map((p) => {
-        let lng = p.lng;
-        while (lng - anchor > 180) lng -= 360;
-        while (lng - anchor < -180) lng += 360;
-        return lng;
-      });
-      const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-      const avgLng = lngs.reduce((s, lng) => s + lng, 0) / lngs.length;
-      const latSpread =
-        Math.max(...points.map((p) => p.lat)) -
-        Math.min(...points.map((p) => p.lat));
-      const lngSpread = Math.max(...lngs) - Math.min(...lngs);
-      const spread = Math.max(latSpread, lngSpread);
-      const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
-      flyTo({ lat: avgLat, lng: avgLng, altitude }, 1500);
-    } else if (!cable && globeRef.current) {
-      flyTo({ lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT }, 1500);
-    }
-  }, [flyTo]);
+  // Cable selection — fly to the cable's default view (the home pose when
+  // deselecting).
+  const handleSelectCable = useCallback(
+    (cable: CableSystem | null) => {
+      setSelectedCable(cable);
+      setSelectedLandingPoint(null);
+      setExpandedPointId(null);
+      flyTo(cablePose(cable), 1500);
+    },
+    [flyTo],
+  );
 
   const handlePathClick = useCallback(
     (path: PathData) => {
@@ -888,18 +892,29 @@ export default function GlobeScene() {
   }, [flyTo]);
 
   // Back button — pops one navigation step:
-  //  1. If a landing-point callout is open (location info showing) → close it,
-  //     returning to the cable network view. Same as tapping the callout.
-  //  2. Otherwise, if a cable is selected → deselect it (resets camera), which
+  //  1. If the location panel is open → close it and re-frame the selected
+  //     cable's default view. Deliberately NOT closeExpanded's glide back to
+  //     the snapshot: Back means "up a level to the cable", so it lands on the
+  //     cable's framing no matter how far the user rotated while reading. The
+  //     stale snapshot is dropped so a later × can't undo the move.
+  //  2. Otherwise, if a cable is selected → deselect it (camera home), which
   //     also hides the back button.
   const handleBack = useCallback(() => {
-    if (expandedPointId !== null) {
-      closeExpanded();
+    if (expandedPointId !== null || selectedLandingPoint) {
+      setExpandedPointId(null);
       setSelectedLandingPoint(null);
+      prevPovRef.current = null;
+      flyTo(cablePose(selectedCable), 700);
     } else if (selectedCable) {
       handleSelectCable(null);
     }
-  }, [expandedPointId, selectedCable, handleSelectCable, closeExpanded]);
+  }, [
+    expandedPointId,
+    selectedLandingPoint,
+    selectedCable,
+    handleSelectCable,
+    flyTo,
+  ]);
 
   // Expand a landing-point callout: snapshot the current view, then simply
   // rotate the point to the globe's centre (same altitude — no zoom). The panel
@@ -1033,11 +1048,6 @@ export default function GlobeScene() {
     ],
   );
 
-  // Recenter on Malaysia (compass) — leaves selection/dialogs alone.
-  const recenterMalaysia = useCallback(() => {
-    flyTo({ lat: MY_LAT, lng: MY_LNG, altitude: MY_ALT }, 1200);
-  }, [flyTo]);
-
   // Any touch immediately takes the camera back from a programmatic flight
   // (cable zoom, recenter, arrival, …) so the globe never fights the finger.
   // Calls are exempt — their camera is scripted, and TAP TO SKIP is the out.
@@ -1062,17 +1072,16 @@ export default function GlobeScene() {
     [activeCall, cancelFly, expandedPointId],
   );
 
-  // Full reset (RightCluster ⊙) — deselect cable, close callout/dialog,
-  // recenter, stop auto-rotate.
-  const resetView = useCallback(() => {
-    setSelectedCable(null);
-    setSelectedLandingPoint(null);
-    setOpenDialog(null);
-    setExpandedPointId(null);
-    prevPovRef.current = null;
+  // Centre button — re-frames the camera and dismisses nothing: back to the
+  // selected cable's default view, or the home pose when nothing is selected.
+  // An open location panel stays open, by design (that's the whole difference
+  // from Back). Clearing the snapshot follows the same rule as grabbing the
+  // canvas — this is the user's own navigation, so a later × shouldn't undo it.
+  const recenterView = useCallback(() => {
     setAutoRotate(false);
-    recenterMalaysia();
-  }, [recenterMalaysia]);
+    prevPovRef.current = null;
+    flyTo(cablePose(selectedCable), 1200);
+  }, [flyTo, selectedCable]);
 
   // Cables the in-progress call rides — highlighted bright for the call's
   // duration so the viewer sees exactly which systems carry the signal.
@@ -1658,7 +1667,7 @@ export default function GlobeScene() {
               className={chromeCls("v1-enter-right v1-delay-1", 3)}
               showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
               onBack={handleBack}
-              onRecenter={resetView}
+              onRecenter={recenterView}
               muted={muted}
               onAudioToggle={handleAudioToggle}
             />
