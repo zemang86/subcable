@@ -180,9 +180,28 @@ because international systems land there; the first three still need a photo.
 | 93 | SAT3-WASC-SAFE | Sesimbra, Portugal | `sesimbra/` |  |
 | 94 | SAT3-WASC-SAFE | St Paul, La Reunion | `st-paul-reunion/` |  |
 
-### Status
+### Status (2026-08-10)
 
-Empty as of 2026-08-07 — the Figma MCP quota ran out before any international
-image could be pulled, so all 75 folders are scaffolded but unfilled. Drop the
-images in and run `node scripts/import-landing-images.mjs`; nothing else needs
-changing, because the card looks photos up by id.
+**1 of 75 filled** — `alexandria`. The Figma MCP quota on the Starter plan now
+allows only two or three calls before refusing, so images have to be pulled a
+handful at a time.
+
+**The board itself is only partly filled.** Of the 94 rows, **44 have photos**
+(rows 1–37, plus 44, 61, 69–73); the other 50 have an empty Image column. After
+removing duplicate stations and the ones the domestic pass already covered, the
+44 rows yield **30 stations** worth fetching today. The remaining 45 stations are
+blocked on the client adding photos to the board, not on us.
+
+**Where the photos live, and how to get one without wasting a call.** They are
+NOT inside the table — `download_assets` on the table node returns
+`rawImages: []`. They are separate `rounded-rectangle` nodes floating over the
+Image column, so you need their node ids. Those are all recorded in
+`scripts/sources/intl-landing-image-nodes.json` — row → landing-point id →
+ordered image node ids. Pick a node id, call `download_assets` on it, take the
+`rawImages` entry with the **largest pixel area** (there are usually two: a
+~1200px original and a ~300px thumbnail; the `export` is a re-render and roughly
+ties the original). Save it into that station's folder under any filename.
+
+Then run `node scripts/import-landing-images.mjs`. It is safe to re-run after
+each batch; unfilled folders are skipped and those cards keep showing title +
+coordinates.

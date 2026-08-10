@@ -1,0 +1,486 @@
+{
+  "_comment": "Figma image-node ids for the client international landing-point table. Board 0rOyiFkKpF5DxLLaV4rSSO, table node 1107:3363. imageNodeIds are ordered left-to-right as they appear in the board Image column; the client sticky says pick any one. Feed a node id to Figma MCP download_assets and take the rawImage with the largest pixel area. Generated 2026-08-10 from a get_figjam dump; regenerate only if the board changes.",
+  "boardFileKey": "0rOyiFkKpF5DxLLaV4rSSO",
+  "tableNodeId": "1107:3363",
+  "rowsWithImages": 44,
+  "totalImageNodes": 125,
+  "rows": [
+    {
+      "row": 1,
+      "landingPointId": "alexandria",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Alexandria, Egypt",
+      "imageNodeIds": [
+        "1123:6694",
+        "1123:7465",
+        "1123:7469"
+      ]
+    },
+    {
+      "row": 2,
+      "landingPointId": "annaba",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Annaba, Algeria",
+      "imageNodeIds": [
+        "1123:7479",
+        "1123:7486"
+      ]
+    },
+    {
+      "row": 3,
+      "landingPointId": "bizerte",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Bizerte, Tunisia",
+      "imageNodeIds": [
+        "1123:7505",
+        "1123:7513",
+        "1123:7509"
+      ]
+    },
+    {
+      "row": 4,
+      "landingPointId": "chennai",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Chennai, India",
+      "imageNodeIds": [
+        "1123:7568",
+        "1123:7572",
+        "1123:7564"
+      ]
+    },
+    {
+      "row": 5,
+      "landingPointId": "colombo",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Colombo, Sri Lanka",
+      "imageNodeIds": [
+        "1123:7598",
+        "1123:7597"
+      ]
+    },
+    {
+      "row": 6,
+      "landingPointId": "cox-bazar",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Cox's Bazar, Bangladesh",
+      "imageNodeIds": [
+        "1123:7615",
+        "1123:7620",
+        "1123:7624"
+      ]
+    },
+    {
+      "row": 7,
+      "landingPointId": "fujairah",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Fujairah, United Arab Emirates",
+      "imageNodeIds": [
+        "1123:7641",
+        "1123:7645",
+        "1123:7649"
+      ]
+    },
+    {
+      "row": 8,
+      "landingPointId": "jeddah",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Jeddah, Saudi Arabia",
+      "imageNodeIds": [
+        "1123:7673",
+        "1123:7699",
+        "1123:7728"
+      ]
+    },
+    {
+      "row": 9,
+      "landingPointId": "karachi",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Karachi, Pakistan",
+      "imageNodeIds": [
+        "1123:7735",
+        "1123:7743"
+      ]
+    },
+    {
+      "row": 10,
+      "landingPointId": "marseille",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Marseille, France",
+      "imageNodeIds": [
+        "1123:7750",
+        "1123:7754",
+        "1123:7770",
+        "1123:7774"
+      ]
+    },
+    {
+      "row": 11,
+      "landingPointId": "melaka",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Melaka, Malaysia",
+      "imageNodeIds": [
+        "1128:7808",
+        "1128:7815",
+        "1128:7824",
+        "1128:7823"
+      ]
+    },
+    {
+      "row": 12,
+      "landingPointId": "mumbai",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Mumbai, India",
+      "imageNodeIds": [
+        "1128:7837",
+        "1128:7841",
+        "1128:7845"
+      ]
+    },
+    {
+      "row": 13,
+      "landingPointId": "palermo",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Palermo, Italy",
+      "imageNodeIds": [
+        "1128:7877",
+        "1128:7919",
+        "1128:7923"
+      ]
+    },
+    {
+      "row": 14,
+      "landingPointId": "satun",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Satun, Thailand",
+      "imageNodeIds": [
+        "1128:7933",
+        "1128:7937"
+      ]
+    },
+    {
+      "row": 15,
+      "landingPointId": "suez",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Suez, Egypt",
+      "imageNodeIds": [
+        "1130:7954",
+        "1130:7962",
+        "1130:7958"
+      ]
+    },
+    {
+      "row": 16,
+      "landingPointId": "tuas",
+      "cable": "SEA-ME-WE 4",
+      "boardLocation": "Tuas, Singapore",
+      "imageNodeIds": [
+        "1130:7992",
+        "1130:8000",
+        "1130:7996"
+      ]
+    },
+    {
+      "row": 17,
+      "landingPointId": "abu-talat",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Abu Talat, Egypt",
+      "imageNodeIds": [
+        "1130:8026",
+        "1130:8042"
+      ]
+    },
+    {
+      "row": 18,
+      "landingPointId": "catania",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Catania, Italy",
+      "imageNodeIds": [
+        "1130:8046",
+        "1130:8054",
+        "1130:8050"
+      ]
+    },
+    {
+      "row": 19,
+      "landingPointId": "djibouti",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Djibouti City, Djibouti",
+      "imageNodeIds": [
+        "1130:8075",
+        "1130:8079",
+        "1130:8091"
+      ]
+    },
+    {
+      "row": 20,
+      "landingPointId": "dumai",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Dumai, Indonesia",
+      "imageNodeIds": [
+        "1130:8120",
+        "1130:8110"
+      ]
+    },
+    {
+      "row": 21,
+      "landingPointId": "fujairah",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Kalba, Fujairah",
+      "imageNodeIds": [
+        "1130:8131",
+        "1130:8135",
+        "1130:8139"
+      ]
+    },
+    {
+      "row": 22,
+      "landingPointId": "karachi",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Karachi, Pakistan",
+      "imageNodeIds": [
+        "1130:8152",
+        "1130:8153"
+      ]
+    },
+    {
+      "row": 23,
+      "landingPointId": "kuakata",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Kuakata, Bangladesh",
+      "imageNodeIds": [
+        "1169:8200",
+        "1169:8204"
+      ]
+    },
+    {
+      "row": 24,
+      "landingPointId": "marmaris",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Marmaris, Turkey",
+      "imageNodeIds": [
+        "1170:8219",
+        "1170:8230",
+        "1170:8237"
+      ]
+    },
+    {
+      "row": 25,
+      "landingPointId": "matara",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Matara, Sri Lanka",
+      "imageNodeIds": [
+        "1170:8241",
+        "1171:8252"
+      ]
+    },
+    {
+      "row": 26,
+      "landingPointId": "medan",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Medan, Indonesia",
+      "imageNodeIds": [
+        "1171:8281",
+        "1171:8282",
+        "1171:8286"
+      ]
+    },
+    {
+      "row": 27,
+      "landingPointId": "melaka",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Melaka, Malaysia",
+      "imageNodeIds": [
+        "1130:7944",
+        "1130:7945",
+        "1130:7947",
+        "1130:7946"
+      ]
+    },
+    {
+      "row": 28,
+      "landingPointId": "pathein",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Pathein, Myanmar",
+      "imageNodeIds": [
+        "1171:8333",
+        "1172:8350"
+      ]
+    },
+    {
+      "row": 29,
+      "landingPointId": "qalhat",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Qalhat, Oman",
+      "imageNodeIds": [
+        "1172:8357",
+        "1172:8361",
+        "1172:8365"
+      ]
+    },
+    {
+      "row": 30,
+      "landingPointId": "toulon",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Toulon, France",
+      "imageNodeIds": [
+        "1172:8387",
+        "1172:8391"
+      ]
+    },
+    {
+      "row": 31,
+      "landingPointId": "tuas",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Tuas, Singapore",
+      "imageNodeIds": [
+        "1130:8022",
+        "1130:8024",
+        "1130:8023"
+      ]
+    },
+    {
+      "row": 32,
+      "landingPointId": "yanbu",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Yanbu, Saudi Arabia",
+      "imageNodeIds": [
+        "1172:8402",
+        "1172:8409",
+        "1172:8423",
+        "1172:8413"
+      ]
+    },
+    {
+      "row": 33,
+      "landingPointId": "zafarana",
+      "cable": "SEA-ME-WE 5",
+      "boardLocation": "Zafarana, Egypt",
+      "imageNodeIds": [
+        "1172:8490",
+        "1172:8470"
+      ]
+    },
+    {
+      "row": 34,
+      "landingPointId": "barka",
+      "cable": "BBG",
+      "boardLocation": "Barka, Oman",
+      "imageNodeIds": [
+        "1172:8516",
+        "1172:8531",
+        "1172:8535"
+      ]
+    },
+    {
+      "row": 35,
+      "landingPointId": "chennai",
+      "cable": "BBG",
+      "boardLocation": "Chennai, India",
+      "imageNodeIds": [
+        "1130:8156",
+        "1130:8157",
+        "1130:8155"
+      ]
+    },
+    {
+      "row": 36,
+      "landingPointId": "fujairah",
+      "cable": "BBG",
+      "boardLocation": "Fujairah, United Arab Emirates",
+      "imageNodeIds": [
+        "1130:8162",
+        "1130:8163",
+        "1130:8164"
+      ]
+    },
+    {
+      "row": 37,
+      "landingPointId": "mumbai",
+      "cable": "BBG",
+      "boardLocation": "Mumbai, India",
+      "imageNodeIds": [
+        "1130:8166",
+        "1130:8167",
+        "1130:8168"
+      ]
+    },
+    {
+      "row": 44,
+      "landingPointId": "mersing",
+      "cable": "AAG",
+      "boardLocation": "Mersing, Malaysia",
+      "imageNodeIds": [
+        "1130:8170",
+        "1130:8172",
+        "1130:8171"
+      ]
+    },
+    {
+      "row": 61,
+      "landingPointId": "mersing",
+      "cable": "CM",
+      "boardLocation": "Mersing, Malaysia",
+      "imageNodeIds": [
+        "1130:8185",
+        "1130:8187",
+        "1130:8186"
+      ]
+    },
+    {
+      "row": 69,
+      "landingPointId": "dumai",
+      "cable": "BDM",
+      "boardLocation": "Dumai, Indonesia",
+      "imageNodeIds": [
+        "1130:8180",
+        "1130:8179"
+      ]
+    },
+    {
+      "row": 70,
+      "landingPointId": "melaka",
+      "cable": "BDM",
+      "boardLocation": "Melaka, Malaysia",
+      "imageNodeIds": [
+        "1130:8174",
+        "1130:8175",
+        "1130:8177",
+        "1130:8176"
+      ]
+    },
+    {
+      "row": 71,
+      "landingPointId": "dumai",
+      "cable": "DMCS",
+      "boardLocation": "Dumai, Indonesia",
+      "imageNodeIds": [
+        "1130:8183",
+        "1130:8182"
+      ]
+    },
+    {
+      "row": 72,
+      "landingPointId": "melaka",
+      "cable": "DMCS",
+      "boardLocation": "Melaka, Malaysia",
+      "imageNodeIds": [
+        "1130:7949",
+        "1130:7950",
+        "1130:7952",
+        "1130:7951"
+      ]
+    },
+    {
+      "row": 73,
+      "landingPointId": "cherating",
+      "cable": "MCT",
+      "boardLocation": "Cherating, Malaysia",
+      "imageNodeIds": [
+        "1130:8189",
+        "1130:8190",
+        "1130:8191",
+        "1130:8192"
+      ]
+    }
+  ]
+}

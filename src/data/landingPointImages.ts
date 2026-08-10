@@ -12,6 +12,13 @@ export type LandingPointImage = {
 
 /** Landing-point id -> its photos. Ids with no photo are simply absent. */
 export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
+  "alexandria": [
+    {
+      "src": "/images/landing-points/alexandria/1.webp",
+      "width": 1000,
+      "height": 500
+    }
+  ],
   "bayan-baru": [
     {
       "src": "/images/landing-points/bayan-baru/1.webp",
