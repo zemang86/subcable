@@ -12,11 +12,74 @@ export type LandingPointImage = {
 
 /** Landing-point id -> its photos. Ids with no photo are simply absent. */
 export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
+  "abidjan": [
+    {
+      "src": "/images/landing-points/abidjan/1.webp",
+      "width": 1000,
+      "height": 521
+    }
+  ],
+  "abu-talat": [
+    {
+      "src": "/images/landing-points/abu-talat/1.webp",
+      "width": 1000,
+      "height": 750
+    }
+  ],
+  "accra": [
+    {
+      "src": "/images/landing-points/accra/1.webp",
+      "width": 1000,
+      "height": 750
+    }
+  ],
   "alexandria": [
     {
       "src": "/images/landing-points/alexandria/1.webp",
       "width": 1000,
       "height": 500
+    }
+  ],
+  "alta-vista": [
+    {
+      "src": "/images/landing-points/alta-vista/1.webp",
+      "width": 1000,
+      "height": 648
+    }
+  ],
+  "annaba": [
+    {
+      "src": "/images/landing-points/annaba/1.webp",
+      "width": 1000,
+      "height": 600
+    }
+  ],
+  "baie-jacotet": [
+    {
+      "src": "/images/landing-points/baie-jacotet/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "barka": [
+    {
+      "src": "/images/landing-points/barka/1.webp",
+      "width": 1000,
+      "height": 666
+    }
+  ],
+  "batam": [
+    {
+      "src": "/images/landing-points/batam/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "batangas": [
+    {
+      "src": "/images/landing-points/batangas/1.webp",
+      "width": 1000,
+      "height": 558
     }
   ],
   "bayan-baru": [
@@ -33,11 +96,156 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 578
     }
   ],
+  "bizerte": [
+    {
+      "src": "/images/landing-points/bizerte/1.webp",
+      "width": 1000,
+      "height": 599
+    }
+  ],
+  "busan": [
+    {
+      "src": "/images/landing-points/busan/1.webp",
+      "width": 1000,
+      "height": 685
+    }
+  ],
+  "cacuaco": [
+    {
+      "src": "/images/landing-points/cacuaco/1.webp",
+      "width": 1000,
+      "height": 605
+    }
+  ],
+  "catania": [
+    {
+      "src": "/images/landing-points/catania/1.webp",
+      "width": 1000,
+      "height": 665
+    }
+  ],
+  "changi": [
+    {
+      "src": "/images/landing-points/changi/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "chennai": [
+    {
+      "src": "/images/landing-points/chennai/1.webp",
+      "width": 1000,
+      "height": 651
+    }
+  ],
   "cherating": [
     {
       "src": "/images/landing-points/cherating/1.webp",
       "width": 1000,
       "height": 578
+    }
+  ],
+  "chikura": [
+    {
+      "src": "/images/landing-points/chikura/1.webp",
+      "width": 1000,
+      "height": 750
+    }
+  ],
+  "chongming": [
+    {
+      "src": "/images/landing-points/chongming/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "colombo": [
+    {
+      "src": "/images/landing-points/colombo/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "cotonou": [
+    {
+      "src": "/images/landing-points/cotonou/1.webp",
+      "width": 1000,
+      "height": 400
+    }
+  ],
+  "cox-bazar": [
+    {
+      "src": "/images/landing-points/cox-bazar/1.webp",
+      "width": 1000,
+      "height": 571
+    }
+  ],
+  "daet": [
+    {
+      "src": "/images/landing-points/daet/1.webp",
+      "width": 1000,
+      "height": 563
+    }
+  ],
+  "dakar": [
+    {
+      "src": "/images/landing-points/dakar/1.webp",
+      "width": 1000,
+      "height": 666
+    }
+  ],
+  "djibouti": [
+    {
+      "src": "/images/landing-points/djibouti/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "douala": [
+    {
+      "src": "/images/landing-points/douala/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "dumai": [
+    {
+      "src": "/images/landing-points/dumai/1.webp",
+      "width": 1000,
+      "height": 750
+    }
+  ],
+  "east-coast-sg": [
+    {
+      "src": "/images/landing-points/east-coast-sg/1.webp",
+      "width": 1000,
+      "height": 564
+    }
+  ],
+  "fujairah": [
+    {
+      "src": "/images/landing-points/fujairah/1.webp",
+      "width": 1000,
+      "height": 749
+    },
+    {
+      "src": "/images/landing-points/fujairah/2.webp",
+      "width": 1000,
+      "height": 582
+    }
+  ],
+  "jakarta": [
+    {
+      "src": "/images/landing-points/jakarta/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "jeddah": [
+    {
+      "src": "/images/landing-points/jeddah/1.webp",
+      "width": 1000,
+      "height": 750
     }
   ],
   "jeram": [
@@ -47,11 +255,46 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 578
     }
   ],
+  "karachi": [
+    {
+      "src": "/images/landing-points/karachi/1.webp",
+      "width": 1000,
+      "height": 750
+    }
+  ],
+  "katong": [
+    {
+      "src": "/images/landing-points/katong/1.webp",
+      "width": 1000,
+      "height": 631
+    }
+  ],
+  "keawaula": [
+    {
+      "src": "/images/landing-points/keawaula/1.webp",
+      "width": 1000,
+      "height": 744
+    }
+  ],
+  "kitaibaraki": [
+    {
+      "src": "/images/landing-points/kitaibaraki/1.webp",
+      "width": 1000,
+      "height": 670
+    }
+  ],
   "kota-kinabalu": [
     {
       "src": "/images/landing-points/kota-kinabalu/1.webp",
       "width": 1000,
       "height": 578
+    }
+  ],
+  "kuakata": [
+    {
+      "src": "/images/landing-points/kuakata/1.webp",
+      "width": 1000,
+      "height": 562
     }
   ],
   "kuala-besut": [
@@ -73,6 +316,13 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 578
     }
   ],
+  "kuantan": [
+    {
+      "src": "/images/landing-points/kuantan/1.webp",
+      "width": 1000,
+      "height": 664
+    }
+  ],
   "kuching": [
     {
       "src": "/images/landing-points/kuching/1.webp",
@@ -81,6 +331,20 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
     },
     {
       "src": "/images/landing-points/kuching/2.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "la-union": [
+    {
+      "src": "/images/landing-points/la-union/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "lagos": [
+    {
+      "src": "/images/landing-points/lagos/1.webp",
       "width": 1000,
       "height": 562
     }
@@ -97,11 +361,67 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 578
     }
   ],
+  "lantau": [
+    {
+      "src": "/images/landing-points/lantau/1.webp",
+      "width": 1000,
+      "height": 750
+    }
+  ],
+  "libreville": [
+    {
+      "src": "/images/landing-points/libreville/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
   "lumut": [
     {
       "src": "/images/landing-points/lumut/1.webp",
       "width": 1000,
       "height": 578
+    }
+  ],
+  "marmaris": [
+    {
+      "src": "/images/landing-points/marmaris/1.webp",
+      "width": 1000,
+      "height": 500
+    }
+  ],
+  "marseille": [
+    {
+      "src": "/images/landing-points/marseille/1.webp",
+      "width": 1000,
+      "height": 500
+    }
+  ],
+  "matara": [
+    {
+      "src": "/images/landing-points/matara/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "medan": [
+    {
+      "src": "/images/landing-points/medan/1.webp",
+      "width": 1000,
+      "height": 516
+    }
+  ],
+  "melaka": [
+    {
+      "src": "/images/landing-points/melaka/1.webp",
+      "width": 1000,
+      "height": 563
+    }
+  ],
+  "melkbosstrand": [
+    {
+      "src": "/images/landing-points/melkbosstrand/1.webp",
+      "width": 1000,
+      "height": 600
     }
   ],
   "merang": [
@@ -133,6 +453,55 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "src": "/images/landing-points/miri/1.webp",
       "width": 1000,
       "height": 578
+    }
+  ],
+  "mt-lavinia": [
+    {
+      "src": "/images/landing-points/mt-lavinia/1.webp",
+      "width": 1000,
+      "height": 751
+    }
+  ],
+  "mtunzini": [
+    {
+      "src": "/images/landing-points/mtunzini/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "mumbai": [
+    {
+      "src": "/images/landing-points/mumbai/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "okinawa": [
+    {
+      "src": "/images/landing-points/okinawa/1.webp",
+      "width": 1000,
+      "height": 665
+    }
+  ],
+  "palermo": [
+    {
+      "src": "/images/landing-points/palermo/1.webp",
+      "width": 1000,
+      "height": 499
+    }
+  ],
+  "pathein": [
+    {
+      "src": "/images/landing-points/pathein/1.webp",
+      "width": 1000,
+      "height": 501
+    }
+  ],
+  "penang": [
+    {
+      "src": "/images/landing-points/penang/1.webp",
+      "width": 1000,
+      "height": 562
     }
   ],
   "pulau-jerejak": [
@@ -192,11 +561,39 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 578
     }
   ],
+  "qalhat": [
+    {
+      "src": "/images/landing-points/qalhat/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "rayong": [
+    {
+      "src": "/images/landing-points/rayong/1.webp",
+      "width": 1000,
+      "height": 563
+    }
+  ],
   "rompin": [
     {
       "src": "/images/landing-points/rompin/1.webp",
       "width": 1000,
       "height": 578
+    }
+  ],
+  "san-luis-obispo": [
+    {
+      "src": "/images/landing-points/san-luis-obispo/1.webp",
+      "width": 1000,
+      "height": 600
+    }
+  ],
+  "satun": [
+    {
+      "src": "/images/landing-points/satun/1.webp",
+      "width": 1000,
+      "height": 563
     }
   ],
   "seberang-jaya": [
@@ -211,11 +608,130 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 642
     }
   ],
+  "sesimbra": [
+    {
+      "src": "/images/landing-points/sesimbra/1.webp",
+      "width": 1000,
+      "height": 558
+    }
+  ],
   "sg-lima": [
     {
       "src": "/images/landing-points/sg-lima/1.webp",
       "width": 1000,
       "height": 560
+    }
+  ],
+  "shantou": [
+    {
+      "src": "/images/landing-points/shantou/1.webp",
+      "width": 1000,
+      "height": 583
+    }
+  ],
+  "shinmaruyama": [
+    {
+      "src": "/images/landing-points/shinmaruyama/1.webp",
+      "width": 1000,
+      "height": 556
+    }
+  ],
+  "sihanoukville": [
+    {
+      "src": "/images/landing-points/sihanoukville/1.webp",
+      "width": 1000,
+      "height": 665
+    }
+  ],
+  "singapore-pop": [
+    {
+      "src": "/images/landing-points/singapore-pop/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "sri-racha": [
+    {
+      "src": "/images/landing-points/sri-racha/1.webp",
+      "width": 1000,
+      "height": 598
+    }
+  ],
+  "st-paul-reunion": [
+    {
+      "src": "/images/landing-points/st-paul-reunion/1.webp",
+      "width": 1000,
+      "height": 662
+    }
+  ],
+  "suez": [
+    {
+      "src": "/images/landing-points/suez/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "tanguisson": [
+    {
+      "src": "/images/landing-points/tanguisson/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "tanshui": [
+    {
+      "src": "/images/landing-points/tanshui/1.webp",
+      "width": 1000,
+      "height": 667
+    }
+  ],
+  "toulon": [
+    {
+      "src": "/images/landing-points/toulon/1.webp",
+      "width": 1000,
+      "height": 666
+    }
+  ],
+  "tseung-kwan-o": [
+    {
+      "src": "/images/landing-points/tseung-kwan-o/1.webp",
+      "width": 1000,
+      "height": 562
+    }
+  ],
+  "tuas": [
+    {
+      "src": "/images/landing-points/tuas/1.webp",
+      "width": 1000,
+      "height": 455
+    }
+  ],
+  "tungku": [
+    {
+      "src": "/images/landing-points/tungku/1.webp",
+      "width": 1000,
+      "height": 739
+    }
+  ],
+  "vung-tau": [
+    {
+      "src": "/images/landing-points/vung-tau/1.webp",
+      "width": 1000,
+      "height": 510
+    }
+  ],
+  "yanbu": [
+    {
+      "src": "/images/landing-points/yanbu/1.webp",
+      "width": 1000,
+      "height": 417
+    }
+  ],
+  "zafarana": [
+    {
+      "src": "/images/landing-points/zafarana/1.webp",
+      "width": 1000,
+      "height": 667
     }
   ]
 };
