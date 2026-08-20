@@ -546,7 +546,7 @@ export function dialablePoints(): Set<string> {
 // A destination is "sensibly" reachable when its drawn route isn't an absurd
 // detour. Some cross-network pairs are only connectable the long way around —
 // Marseille→Lisbon has no Mediterranean cable in the dataset (only a path around
-// Africa); Cochin→Colombo is 517km apart but the cables only link them via a
+// Africa); Kochi→Colombo is 517km apart but the cables only link them via a
 // 5,000km out-and-back. Both still pass reachableFrom (a path exists) but would
 // animate a pulse looping the globe, so we drop them here and the "To" picker
 // offers only routes that look right.

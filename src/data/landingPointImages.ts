@@ -159,6 +159,13 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 667
     }
   ],
+  "cochin": [
+    {
+      "src": "/images/landing-points/cochin/1.webp",
+      "width": 1000,
+      "height": 563
+    }
+  ],
   "colombo": [
     {
       "src": "/images/landing-points/colombo/1.webp",

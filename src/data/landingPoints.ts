@@ -534,9 +534,14 @@ export const landingPoints: LandingPoint[] = [
     cableIds: ["smw4", "bbg", "flag"],
   },
   {
+    // id stays "cochin": it keys the assets/ drop-zone folder, the image
+    // manifest and this point's cable back-references. The city was renamed
+    // Kochi in 1996 and the client uses the modern name, so only the display
+    // name changed — the client's board still reads "Cochin, India" (README
+    // row 84), which is why that mapping table was left alone.
     id: "cochin",
-    name: "Cochin, India",
-    city: "Cochin",
+    name: "Kochi, India",
+    city: "Kochi",
     country: "India",
     region: "South Asia",
     lat: 9.95,

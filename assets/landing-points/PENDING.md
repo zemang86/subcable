@@ -9,8 +9,8 @@ node scripts/import-landing-images.mjs   # prints "no image yet (N): …"
 | | Count |
 |---|---|
 | Landing points in `landingPoints.ts` | 114 |
-| **Have a photo** | **96** |
-| Pending | 18 |
+| **Have a photo** | **97** |
+| Pending | 17 |
 
 The client's designer filled the international table's Image column on 2026-08-17 and Hazman
 dropped the lot by hand, which cleared the 45 rows that used to be blocked. The old worklists —
@@ -23,12 +23,11 @@ or showing a broken image. Every entry below renders that way today.
 
 ---
 
-## Still pending — 18
+## Still pending — 17
 
-**Decided, leave as-is (2):**
+**Decided, leave as-is (1):**
 
 - `labuan` — deliberate: MDSCS is struck through on the client board, so this card is title-only by design
-- `cochin` — the one row the designer did not supply. Hazman's call on 2026-08-18: leave it
 
 **Never on either client table (16)** — these were never scaffolded a folder, because the client's
 tables cover only the systems they own. All belong to the IRU or planned systems:
