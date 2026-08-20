@@ -9,8 +9,8 @@ node scripts/import-landing-images.mjs   # prints "no image yet (N): …"
 | | Count |
 |---|---|
 | Landing points in `landingPoints.ts` | 114 |
-| **Have a photo** | **97** |
-| Pending | 17 |
+| **Have a photo** | **98** |
+| Pending | 16 |
 
 The client's designer filled the international table's Image column on 2026-08-17 and Hazman
 dropped the lot by hand, which cleared the 45 rows that used to be blocked. The old worklists —
@@ -23,11 +23,11 @@ or showing a broken image. Every entry below renders that way today.
 
 ---
 
-## Still pending — 17
+## Still pending — 16
 
-**Decided, leave as-is (1):**
-
-- `labuan` — deliberate: MDSCS is struck through on the client board, so this card is title-only by design
+Every folder in the drop zone now holds a photo. `labuan` was title-only by design for a while —
+MDSCS is struck through on the client board — but Hazman supplied a free-to-use Unsplash photo for
+it on 2026-08-20, so that exception is closed.
 
 **Never on either client table (16)** — these were never scaffolded a folder, because the client's
 tables cover only the systems they own. All belong to the IRU or planned systems:

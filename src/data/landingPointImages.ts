@@ -349,6 +349,13 @@ export const LANDING_POINT_IMAGES: Record<string, LandingPointImage[]> = {
       "height": 562
     }
   ],
+  "labuan": [
+    {
+      "src": "/images/landing-points/labuan/1.webp",
+      "width": 1000,
+      "height": 578
+    }
+  ],
   "lagos": [
     {
       "src": "/images/landing-points/lagos/1.webp",
