@@ -10,6 +10,7 @@
  *   node scripts/renderVoiceover.mjs --lang=en --block=cables
  *   node scripts/renderVoiceover.mjs --lang=en --only=gutta-percha --force
  *   node scripts/renderVoiceover.mjs --lang=en --dry-run
+ *   node scripts/renderVoiceover.mjs --lang=en --reencode --tempo=1.15
  *
  * One file per UNIT, where a unit is one info-panel screen or one cable —
  * the granularity the narration button plays at. Recording a whole screen in
@@ -100,6 +101,18 @@ const dryRun = argv.includes("--dry-run");
 /** Re-run trim/normalise/encode from the WAV masters, no API call. Lets the
  * audio chain be tuned without gambling on a fresh, different take. */
 const reencode = argv.includes("--reencode");
+/**
+ * Playback speed applied to the master before encoding. The Gemini read comes
+ * out around 106 wpm against the 145 the script quotes, and atempo is
+ * pitch-preserving and transparent to roughly 1.15x — so the read that was
+ * approved stays the read that ships, just tightened. Post-process only: it is
+ * deliberately NOT part of the take hash, so changing it re-encodes rather than
+ * buying a new and different take.
+ */
+const tempo = Number(arg("tempo", "1"));
+if (!Number.isFinite(tempo) || tempo < 0.5 || tempo > 2) {
+  die(`--tempo must be between 0.5 and 2 (got "${arg("tempo")}")`);
+}
 
 if (!["en", "bm"].includes(lang)) die(`--lang must be en or bm (got "${lang}")`);
 if (!["info", "cables", "all"].includes(block)) die(`--block must be info, cables or all`);
@@ -170,7 +183,10 @@ const isFresh = (u) => {
 const todo = reencode ? roster : roster.filter((u) => !isFresh(u));
 const fresh = roster.length - todo.length;
 
-console.log(`${MODEL} · ${VOICE} · ${lang.toUpperCase()} · block=${block}`);
+console.log(
+  `${MODEL} · ${VOICE} · ${lang.toUpperCase()} · block=${block}` +
+    (tempo === 1 ? "" : ` · tempo=${tempo}x`),
+);
 console.log(
   reencode
     ? `${roster.length} unit(s): re-encoding from masters, no API calls.\n`
@@ -269,6 +285,9 @@ async function synthWithRetry(key, text) {
 
 const ff = (args) => execFileSync("ffmpeg", ["-hide_banner", "-y", ...args], { stdio: ["ignore", "pipe", "pipe"] });
 
+/** Everything ahead of loudness measurement, so both passes see one signal. */
+const PRE = tempo === 1 ? TRIM : `${TRIM},atempo=${tempo}`;
+
 /**
  * Two-pass loudnorm. One pass would leave each take a couple of dB apart, which
  * on a kiosk reads as the volume jumping between screens. Measure, then correct.
@@ -279,7 +298,7 @@ function normaliseToMp3(wavIn, mp3Out) {
     const probe = execFileSync(
       "ffmpeg",
       ["-hide_banner", "-i", wavIn, "-af",
-       `${TRIM},loudnorm=I=${LOUDNESS.I}:TP=${LOUDNESS.TP}:LRA=${LOUDNESS.LRA}:print_format=json`,
+       `${PRE},loudnorm=I=${LOUDNESS.I}:TP=${LOUDNESS.TP}:LRA=${LOUDNESS.LRA}:print_format=json`,
        "-f", "null", "-"],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -303,7 +322,7 @@ function normaliseToMp3(wavIn, mp3Out) {
     : `loudnorm=I=${LOUDNESS.I}:TP=${LOUDNESS.TP}:LRA=${LOUDNESS.LRA}`;
 
   mkdirSync(dirname(mp3Out), { recursive: true });
-  ff(["-i", wavIn, "-af", `${TRIM},${norm}`, "-ac", "1", "-b:a", MP3_BITRATE, mp3Out]);
+  ff(["-i", wavIn, "-af", `${PRE},${norm}`, "-ac", "1", "-b:a", MP3_BITRATE, mp3Out]);
   return measured;
 }
 
@@ -376,6 +395,7 @@ for (const [i, u] of todo.entries()) {
       seconds: Number(secs.toFixed(2)),
       hash: u.hash,
       words: u.text.split(/\s+/).length,
+      tempo,
     };
     const { i, tp } = loudnessOf(mp3Out);
     console.log(

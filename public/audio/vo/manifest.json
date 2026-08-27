@@ -6,39 +6,45 @@
     "en": {
       "overview/what-is-a-submarine-cable": {
         "file": "en/overview-what-is-a-submarine-cable.mp3",
-        "seconds": 16.14,
+        "seconds": 13.99,
         "hash": "741e93a2edce",
-        "words": 26
+        "words": 26,
+        "tempo": 1.15
       },
       "overview/connecting-the-world": {
         "file": "en/overview-connecting-the-world.mp3",
-        "seconds": 71.29,
+        "seconds": 62,
         "hash": "5d8037f8da11",
-        "words": 125
+        "words": 125,
+        "tempo": 1.15
       },
       "how-its-made/gutta-percha": {
         "file": "en/how-its-made-gutta-percha.mp3",
-        "seconds": 79.04,
+        "seconds": 68.72,
         "hash": "89fdd222c3a1",
-        "words": 144
+        "words": 144,
+        "tempo": 1.15
       },
       "inside-the-cable/layers": {
         "file": "en/inside-the-cable-layers.mp3",
-        "seconds": 22.67,
+        "seconds": 19.72,
         "hash": "b10a07c74e76",
-        "words": 50
+        "words": 50,
+        "tempo": 1.15
       },
       "then-and-now/then": {
         "file": "en/then-and-now-then.mp3",
-        "seconds": 22.47,
+        "seconds": 19.54,
         "hash": "0e1bc432bf49",
-        "words": 33
+        "words": 33,
+        "tempo": 1.15
       },
       "then-and-now/now": {
         "file": "en/then-and-now-now.mp3",
-        "seconds": 21.64,
+        "seconds": 18.83,
         "hash": "99c058b86941",
-        "words": 34
+        "words": 34,
+        "tempo": 1.15
       }
     }
   }

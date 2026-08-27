@@ -158,14 +158,22 @@ for (const [ref, entry] of units) {
   try {
     const want = foldUnits(norm((expected.get(ref) ?? []).join(" ")));
 
-    // The transcriber is flaky: it sometimes returns only the first sentence of
-    // a long file. A truncated pass looks exactly like a badly dropped
-    // paragraph, and acting on one would mean re-rendering good audio for
-    // nothing. A real defect reproduces across passes, so take the best of two
-    // and only believe a miss that survives both.
+    // The transcriber is flaky in two ways: it sometimes returns only the first
+    // sentence of a long file, and sometimes returns nothing at all. A truncated
+    // pass looks exactly like a badly dropped paragraph, and acting on one would
+    // mean re-rendering good audio for nothing. A real defect reproduces across
+    // passes; flakiness does not. So: up to three passes, keep the best, and
+    // treat a failed pass as a failed pass rather than as a verdict on the audio.
     let best = null;
-    for (let pass = 1; pass <= 2; pass++) {
-      const raw = norm(await transcribe(key, file));
+    let lastErr = null;
+    for (let pass = 1; pass <= 3; pass++) {
+      let raw;
+      try {
+        raw = norm(await transcribe(key, file));
+      } catch (e) {
+        lastErr = e;
+        continue;
+      }
       const got = foldUnits(raw);
       const d = diffWords(want, got);
       const match = ((2 * d.common) / (want.length + got.length)) * 100;
@@ -173,6 +181,7 @@ for (const [ref, entry] of units) {
       if (!best || cand.match > best.match) best = cand;
       if (best.missing.length === 0 && best.extra.length === 0) break;
     }
+    if (!best) throw lastErr ?? new Error("no transcript after 3 passes");
 
     const { missing, extra, match, abbreviated, pass } = best;
     const ok = missing.length === 0 && extra.length === 0;
