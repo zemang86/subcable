@@ -25,6 +25,10 @@ import { cables } from "@/data/cables";
 
 const REPO = path.resolve(import.meta.dirname, "..");
 const OUT = path.join(REPO, "docs/vo-table/vo-script.md");
+/** Machine-readable twin of OUT. The renderer reads this rather than
+ * re-walking the sources, so recorded audio cannot drift from the script
+ * the client signed off. */
+const OUT_JSON = path.join(REPO, "docs/vo-table/vo-script.json");
 const BM_PATH = path.join(REPO, "scripts/sources/cable-descriptions-bm.json");
 
 /** Spoken pace assumed for every estimate below. Adjust once, here. */
@@ -275,6 +279,24 @@ w(
 w();
 
 const out = L.join("\n");
+
+// Flat segment list for scripts/renderVoiceover.mjs. Unit = the ref up to "#":
+// one info screen or one cable, which is how narration is recorded and played.
+const json = {
+  generatedBy: "scripts/buildVoScript.ts",
+  wpm: WPM,
+  segments: all.map((s) => ({
+    ref: s.ref,
+    where: s.where,
+    en: s.en,
+    bm: s.bm,
+    bmApproved: s.bmApproved,
+    ours: "ours" in s ? (s as { ours: boolean }).ours : false,
+  })),
+};
+mkdirSync(path.dirname(OUT_JSON), { recursive: true });
+writeFileSync(OUT_JSON, JSON.stringify(json, null, 2) + "\n");
+
 if (process.argv.includes("--stdout")) {
   console.log(out);
 } else {

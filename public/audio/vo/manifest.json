@@ -1,0 +1,45 @@
+{
+  "voice": "Sulafat",
+  "model": "gemini-3.1-flash-tts-preview",
+  "loudness": "-16 LUFS / -3 dBTP",
+  "units": {
+    "en": {
+      "overview/what-is-a-submarine-cable": {
+        "file": "en/overview-what-is-a-submarine-cable.mp3",
+        "seconds": 16.14,
+        "hash": "741e93a2edce",
+        "words": 26
+      },
+      "overview/connecting-the-world": {
+        "file": "en/overview-connecting-the-world.mp3",
+        "seconds": 71.29,
+        "hash": "5d8037f8da11",
+        "words": 125
+      },
+      "how-its-made/gutta-percha": {
+        "file": "en/how-its-made-gutta-percha.mp3",
+        "seconds": 79.04,
+        "hash": "89fdd222c3a1",
+        "words": 144
+      },
+      "inside-the-cable/layers": {
+        "file": "en/inside-the-cable-layers.mp3",
+        "seconds": 22.67,
+        "hash": "b10a07c74e76",
+        "words": 50
+      },
+      "then-and-now/then": {
+        "file": "en/then-and-now-then.mp3",
+        "seconds": 22.47,
+        "hash": "0e1bc432bf49",
+        "words": 33
+      },
+      "then-and-now/now": {
+        "file": "en/then-and-now-now.mp3",
+        "seconds": 21.64,
+        "hash": "99c058b86941",
+        "words": 34
+      }
+    }
+  }
+}
