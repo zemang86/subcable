@@ -9,6 +9,7 @@
  *   node scripts/renderVoiceover.mjs --lang=en --block=info
  *   node scripts/renderVoiceover.mjs --lang=en --block=cables
  *   node scripts/renderVoiceover.mjs --lang=en --only=gutta-percha --force
+ *   node scripts/renderVoiceover.mjs --lang=en --only=bdm,bps --force   (comma list)
  *   node scripts/renderVoiceover.mjs --lang=en --dry-run
  *   node scripts/renderVoiceover.mjs --lang=en --reencode --tempo=1.15
  *
@@ -72,22 +73,40 @@ const MP3_BITRATE = "64k";
  * Naming Malaysia explicitly matters in both languages: left alone the model
  * drifts to Indonesian vowels in BM and anglicises Malay proper nouns in EN,
  * and a KL audience hears both instantly. The initialism line is for the cable
- * block, where nearly every name is one (SMW4, AAG, BBG, SKR1M).
+ * block, where nearly every name is one (SMW4, AAG, BBG, SKR1M) — but it must
+ * carry the exception, because a blanket "letter by letter" made a take spell
+ * SEA-ME-WE as "S-E-E-W-E".
+ *
+ * NOTE: the direction is deliberately NOT part of the take hash. Editing it
+ * does not mark anything stale; re-render the affected units with --force.
  */
 const DIRECTION = {
   bm:
     "Bacakan teks berikut dalam Bahasa Malaysia baku dengan nada hangat, " +
     "tenang dan berwibawa — seperti narator dokumentari muzium. Gunakan " +
     "sebutan Malaysia, bukan Indonesia. Eja huruf demi huruf bagi singkatan " +
-    "seperti TM, SMW dan AAG. Rentak sederhana dan jelas, dengan jeda pendek " +
-    "antara perenggan:",
+    "yang tidak boleh disebut sebagai perkataan; nama yang boleh disebut, " +
+    "sebutlah sebagai perkataan. Rentak sederhana dan jelas, dengan jeda " +
+    "pendek antara perenggan:",
   en:
     "Read the following as museum exhibit narration, in a warm, calm, " +
     "authoritative tone. Measured pace, clear diction, a short pause between " +
     "paragraphs. Malaysian English: give Malay proper nouns their Malay " +
-    "pronunciation rather than anglicising them. Read initialisms such as TM, " +
-    "SMW and AAG letter by letter:",
+    "pronunciation rather than anglicising them. Read an initialism letter by " +
+    "letter only when it cannot be said as a word; say pronounceable names as " +
+    "words:",
 };
+
+/**
+ * Pronunciation hints, applied ONLY to the text handed to the engine — never to
+ * the script, the client's copy, or what the verifier compares against. Written
+ * so that normalising both sides for comparison still lines up: "SEA-ME-WE" and
+ * "Sea Me We" both reduce to "sea me we".
+ *
+ * These ARE part of the take hash, since they change what is actually spoken.
+ */
+const SAY_AS = [[/SEA-ME-WE/g, "Sea Me We"]];
+const spoken = (t) => SAY_AS.reduce((acc, [re, to]) => acc.replace(re, to), t);
 
 // ── args ─────────────────────────────────────────────────────────────────────
 
@@ -152,10 +171,10 @@ const hashOf = (text) => createHash("sha1").update(`${MODEL}|${VOICE}|${lang}|${
 
 let roster = [...units.values()]
   .filter((u) => block === "all" || u.block === block)
-  .filter((u) => !only || u.ref.includes(only));
+  .filter((u) => !only || only.split(",").some((o) => u.ref.includes(o.trim())));
 
 for (const u of roster) {
-  u.text = u.parts.join("\n\n").trim();
+  u.text = spoken(u.parts.join("\n\n").trim());
   u.hash = hashOf(u.text);
   u.stem = fileStem(u.ref);
 }
@@ -397,10 +416,19 @@ for (const [i, u] of todo.entries()) {
       words: u.text.split(/\s+/).length,
       tempo,
     };
+    // Every hallucination found so far — an appended sentence, a description
+    // spoken twice, a whole different cable invented — showed up first as audio
+    // far longer than the word count can account for. Acronyms read letter by
+    // letter legitimately drag the rate down, so the threshold is generous;
+    // this is a prompt to go and verify, not a verdict.
+    const wpm = (u.text.split(/\s+/).length / secs) * 60;
+    const suspect = wpm < 45;
+
     const { i, tp } = loudnessOf(mp3Out);
     console.log(
       `${seconds.toFixed(1)}s -> ${secs.toFixed(1)}s  ` +
-        `${i.toFixed(1)} LUFS / ${tp.toFixed(1)} dBTP`,
+        `${i.toFixed(1)} LUFS / ${tp.toFixed(1)} dBTP` +
+        (suspect ? `  ** ${wpm.toFixed(0)} wpm — verify, likely invented content` : ""),
     );
   } catch (e) {
     console.log(`FAILED — ${e.message}`);

@@ -58,6 +58,7 @@ const SPELLING = {
   kilometre: "kilometer", kilometres: "kilometers", centre: "center",
   colour: "color", programme: "program", defence: "defense",
   galvanised: "galvanized", organised: "organized", recognised: "recognized",
+  neighbouring: "neighboring", neighbour: "neighbor", neighbours: "neighbors",
 };
 
 /**
@@ -82,6 +83,15 @@ const norm = (s) =>
 
 /** Second pass, applied only when comparing, so the advisory can fire. */
 const foldUnits = (ws) => ws.map((w) => UNIT_ABBREV[w] ?? w);
+
+/**
+ * Where the word boundaries fall is the transcriber's choice, not the
+ * narrator's: it writes "transatlantic" for copy reading "Trans-Atlantic",
+ * "smw4" for "SMW-4", "sat 3" for "SAT3". None of that is audible. If the two
+ * sides are identical once spacing is discarded, the words spoken were right
+ * and only the spelling of the gap differs.
+ */
+const despace = (ws) => ws.join("");
 
 /** Longest common subsequence — reports what is genuinely missing or added
  * rather than every word after the first misalignment. */
@@ -133,6 +143,10 @@ async function transcribe(key, file) {
     .filter((p) => p.thought !== true)
     .map((p) => p.text ?? "")
     .join("")
+    .trim()
+    // Reasoning occasionally leaks into the answer as a bare "thought" line
+    // rather than as a part flagged thought:true.
+    .replace(/^thought\s*\n/i, "")
     .trim();
   if (!text) throw new Error(`empty transcript (${cand?.finishReason})`);
   // A truncated pass must surface as an error, never as a word diff.
@@ -177,15 +191,22 @@ for (const [ref, entry] of units) {
       const got = foldUnits(raw);
       const d = diffWords(want, got);
       const match = ((2 * d.common) / (want.length + got.length)) * 100;
-      const cand = { ...d, match, abbreviated: raw.some((w) => w in UNIT_ABBREV), pass };
+      const cand = {
+        ...d,
+        match,
+        abbreviated: raw.some((w) => w in UNIT_ABBREV),
+        spacingOnly: despace(want) === despace(got),
+        pass,
+      };
       if (!best || cand.match > best.match) best = cand;
-      if (best.missing.length === 0 && best.extra.length === 0) break;
+      if (best.spacingOnly || (best.missing.length === 0 && best.extra.length === 0)) break;
     }
     if (!best) throw lastErr ?? new Error("no transcript after 3 passes");
 
-    const { missing, extra, match, abbreviated, pass } = best;
-    const ok = missing.length === 0 && extra.length === 0;
-    console.log(`${match.toFixed(1)}% ${ok ? "exact" : ""}${pass > 1 ? ` (pass ${pass})` : ""}`);
+    const { missing, extra, match, abbreviated, spacingOnly, pass } = best;
+    const ok = spacingOnly || (missing.length === 0 && extra.length === 0);
+    const label = spacingOnly && missing.length + extra.length > 0 ? "exact (word-splitting only)" : ok ? "exact" : "";
+    console.log(`${match.toFixed(1)}% ${label}${pass > 1 ? ` (pass ${pass})` : ""}`);
     if (abbreviated) {
       console.log("      note: transcriber abbreviated a spoken unit — confirm by ear that it is read in full");
     }

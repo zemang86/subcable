@@ -45,6 +45,188 @@
         "hash": "99c058b86941",
         "words": 34,
         "tempo": 1.15
+      },
+      "cable/smw4": {
+        "file": "en/cable-smw4.mp3",
+        "seconds": 35.76,
+        "hash": "73fcaab0da55",
+        "words": 63,
+        "tempo": 1.15
+      },
+      "cable/smw5": {
+        "file": "en/cable-smw5.mp3",
+        "seconds": 38.69,
+        "hash": "014d1a92357f",
+        "words": 60,
+        "tempo": 1.15
+      },
+      "cable/bbg": {
+        "file": "en/cable-bbg.mp3",
+        "seconds": 25.94,
+        "hash": "d2bdba67943a",
+        "words": 48,
+        "tempo": 1.15
+      },
+      "cable/aag": {
+        "file": "en/cable-aag.mp3",
+        "seconds": 25.28,
+        "hash": "9738c5004fc4",
+        "words": 45,
+        "tempo": 1.15
+      },
+      "cable/apcn2": {
+        "file": "en/cable-apcn2.mp3",
+        "seconds": 25.75,
+        "hash": "9f44b5969d8f",
+        "words": 42,
+        "tempo": 1.15
+      },
+      "cable/cm": {
+        "file": "en/cable-cm.mp3",
+        "seconds": 20.55,
+        "hash": "5699d9548312",
+        "words": 39,
+        "tempo": 1.15
+      },
+      "cable/bdm": {
+        "file": "en/cable-bdm.mp3",
+        "seconds": 19.16,
+        "hash": "8e0f9e071e9c",
+        "words": 30,
+        "tempo": 1.15
+      },
+      "cable/dmcs": {
+        "file": "en/cable-dmcs.mp3",
+        "seconds": 17.67,
+        "hash": "6f8ea675c032",
+        "words": 31,
+        "tempo": 1.15
+      },
+      "cable/mct": {
+        "file": "en/cable-mct.mp3",
+        "seconds": 19.82,
+        "hash": "9b560d1fccd5",
+        "words": 31,
+        "tempo": 1.15
+      },
+      "cable/nugate": {
+        "file": "en/cable-nugate.mp3",
+        "seconds": 20.78,
+        "hash": "d29ab4c347b0",
+        "words": 31,
+        "tempo": 1.15
+      },
+      "cable/sat3-wasc-safe": {
+        "file": "en/cable-sat3-wasc-safe.mp3",
+        "seconds": 21.81,
+        "hash": "a6c598b68582",
+        "words": 34,
+        "tempo": 1.15
+      },
+      "cable/flag": {
+        "file": "en/cable-flag.mp3",
+        "seconds": 24.31,
+        "hash": "9244b708b522",
+        "words": 21,
+        "tempo": 1.15
+      },
+      "cable/fa1": {
+        "file": "en/cable-fa1.mp3",
+        "seconds": 9.74,
+        "hash": "03c8c27ee022",
+        "words": 13,
+        "tempo": 1.15
+      },
+      "cable/mdscs": {
+        "file": "en/cable-mdscs.mp3",
+        "seconds": 19,
+        "hash": "aba5d23a8183",
+        "words": 34,
+        "tempo": 1.15
+      },
+      "cable/bps": {
+        "file": "en/cable-bps.mp3",
+        "seconds": 16.49,
+        "hash": "348a979699f7",
+        "words": 28,
+        "tempo": 1.15
+      },
+      "cable/langkawi-perlis": {
+        "file": "en/cable-langkawi-perlis.mp3",
+        "seconds": 12.78,
+        "hash": "9e83834a77b8",
+        "words": 21,
+        "tempo": 1.15
+      },
+      "cable/skr1m": {
+        "file": "en/cable-skr1m.mp3",
+        "seconds": 18.72,
+        "hash": "2c7949c0d39a",
+        "words": 34,
+        "tempo": 1.15
+      },
+      "cable/stingray-pangkor": {
+        "file": "en/cable-stingray-pangkor.mp3",
+        "seconds": 12.4,
+        "hash": "590dc727a862",
+        "words": 20,
+        "tempo": 1.15
+      },
+      "cable/stingray-tioman": {
+        "file": "en/cable-stingray-tioman.mp3",
+        "seconds": 11.38,
+        "hash": "9c46f8e72160",
+        "words": 19,
+        "tempo": 1.15
+      },
+      "cable/stingray-perhentian": {
+        "file": "en/cable-stingray-perhentian.mp3",
+        "seconds": 12.24,
+        "hash": "bbec94094762",
+        "words": 18,
+        "tempo": 1.15
+      },
+      "cable/stingray2-ketam": {
+        "file": "en/cable-stingray2-ketam.mp3",
+        "seconds": 10.92,
+        "hash": "5a8f8dbbf188",
+        "words": 21,
+        "tempo": 1.15
+      },
+      "cable/stingray2-redang": {
+        "file": "en/cable-stingray2-redang.mp3",
+        "seconds": 11.73,
+        "hash": "86d4be1fa585",
+        "words": 21,
+        "tempo": 1.15
+      },
+      "cable/smw6": {
+        "file": "en/cable-smw6.mp3",
+        "seconds": 9.81,
+        "hash": "da75b2cdf700",
+        "words": 16,
+        "tempo": 1.15
+      },
+      "cable/alc": {
+        "file": "en/cable-alc.mp3",
+        "seconds": 7.55,
+        "hash": "1cb540042aa6",
+        "words": 13,
+        "tempo": 1.15
+      },
+      "cable/aug-east": {
+        "file": "en/cable-aug-east.mp3",
+        "seconds": 5.54,
+        "hash": "bcce9fcab12a",
+        "words": 9,
+        "tempo": 1.15
+      },
+      "cable/candle": {
+        "file": "en/cable-candle.mp3",
+        "seconds": 4.56,
+        "hash": "284b8ef579f1",
+        "words": 8,
+        "tempo": 1.15
       }
     }
   }
