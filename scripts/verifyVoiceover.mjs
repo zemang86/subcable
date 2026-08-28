@@ -12,6 +12,7 @@
  *
  *   node scripts/verifyVoiceover.mjs --lang=en
  *   node scripts/verifyVoiceover.mjs --lang=en --only=gutta-percha
+ *   node scripts/verifyVoiceover.mjs --lang=bm --only=bbg,cm,bdm   (comma list)
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -20,7 +21,8 @@ import { join } from "node:path";
 const MODEL = "gemini-3.6-flash";
 const SCRIPT_JSON = "docs/vo-table/vo-script.json";
 const MP3_ROOT = "public/audio/vo";
-const MANIFEST = join(MP3_ROOT, "manifest.json");
+/** Lives with the data, not the assets — the app imports it at build time. */
+const MANIFEST = "src/data/voManifest.json";
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1] ?? d;
@@ -99,9 +101,24 @@ const norm = (s) =>
     .filter(Boolean)
     .map((w) => SPELLING[w] ?? w);
 
-/** Second pass, applied only when comparing, so the advisories can fire. */
-const FOLD = lang === "bm" ? { ...UNIT_ABBREV, ...ID_TO_MY } : UNIT_ABBREV;
-const foldUnits = (ws) => ws.map((w) => FOLD[w] ?? w);
+/**
+ * Second pass, applied only when comparing, so the advisories can fire.
+ *
+ * A unit abbreviation only folds when a number precedes it. Cable names collide
+ * with unit symbols — CM is Cahaya Malaysia, not centimetres — and folding
+ * blind turned that cable's own name into "centimeters" on both sides of the
+ * diff. "40 m" is a unit; "CM" on its own is a name.
+ */
+const isNumber = (w) => /^[\d.,]+$/.test(w ?? "");
+const foldUnits = (ws) =>
+  ws.map((w, i) => {
+    if (UNIT_ABBREV[w] && isNumber(ws[i - 1])) return UNIT_ABBREV[w];
+    if (lang === "bm" && ID_TO_MY[w]) return ID_TO_MY[w];
+    return w;
+  });
+
+/** Did a fold actually apply? Drives the advisories, which must not cry wolf. */
+const usedUnitAbbrev = (ws) => ws.some((w, i) => UNIT_ABBREV[w] && isNumber(ws[i - 1]));
 
 /**
  * Where the word boundaries fall is the transcriber's choice, not the
@@ -176,7 +193,9 @@ async function transcribe(key, file) {
 }
 
 const key = apiKey();
-const units = Object.entries(manifest.units?.[lang] ?? {}).filter(([ref]) => !only || ref.includes(only));
+const units = Object.entries(manifest.units?.[lang] ?? {}).filter(
+  ([ref]) => !only || only.split(",").some((o) => ref.includes(o.trim())),
+);
 if (!units.length) {
   console.error(`Nothing rendered for ${lang}${only ? ` matching "${only}"` : ""}.`);
   process.exit(1);
@@ -213,7 +232,7 @@ for (const [ref, entry] of units) {
       const cand = {
         ...d,
         match,
-        abbreviated: raw.some((w) => w in UNIT_ABBREV),
+        abbreviated: usedUnitAbbrev(raw),
         indonesian: raw.some((w) => w in ID_TO_MY),
         spacingOnly: despace(want) === despace(got),
         pass,

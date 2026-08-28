@@ -144,15 +144,15 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — South East Asia–Middle East–Western Europe 5 (SEA-ME-WE 5) is the next-generation successor to SMW-4, stretching roughly 20,000 km from Singapore to France and Italy. Operational since 2016, it offers much higher bandwidth using advanced 100G DWDM optical technology, enabling lower latency and higher reliability for growing international traffic demands such as cloud computing, streaming, and data center interconnectivity.
 
-> **BM** — South East Asia–Middle East–Western Europe 5 (SEA-ME-WE 5) ialah pengganti generasi baharu kepada SMW-4, membentang kira-kira 20,000 km dari Singapura ke Perancis dan Itali. Beroperasi sejak 2016, ia menawarkan jalur lebar yang jauh lebih tinggi menggunakan teknologi optik 100G DWDM termaju, membolehkan latensi lebih rendah dan kebolehpercayaan lebih tinggi bagi permintaan trafik antarabangsa yang kian meningkat seperti pengkomputeran awan, penstriman dan saling hubung pusat data.
+> **BM** — South East Asia–Middle East–Western Europe 5 (SEA-ME-WE 5) ialah pengganti generasi baharu kepada SMW-4, membentang kira-kira 20,000 km dari Singapura ke Perancis dan Itali. Beroperasi sejak 2016, ia menawarkan lebar jalur yang jauh lebih tinggi menggunakan teknologi optik 100G DWDM termaju, membolehkan latensi lebih rendah dan kebolehpercayaan lebih tinggi bagi permintaan trafik antarabangsa yang kian meningkat seperti pengkomputeran awan, penstriman dan saling hubung pusat data.
 
 ### BBG
 
-**cable/bbg** — 46w / 0:19 EN · 50w / 0:21 BM — BM DRAFT
+**cable/bbg** — 46w / 0:19 EN · 51w / 0:21 BM — BM DRAFT
 
 > **EN** — Bay of Bengal Gateway (BBG) is a regional high-capacity submarine cable connecting Malaysia, Singapore, India, Sri Lanka, Oman, and the UAE. Designed to improve connectivity across South Asia and the Middle East, BBG provides strong route diversity and redundancy, helping reduce congestion on traditional SEA-ME-WE routes.
 
-> **BM** — Bay of Bengal Gateway (BBG) ialah kabel dasar laut serantau berkapasiti tinggi yang menghubungkan Malaysia, Singapura, India, Sri Lanka, Oman dan Emiriah Arab Bersatu. Direka untuk menambah baik ketersambungan merentasi Asia Selatan dan Timur Tengah, BBG menyediakan kepelbagaian laluan dan lebihan yang kukuh, membantu mengurangkan kesesakan pada laluan SEA-ME-WE tradisional.
+> **BM** — Bay of Bengal Gateway (BBG) ialah kabel dasar laut serantau berkapasiti tinggi yang menghubungkan Malaysia, Singapura, India, Sri Lanka, Oman dan Emiriah Arab Bersatu. Direka untuk menambah baik hubungan rangkaian merentasi Asia Selatan dan Timur Tengah, BBG menyediakan kepelbagaian laluan dan lebihan yang kukuh, membantu mengurangkan kesesakan pada laluan SEA-ME-WE tradisional.
 
 ### AAG
 
@@ -176,7 +176,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — Cahaya Malaysia (CM) is a regional cable system supporting data exchange between Malaysia and neighbouring Asian hubs such as Japan, Hong Kong, Singapore, and the Philippines. It strengthens regional bandwidth capacity and provides additional redundancy for mission-critical network services.
 
-> **BM** — Cahaya Malaysia (CM) ialah sistem kabel serantau yang menyokong pertukaran data antara Malaysia dan hab Asia berhampiran seperti Jepun, Hong Kong, Singapura dan Filipina. Ia mengukuhkan kapasiti jalur lebar serantau dan menyediakan lebihan tambahan bagi perkhidmatan rangkaian yang kritikal.
+> **BM** — Cahaya Malaysia (CM) ialah sistem kabel serantau yang menyokong pertukaran data antara Malaysia dan hab Asia berhampiran seperti Jepun, Hong Kong, Singapura dan Filipina. Ia mengukuhkan kapasiti lebar jalur serantau dan menyediakan lebihan tambahan bagi perkhidmatan rangkaian yang kritikal.
 
 ### BDM
 
@@ -184,7 +184,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — Batam–Dumai–Melaka (BDM) is a regional cable linking Indonesia and Malaysia across the Strait of Malacca. It improves bilateral telecommunications traffic, cross-border enterprise connectivity, and international transit routing between both countries.
 
-> **BM** — Batam–Dumai–Melaka (BDM) ialah kabel serantau yang menghubungkan Indonesia dan Malaysia merentasi Selat Melaka. Ia menambah baik trafik telekomunikasi dua hala, ketersambungan perusahaan rentas sempadan dan penghalaan transit antarabangsa antara kedua-dua negara.
+> **BM** — Batam–Dumai–Melaka (BDM) ialah kabel serantau yang menghubungkan Indonesia dan Malaysia merentasi Selat Melaka. Ia menambah baik trafik telekomunikasi dua hala, sambungan perusahaan rentas sempadan dan penghalaan transit antarabangsa antara kedua-dua negara.
 
 ### DMCS
 
@@ -196,11 +196,11 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 ### MCT
 
-**cable/mct** — 31w / 0:13 EN · 37w / 0:15 BM — BM DRAFT
+**cable/mct** — 31w / 0:13 EN · 36w / 0:15 BM — BM DRAFT
 
 > **EN** — Malaysia–Cambodia–Thailand (MCT) is a regional cable network that improves digital connectivity between mainland Southeast Asia and Malaysia. It supports growing internet usage, business traffic, and future 5G backhaul requirements across ASEAN.
 
-> **BM** — Malaysia–Cambodia–Thailand (MCT) ialah rangkaian kabel serantau yang menambah baik ketersambungan digital antara Asia Tenggara tanah besar dan Malaysia. Ia menyokong penggunaan internet yang kian meningkat, trafik perniagaan dan keperluan galas balik 5G masa hadapan di seluruh ASEAN.
+> **BM** — Malaysia–Cambodia–Thailand (MCT) ialah rangkaian kabel serantau yang menambah baik ketersambungan digital antara tanah besar Asia Tenggara dan Malaysia. Ia menyokong penggunaan internet yang kian meningkat, trafik perniagaan dan keperluan backhaul 5G masa hadapan di seluruh ASEAN.
 
 ### NuGate
 
@@ -208,7 +208,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — NuGate is a regional carrier-neutral connectivity platform linking Singapore, Batam, and Jakarta. Unlike traditional consortium cables, it focuses on efficient IP transit, peering, and data center interconnection, enabling flexible enterprise-grade connectivity.
 
-> **BM** — NuGate ialah platform ketersambungan serantau berkecuali pembawa yang menghubungkan Singapura, Batam dan Jakarta. Berbeza daripada kabel konsortium tradisional, ia menumpukan kepada transit IP yang cekap, peering dan saling hubung pusat data, membolehkan ketersambungan bertaraf perusahaan yang fleksibel.
+> **BM** — NuGate ialah platform ketersambungan serantau berkecuali pembawa yang menghubungkan Singapura, Batam dan Jakarta. Berbeza daripada kabel konsortium tradisional, ia menumpukan kepada transit IP yang cekap, peering dan saling hubung pusat data, membolehkan sambungan bertaraf perusahaan yang fleksibel.
 
 ### SAT3-WASC-SAFE
 
@@ -240,7 +240,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — Malaysia Domestic Submarine Cable System (MDSCS) was designed to improve domestic connectivity between Peninsular Malaysia and East Malaysia. It served as an early backbone for national broadband expansion but is currently no longer operational.
 
-> **BM** — Malaysia Domestic Submarine Cable System (MDSCS) direka untuk menambah baik ketersambungan domestik antara Semenanjung Malaysia dan Malaysia Timur. Ia berfungsi sebagai tulang belakang awal bagi pengembangan jalur lebar negara tetapi kini tidak lagi beroperasi.
+> **BM** — Malaysia Domestic Submarine Cable System (MDSCS) direka untuk menambah baik sambungan domestik antara Semenanjung Malaysia dan Malaysia Timur. Ia berfungsi sebagai tulang belakang awal bagi pengembangan jalur lebar negara tetapi kini tidak lagi beroperasi.
 
 ### BPS
 
@@ -248,7 +248,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — Bayan Baru–Pulau Jerejak–Seberang Jaya (BPS) is a short domestic submarine cable system in Penang, supporting metropolitan connectivity and providing resilient local telecommunications links between mainland and island infrastructure.
 
-> **BM** — Bayan Baru–Pulau Jerejak–Seberang Jaya (BPS) ialah sistem kabel dasar laut domestik yang pendek di Pulau Pinang, menyokong ketersambungan metropolitan dan menyediakan pautan telekomunikasi tempatan yang berdaya tahan antara infrastruktur tanah besar dan pulau.
+> **BM** — Bayan Baru–Pulau Jerejak–Seberang Jaya (BPS) ialah sistem kabel dasar laut domestik yang pendek di Pulau Pinang, menyokong rangkaian metropolitan dan menyediakan pautan telekomunikasi tempatan yang berdaya tahan antara infrastruktur tanah besar dan pulau.
 
 ### LKP
 
@@ -256,7 +256,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — This domestic cable connects Langkawi Island to mainland Kedah/Perlis, ensuring stable broadband, mobile backhaul, and tourism-related connectivity services for the island.
 
-> **BM** — Kabel domestik ini menghubungkan Pulau Langkawi ke tanah besar Kedah dan Perlis, memastikan perkhidmatan jalur lebar, galas balik mudah alih dan ketersambungan berkaitan pelancongan yang stabil untuk pulau tersebut.
+> **BM** — Kabel domestik ini menghubungkan Pulau Langkawi ke tanah besar Kedah dan Perlis, memastikan perkhidmatan jalur lebar, backhaul mudah alih dan sambungan bagi keperluan pelancongan yang stabil untuk pulau tersebut.
 
 ### SKRM
 
@@ -272,7 +272,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — A domestic submarine cable designed to provide reliable high-speed connectivity between Lumut and Pulau Pangkor, supporting residents, tourism, and businesses.
 
-> **BM** — Kabel dasar laut domestik yang direka untuk menyediakan ketersambungan berkelajuan tinggi yang boleh dipercayai antara Lumut dan Pulau Pangkor, menyokong penduduk, pelancongan dan perniagaan.
+> **BM** — Kabel dasar laut domestik yang direka untuk menyediakan sambungan berkelajuan tinggi yang boleh dipercayai antara Lumut dan Pulau Pangkor, menyokong penduduk, pelancongan dan perniagaan.
 
 ### Stingray (Tioman)
 
@@ -296,7 +296,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — An upgraded island connectivity project that delivers better broadband services to Pulau Ketam, improving internet access for residents and commercial users.
 
-> **BM** — Projek ketersambungan pulau yang dinaik taraf, memberikan perkhidmatan jalur lebar yang lebih baik ke Pulau Ketam serta menambah baik akses internet untuk penduduk dan pengguna komersial.
+> **BM** — Projek rangkaian pulau yang dinaik taraf, memberikan perkhidmatan jalur lebar yang lebih baik ke Pulau Ketam serta menambah baik akses internet untuk penduduk dan pengguna komersial.
 
 ### Stingray II (Redang)
 
@@ -328,7 +328,7 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 > **EN** — Planned link giving Malaysia direct connectivity south to Australia.
 
-> **BM** — Pautan yang dirancang bagi memberikan Malaysia ketersambungan terus ke selatan menuju Australia.
+> **BM** — Pautan yang dirancang bagi memberikan Malaysia sambungan terus ke selatan menuju Australia.
 
 ### CANDLE
 
