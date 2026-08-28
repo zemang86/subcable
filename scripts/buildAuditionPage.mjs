@@ -76,7 +76,6 @@ const info = rows.filter((r) => !r.cable);
 const cables = rows.filter((r) => r.cable);
 const totalSecs = rows.reduce((n, r) => n + r.seconds, 0);
 const totalWords = rows.reduce((n, r) => n + r.words, 0);
-const paces = rows.map((r) => r.wpm);
 
 /** Label a clip's pace against the set, since pace is the open question. */
 const paceClass = (wpm) => (wpm >= 140 ? "fast" : wpm <= 95 ? "slow" : "");
