@@ -9,10 +9,10 @@ Pace assumed throughout: **145 words per minute**.
 | Block | Segments | EN | BM |
 |---|---|---|---|
 | Info panel | 14 | 2:50 | 2:46 |
-| Cable systems | 26 | 5:07 | 5:38 |
-| **Total** | **40** | **7:58** | **8:24** |
+| Cable systems | 26 | 5:07 | 5:39 |
+| **Total** | **40** | **7:58** | **8:25** |
 
-Both languages together: **16:22** of finished audio.
+Both languages together: **16:23** of finished audio.
 
 ## Before recording
 
@@ -220,11 +220,11 @@ Played when a cable is selected. 26 segments, averaging 0:12 each in English.
 
 ### FLAG
 
-**cable/flag** — 21w / 0:09 EN · 20w / 0:08 BM — BM DRAFT — EN is ours, not client copy
+**cable/flag** — 21w / 0:09 EN · 22w / 0:09 BM — BM DRAFT — EN is ours, not client copy
 
 > **EN** — TM holds an Indefeasible Right of Use (IRU) on this globe-spanning trunk. Penang is the Malaysian landing on the Asia segment.
 
-> **BM** — TM memegang Hak Guna Tidak Boleh Batal (IRU) pada trank global ini. Pulau Pinang merupakan pendaratan Malaysia pada segmen Asia.
+> **BM** — TM memegang Hak Guna Tidak Boleh Batal (IRU) pada rangkaian tulang belakang global ini. Pulau Pinang merupakan pendaratan Malaysia pada segmen Asia.
 
 ### FA-1
 

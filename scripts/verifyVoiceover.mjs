@@ -71,6 +71,24 @@ const SPELLING = {
  */
 const UNIT_ABBREV = { m: "meters", ft: "feet", km: "kilometers", cm: "centimeters" };
 
+/**
+ * Transcribing Malay, the model reaches for Indonesian vocabulary: it wrote
+ * "keterhubungan" for spoken "ketersambungan" across a dozen clips, and
+ * "kapasitas / Eropa / serikat" for "kapasiti / Eropah / Syarikat". These are
+ * not acoustically confusable — the transcriber is substituting the word it
+ * expects, not the one it heard. Confirmed against the audio on 2026-08-28,
+ * and Hazman confirmed no Indonesian dialect by ear.
+ *
+ * Folded so a dozen false positives stop hiding real defects. Because a
+ * genuine drift to Indonesian is EXACTLY the failure this project fears, every
+ * fold prints an advisory rather than passing silently.
+ */
+const ID_TO_MY = {
+  keterhubungan: "ketersambungan", kapasitas: "kapasiti", eropa: "eropah",
+  serikat: "syarikat", aktivitas: "aktiviti", kualitas: "kualiti",
+  universitas: "universiti", komunitas: "komuniti", provinsi: "wilayah",
+};
+
 const norm = (s) =>
   s
     .toLowerCase()
@@ -81,8 +99,9 @@ const norm = (s) =>
     .filter(Boolean)
     .map((w) => SPELLING[w] ?? w);
 
-/** Second pass, applied only when comparing, so the advisory can fire. */
-const foldUnits = (ws) => ws.map((w) => UNIT_ABBREV[w] ?? w);
+/** Second pass, applied only when comparing, so the advisories can fire. */
+const FOLD = lang === "bm" ? { ...UNIT_ABBREV, ...ID_TO_MY } : UNIT_ABBREV;
+const foldUnits = (ws) => ws.map((w) => FOLD[w] ?? w);
 
 /**
  * Where the word boundaries fall is the transcriber's choice, not the
@@ -195,6 +214,7 @@ for (const [ref, entry] of units) {
         ...d,
         match,
         abbreviated: raw.some((w) => w in UNIT_ABBREV),
+        indonesian: raw.some((w) => w in ID_TO_MY),
         spacingOnly: despace(want) === despace(got),
         pass,
       };
@@ -203,12 +223,15 @@ for (const [ref, entry] of units) {
     }
     if (!best) throw lastErr ?? new Error("no transcript after 3 passes");
 
-    const { missing, extra, match, abbreviated, spacingOnly, pass } = best;
+    const { missing, extra, match, abbreviated, indonesian, spacingOnly, pass } = best;
     const ok = spacingOnly || (missing.length === 0 && extra.length === 0);
     const label = spacingOnly && missing.length + extra.length > 0 ? "exact (word-splitting only)" : ok ? "exact" : "";
     console.log(`${match.toFixed(1)}% ${label}${pass > 1 ? ` (pass ${pass})` : ""}`);
     if (abbreviated) {
       console.log("      note: transcriber abbreviated a spoken unit — confirm by ear that it is read in full");
+    }
+    if (indonesian) {
+      console.log("      note: transcriber wrote an Indonesian form — confirm by ear that the narrator said the Malay one");
     }
     if (!ok) {
       bad++;
