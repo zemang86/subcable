@@ -25,7 +25,7 @@
  * Output:
  *   temp/voiceover/render/<lang>/*.wav   24 kHz masters, gitignored
  *   public/audio/vo/<lang>/*.mp3         64k mono, normalised, committed
- *   public/audio/vo/manifest.json        unit -> file, duration, hash
+ *   src/data/voManifest.json             unit -> file, duration, hash
  *
  * Needs GOOGLE_API_KEY in the environment or in .env.local, and ffmpeg.
  */
@@ -42,7 +42,12 @@ const VOICE = "Sulafat";
 const SCRIPT_JSON = "docs/vo-table/vo-script.json";
 const WAV_ROOT = "temp/voiceover/render";
 const MP3_ROOT = "public/audio/vo";
-const MANIFEST = join(MP3_ROOT, "manifest.json");
+/**
+ * The app imports this at build time rather than fetching it, which matters
+ * under Electron's app:// protocol — so it lives with the data, not with the
+ * assets it points at.
+ */
+const MANIFEST = "src/data/voManifest.json";
 
 /** EBU R128 target. Speech on kiosk speakers.
  *
@@ -439,7 +444,7 @@ for (const [i, u] of todo.entries()) {
 manifest.voice = VOICE;
 manifest.model = MODEL;
 manifest.loudness = `${LOUDNESS.I} LUFS / ${LOUDNESS.TP} dBTP`;
-mkdirSync(MP3_ROOT, { recursive: true });
+mkdirSync(dirname(MANIFEST), { recursive: true });
 writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + "\n");
 
 const mmss = (s) => {

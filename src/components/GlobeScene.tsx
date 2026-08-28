@@ -6,6 +6,7 @@ import * as THREE from "three";
 import Globe from "./GlobeWrapper";
 import Sidebar from "./Sidebar";
 import SystemButtons from "./SystemButtons";
+import { useNarration } from "@/lib/useNarration";
 import LoadingScreen from "./LoadingScreen";
 import CableInformation from "./CableInformation";
 import DidYouKnow from "./DidYouKnow";
@@ -399,6 +400,10 @@ export default function GlobeScene() {
   const [expandedPointId, setExpandedPointId] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>("en");
   const [muted, setMuted] = useState(false);
+  const [narrationOn, setNarrationOn] = useState(true);
+  // Which General Information screen is showing. Owned by the dialog; mirrored
+  // here only so narration knows what to speak.
+  const [infoScreenRef, setInfoScreenRef] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [zoomLevel, setZoomLevel] = useState(DEFAULT_ALT);
   const [autoRotate, setAutoRotate] = useState(false);
@@ -447,6 +452,10 @@ export default function GlobeScene() {
   // SystemButtons/RightCluster a fresh prop identity every render and defeat
   // their memo.
   const handleAudioToggle = useCallback(() => setMuted((m) => !m), []);
+  const handleNarationToggle = useCallback(
+    () => setNarrationOn((n) => !n),
+    [],
+  );
   // All three cluster dialogs are standalone now — Morse dials cross-network,
   // and the Fun Fact deck is its own looping content, not scoped to a cable —
   // so none of them need a selection guard or the old "choose a network" hint.
@@ -458,6 +467,20 @@ export default function GlobeScene() {
   useEffect(() => {
     setAudioMuted(muted);
   }, [muted]);
+
+  // What the visitor is looking at, as a narration unit. The General
+  // Information panel wins while it is open because it covers the globe; with
+  // it closed, a selected cable is the subject. Neither means silence.
+  const narrationUnit =
+    openDialog === "funfact"
+      ? infoScreenRef
+      : selectedCable
+        ? `cable/${selectedCable.id}`
+        : null;
+
+  // Mute silences narration as well as morse — a speaker icon that leaves a
+  // voice talking would be a lie.
+  useNarration(narrationOn && !muted, language, narrationUnit);
 
   // The cable network is dormant (ghosted by cableFlow) until the globe is
   // revealed at the end of the emerge clip, when a one-shot circuit-trace beams
@@ -1670,6 +1693,8 @@ export default function GlobeScene() {
               onRecenter={recenterView}
               muted={muted}
               onAudioToggle={handleAudioToggle}
+              narrationOn={narrationOn}
+              onNarationToggle={handleNarationToggle}
             />
           )}
 
@@ -1764,6 +1789,7 @@ export default function GlobeScene() {
           onClose={() => setOpenDialog(null)}
           language={language}
           onHoldIdle={setHoldIdle}
+          onScreenChange={setInfoScreenRef}
         />
       )}
       {openDialog === "morse" && (

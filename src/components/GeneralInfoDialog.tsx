@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { Language } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { useScramble } from "@/lib/useScramble";
@@ -20,6 +26,12 @@ interface GeneralInfoDialogProps {
    * the idle attractor. Must be a stable reference — it drives an effect.
    */
   onHoldIdle: (holding: boolean) => void;
+  /**
+   * The screen now on show, as `<tab>/<screen>` — the same key the narration
+   * manifest is written against. The panel owns which screen is open, so the
+   * caller can only learn it from here. Must be a stable reference.
+   */
+  onScreenChange?: (ref: string) => void;
 }
 
 /**
@@ -86,6 +98,7 @@ export default function GeneralInfoDialog({
   onClose,
   language = "en",
   onHoldIdle,
+  onScreenChange,
 }: GeneralInfoDialogProps) {
   const t = useT(language);
   const [tabIndex, setTabIndex] = useState(0);
@@ -102,6 +115,13 @@ export default function GeneralInfoDialog({
   const screens = tab.screens;
   const screen = screens[screenIndex];
   const count = screens.length;
+
+  // Tell the caller which screen is showing, so it can narrate it. Keyed on the
+  // ids rather than the indices: a language switch keeps both indices but
+  // rebuilds the objects, and re-firing there would restart the clip mid-word.
+  useEffect(() => {
+    onScreenChange?.(`${tab.id}/${screen.id}`);
+  }, [tab.id, screen.id, onScreenChange]);
 
   const selectTab = useCallback((i: number) => {
     setTabIndex(i);

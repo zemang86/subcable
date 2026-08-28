@@ -13,8 +13,10 @@ import { RecenterButton } from "./RecenterButton";
 //          audio so Back stacks directly on top of it when shown.
 // AUDIO  — toggles audio on/off (`muted` + `onAudioToggle`). Resting graphic
 //          reflects state (on vs off); while held it shows the pressed graphic.
-// NARATION — on/off toggle for now (local state) so the client can test the
-//          interaction. No real narration function wired behind it yet.
+// NARATION — on/off toggle for the baked voiceover (`narrationOn` +
+//          `onNarationToggle`). Controlled by the parent, which owns playback;
+//          the mute button silences it too, since a speaker icon that leaves a
+//          voice talking would be a lie.
 //
 // All press buttons swap to a "pressed" graphic while held (pointer captured)
 // and fire their action on release.
@@ -33,7 +35,8 @@ interface SystemButtonsProps {
   onRecenter?: () => void;
   muted?: boolean;
   onAudioToggle?: () => void;
-  onNaration?: () => void;
+  narrationOn?: boolean;
+  onNarationToggle?: () => void;
   className?: string;
 }
 
@@ -48,13 +51,10 @@ function SystemButtons({
   onRecenter,
   muted = false,
   onAudioToggle,
-  onNaration,
+  narrationOn = true,
+  onNarationToggle,
   className,
 }: SystemButtonsProps) {
-  // Local on/off state for narration — placeholder until the real narration
-  // function is supplied. Defaults to "on" (active waves icon), matching audio.
-  const [narrationOn, setNarrationOn] = useState(true);
-
   return (
     <div
       className={className}
@@ -91,17 +91,14 @@ function SystemButtons({
         onActivate={onAudioToggle}
       />
 
-      {/* Naration — on/off toggle (local state) for client testing. */}
+      {/* Naration — on/off toggle for the baked voiceover. */}
       <PressButton
         label={narrationOn ? "Turn narration off" : "Turn narration on"}
         restingSrc={
           narrationOn ? "/buttons/naration.svg" : "/buttons/narrate-off.svg"
         }
         pressedSrc="/buttons/narrate-onpress.svg"
-        onActivate={() => {
-          setNarrationOn((on) => !on);
-          onNaration?.();
-        }}
+        onActivate={onNarationToggle}
       />
     </div>
   );

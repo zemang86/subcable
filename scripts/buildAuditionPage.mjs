@@ -17,7 +17,7 @@ import { join } from "node:path";
 const argv = process.argv.slice(2);
 const lang = argv.find((a) => a.startsWith("--lang="))?.split("=")[1] ?? "en";
 
-const manifest = JSON.parse(readFileSync("public/audio/vo/manifest.json", "utf8"));
+const manifest = JSON.parse(readFileSync("src/data/voManifest.json", "utf8"));
 const script = JSON.parse(readFileSync("docs/vo-table/vo-script.json", "utf8"));
 const units = manifest.units?.[lang];
 if (!units) throw new Error(`nothing rendered for ${lang}`);
