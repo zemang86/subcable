@@ -15,10 +15,9 @@
  * Kabel Rakyat 1Malaysia" for Sistem Kabel Rakyat Malaysia. Narrating the sheet
  * would put TM's own cable name wrong in the audio.
  *   - src/data/generalInfo.ts   info panel, already bilingual
- *   - src/data/cables.ts        cable descriptions, English only
- *   - scripts/sources/cable-descriptions-bm.json   BM drafts for the above
+ *   - src/data/cables.ts        cable descriptions, bilingual since 2026-08-28
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { getInfoTabs } from "@/data/generalInfo";
 import { cables } from "@/data/cables";
@@ -29,12 +28,9 @@ const OUT = path.join(REPO, "docs/vo-table/vo-script.md");
  * re-walking the sources, so recorded audio cannot drift from the script
  * the client signed off. */
 const OUT_JSON = path.join(REPO, "docs/vo-table/vo-script.json");
-const BM_PATH = path.join(REPO, "scripts/sources/cable-descriptions-bm.json");
 
 /** Spoken pace assumed for every estimate below. Adjust once, here. */
 const WPM = 145;
-
-const bmDrafts: Record<string, string> = JSON.parse(readFileSync(BM_PATH, "utf8"));
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 const secs = (s: string) => (words(s) / WPM) * 60;
@@ -134,15 +130,14 @@ const cableSegments: (Segment & { short: string; ours: boolean })[] = [];
 const missingBm: string[] = [];
 
 cables.forEach((cable) => {
-  if (!cable.description) return;
-  const draft = bmDrafts[cable.id];
-  if (!draft) missingBm.push(cable.id);
+  if (!cable.description?.en) return;
+  if (!cable.description.bm) missingBm.push(cable.id);
   cableSegments.push({
     ref: `cable/${cable.id}`,
     where: cable.shortName,
     short: cable.shortName,
-    en: cable.description,
-    bm: draft ?? "— NO BM —",
+    en: cable.description.en,
+    bm: cable.description.bm || "— NO BM —",
     bmApproved: false, // every cable BM is a draft; none has been signed off
     ours: !CLIENT_SHEET_CABLES.has(cable.id),
   });

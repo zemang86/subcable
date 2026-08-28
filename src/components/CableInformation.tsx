@@ -186,7 +186,7 @@ function CableInformation({
 
           <DescriptionBlock
             label={t("description")}
-            text={cable.description}
+            text={cable.description[language]}
           />
         </div>
       </div>

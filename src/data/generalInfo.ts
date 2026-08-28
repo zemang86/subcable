@@ -31,10 +31,10 @@
  * Then And Now tab sits two tabs away.
  */
 
-import type { Language } from "@/lib/types";
+import type { Language, L } from "@/lib/types";
 
 /** An English / Bahasa Malaysia pair. Every visible string is one of these. */
-export type L = { en: string; bm: string };
+export type { L };
 
 /** Identical in both languages — proper nouns, scientific names, units. */
 const same = (s: string): L => ({ en: s, bm: s });

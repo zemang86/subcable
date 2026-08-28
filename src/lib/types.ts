@@ -48,7 +48,7 @@ export interface CableSystem {
   owners: string[];
   landingPointIds: string[];
   color: string;
-  description: string;
+  description: L;
 }
 
 export interface CableSegment {
@@ -75,6 +75,12 @@ export interface CableLandingStation {
 export type Filter = "all" | "international" | "domestic";
 
 export type Language = "en" | "bm";
+
+/**
+ * A string that exists in both languages. Canonical here rather than in
+ * generalInfo.ts, which used to own it, because cable descriptions carry it too.
+ */
+export type L = { en: string; bm: string };
 
 export type DialogId = "morse" | "funfact" | "howto" | null;
 
