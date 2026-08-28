@@ -28,13 +28,26 @@ const cableColors = Object.fromEntries(
   [...colorsTs.matchAll(/^\s*"?([a-z0-9-]+)"?:\s*"(#[0-9A-Fa-f]{6})"/gm)].map((m) => [m[1], m[2]]),
 );
 
-/** Script text and provenance, keyed by unit. */
+/**
+ * Script text, plus the provenance flag that actually matters for the language
+ * being reviewed. In English that is copy we wrote rather than the client's; in
+ * Malay it is copy TM has not signed off, which is nearly all of it.
+ */
+const LANGS = {
+  en: { name: "English", title: "TM Narration Audition", flagLabel: "our copy",
+        flagged: (s) => s.ours },
+  bm: { name: "Bahasa Malaysia", title: "Audisyen Naratif TM", flagLabel: "not signed off",
+        flagged: (s) => !s.bmApproved },
+};
+const L = LANGS[lang];
+if (!L) throw new Error(`unknown --lang=${lang}`);
+
 const text = new Map();
-const ours = new Set();
+const flagged = new Set();
 for (const seg of script.segments) {
   const ref = seg.ref.split("#")[0];
   text.set(ref, [...(text.get(ref) ?? []), seg[lang]]);
-  if (seg.ours) ours.add(ref);
+  if (L.flagged(seg)) flagged.add(ref);
 }
 
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
@@ -52,7 +65,7 @@ const rows = Object.entries(units).map(([ref, u]) => {
     seconds: u.seconds,
     words: u.words,
     parts: text.get(ref) ?? [],
-    ours: ours.has(ref),
+    flagged: flagged.has(ref),
     cable: cableId,
     color: cableId ? cableColors[cableId] ?? "#034DA1" : "#034DA1",
     b64: readFileSync(join("public/audio/vo", u.file)).toString("base64"),
@@ -69,7 +82,7 @@ const paces = rows.map((r) => r.wpm);
 const paceClass = (wpm) => (wpm >= 140 ? "fast" : wpm <= 95 ? "slow" : "");
 
 const row = (r, i) => `
-<article class="clip${r.ours ? " clip--ours" : ""}" id="${r.id}" data-i="${i}"
+<article class="clip${r.flagged ? " clip--flagged" : ""}" id="${r.id}" data-i="${i}"
          data-src="data:audio/mpeg;base64,${r.b64}" tabindex="0"
          aria-label="Play ${esc(r.ref)}">
   <span class="clip__bar" style="--dot:${r.color}"></span>
@@ -79,7 +92,7 @@ const row = (r, i) => `
       <span class="stat">${clock(r.seconds)}</span>
       <span class="stat stat--${paceClass(r.wpm)}">${r.wpm} wpm</span>
       <span class="stat stat--dim">${r.words}w</span>
-      ${r.ours ? '<span class="tag">our copy</span>' : ""}
+      ${r.flagged ? `<span class="tag">${esc(L.flagLabel)}</span>` : ""}
     </span>
   </div>
   <div class="clip__text">${r.parts.map((p) => `<p>${esc(p)}</p>`).join("")}</div>
@@ -96,7 +109,7 @@ const section = (title, note, list, offset) => `
   ${list.map((r, i) => row(r, offset + i)).join("")}
 </section>`;
 
-const html = `<title>TM Narration Audition</title>
+const html = `<title>${esc(L.title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -255,10 +268,14 @@ h1{
 <div class="wrap">
   <header class="top">
     <p class="eyebrow">TM Submarine Cable · Kiosk narration</p>
-    <h1>English narration, Sulafat</h1>
-    <p class="sub">Every clip the kiosk will speak in English, with the exact words it should
-    say. Click a row to hear it, or play a whole section straight through. Pace is called out
-    per clip because it is the open question — the script quoted the client 145&nbsp;wpm.</p>
+    <h1>${esc(L.name)} narration, Sulafat</h1>
+    <p class="sub">Every clip the kiosk will speak in ${esc(L.name)}, with the exact words it
+    should say. Click a row to hear it, or play a whole section straight through. Each clip was
+    transcribed back and word-checked against the script before it got here${
+      lang === "bm"
+        ? " — but the words themselves are still awaiting TM's sign-off, so the copy is under review here as much as the delivery"
+        : ""
+    }.</p>
     <dl class="facts">
       <div class="fact"><dt>Clips</dt><dd>${rows.length}</dd></div>
       <div class="fact"><dt>Runtime</dt><dd>${clock(totalSecs)}</dd></div>
@@ -274,9 +291,8 @@ h1{
 
   <p class="foot">
     Voice ${esc(manifest.voice)} · ${esc(manifest.model)} · ${esc(manifest.loudness)} · 64k mono<br>
-    Every clip was transcribed back and word-checked against the script before it got here.
-    Six takes were re-recorded: four had invented content, one misread a word, one spelled
-    SEA-ME-WE letter by letter.<br>
+    Roughly one take in five comes back wrong, so nothing here was accepted without being
+    transcribed back and word-checked against the script.<br>
     Pace figures for cable clips run low by design — acronyms read letter by letter take
     time the word count does not show.
   </p>
