@@ -2,6 +2,7 @@ appId: com.tm.subcable
 productName: TM Submarine Cable
 directories:
   output: dist
+  buildResources: build
 files:
   - electron/**/*
   - out/**/*
@@ -9,8 +10,10 @@ mac:
   target: dmg
   identity: null
   category: public.app-category.utilities
+  icon: build/icon.png
 win:
   target: nsis
+  icon: build/icon.png
 nsis:
   oneClick: true
   perMachine: true

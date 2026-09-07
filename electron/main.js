@@ -20,7 +20,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1920,
     height: 1080,
-    fullscreen: true,
+    kiosk: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -32,13 +32,12 @@ function createWindow() {
 
   win.loadURL("app://./index.html");
 
-  // Esc to exit fullscreen, F11 to toggle
+  // Kiosk stays locked: no Escape hatch, since a stray Esc on a plugged-in
+  // keyboard would expose the title bar mid-demo. F11 is the deliberate way
+  // out for an operator who needs to reach the desktop.
   win.webContents.on("before-input-event", (event, input) => {
-    if (input.key === "Escape" && win.isFullScreen()) {
-      win.setFullScreen(false);
-    }
-    if (input.key === "F11") {
-      win.setFullScreen(!win.isFullScreen());
+    if (input.key === "F11" && input.type === "keyDown") {
+      win.setKiosk(!win.isKiosk());
     }
   });
 }

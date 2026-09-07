@@ -18,7 +18,9 @@
 /out/
 
 # production
-/build
+/build/*
+# ...except the electron-builder icon source, which CI needs to build the exe
+!/build/icon.png
 
 # electron-builder output
 /dist/
