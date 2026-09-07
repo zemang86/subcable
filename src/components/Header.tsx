@@ -1,80 +1,241 @@
 "use client";
 
-import { cables } from "@/data/cables";
-import { landingPoints } from "@/data/landingPoints";
+import { memo } from "react";
+import type { CableSystem, Language } from "@/lib/types";
+import { useT } from "@/lib/i18n";
+import { useScramble } from "@/lib/useScramble";
 
-const stats = (() => {
-  const intl = cables.filter(
-    (c) => c.classification === "international" && c.status === "active"
-  ).length;
-  const dom = cables.filter(
-    (c) => c.classification === "domestic" && c.status === "active"
-  ).length;
-  const planned = cables.filter((c) => c.status === "planned").length;
-  return {
-    intl,
-    dom,
-    planned,
-    points: landingPoints.length,
-  };
-})();
+type HeaderProps = {
+  selectedCable: CableSystem | null;
+  language: Language;
+  className?: string;
+};
 
-export default function Header() {
+// Top "Header" strip per Figma V1.3.
+// Frame 2008×120 at (18, 12) at the kiosk tile (2049×1150). Rendered with
+// right:23 so the strip stretches with viewport width; height stays fixed.
+// Memoized: shields the strip from GlobeScene's 30fps marker-tracking
+// re-renders (props are stable). Declaration hoists past the export.
+export const Header = memo(HeaderBase);
+
+function HeaderBase({ selectedCable, language, className }: HeaderProps) {
+  const t = useT(language);
+  const typeLabel =
+    selectedCable?.classification === "domestic" ? "DOM" : "INT";
+  const displayTitle = useScramble(t("submarineCableMap"));
+  // Decrypt the big cable code on every select/switch.
+  const displayCode = useScramble(selectedCable?.shortName ?? "");
+
   return (
-    <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-      <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-[#06013A]/95 via-[#06013A]/70 to-transparent backdrop-blur-sm border-b border-[#1800E7]/25">
-        <div className="pointer-events-auto flex items-center gap-3">
-          {/* TM Global logo placeholder — swap with SVG when supplied. */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded">
-            <span className="font-display font-black text-[#1800E7] text-xl leading-none tracking-tight">
-              TM
-            </span>
-            <span className="font-display font-bold text-[#06013A] text-[10px] leading-none tracking-[0.2em]">
-              GLOBAL
-            </span>
-          </div>
-          <div className="h-8 w-px bg-[#1800E7]/30" />
-          <div>
-            <h1 className="font-display font-bold text-base tracking-[0.18em] text-white uppercase">
-              Submarine Cable Network
-            </h1>
-            <p className="text-[10px] tracking-[0.2em] text-[#A8B0D6] mt-0.5 uppercase">
-              Wholesale Connectivity · TM Global
-            </p>
-          </div>
-        </div>
+    <div
+      className={className}
+      style={{
+        position: "absolute",
+        top: 12,
+        left: 18,
+        right: 23,
+        height: 80,
+        pointerEvents: "none",
+      }}
+    >
+      {/* Rectangle 50 — translucent white-gradient fill, 3px inset from frame.
+          Crosshair markers are children of this so their -4 offset sits on the
+          actual visible border corner. */}
+      <div
+        style={{
+          boxSizing: "border-box",
+          position: "absolute",
+          left: 3,
+          top: 4,
+          right: 3,
+          bottom: 4,
+          background:
+            "linear-gradient(0deg, rgba(255,255,255,0) 41.87%, #FFFFFF 413.39%), linear-gradient(180deg, rgba(255,255,255,0) 45.95%, #FFFFFF 278.39%)",
+          border: "0.374494px solid #FFFFFF",
+        }}
+      >
+        <CrossMark position="tl" />
+        <CrossMark position="tr" />
+        <CrossMark position="bl" />
+        <CrossMark position="br" />
+      </div>
 
-        <div className="flex gap-2 pointer-events-auto">
-          <Stat label="INTL" value={stats.intl} />
-          <Stat label="DOMESTIC" value={stats.dom} />
-          <Stat label="PLANNED" value={stats.planned} accent="#FF5E00" />
-          <Stat label="LANDING POINTS" value={stats.points} />
-        </div>
+      {/* Title: Submarine Cable Map */}
+      <span
+        style={{
+          position: "absolute",
+          left: 27,
+          top: 14,
+          fontFamily: "var(--v1-display)",
+          fontStyle: "normal",
+          fontWeight: 700,
+          fontSize: 40,
+          lineHeight: "48px",
+          color: "#FFFFFF",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {displayTitle}
+      </span>
+
+      {selectedCable && (
+        <>
+          {/* Cable code — middle-right column, leaves room for chip in 3rd column */}
+          <span
+            style={{
+              position: "absolute",
+              right: 87,
+              top: 14,
+              fontFamily: "var(--v1-display)",
+              fontStyle: "normal",
+              fontWeight: 400,
+              fontSize: 48,
+              lineHeight: "48px",
+              color: "#FFFFFF",
+              textAlign: "right",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {displayCode}
+          </span>
+
+          {/* DOM/INT chip — 3rd column, far right, vertically centered */}
+          <DomChip label={typeLabel} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function CrossMark({ position }: { position: "tl" | "tr" | "bl" | "br" }) {
+  const variants = {
+    tl: { top: -4, left: -4 },
+    tr: { top: -4, right: -4 },
+    bl: { bottom: -4, left: -4 },
+    br: { bottom: -4, right: -4 },
+  };
+  return (
+    <span
+      aria-hidden
+      className="v7-mat-cross"
+      style={{
+        position: "absolute",
+        width: 8,
+        height: 8,
+        pointerEvents: "none",
+        ...variants[position],
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 0,
+          width: 8,
+          height: 0,
+          borderTop: "2px solid #FFFFFF",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 3,
+          width: 0,
+          height: 8,
+          borderLeft: "2px solid #FFFFFF",
+        }}
+      />
+    </span>
+  );
+}
+
+// Composite chip — translucent rect + Chakra Petch Light 275 label,
+// bracketed by 2 thin white lines and 4 tiny corner dots.
+function DomChip({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: 24,
+        top: 26,
+        width: 47.05,
+        height: 27.74,
+      }}
+    >
+      {/* Top + bottom tactical lines */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: 0.66,
+          top: 0.63,
+          width: 45.79,
+          height: 0,
+          borderTop: "0.6px solid #FFFFFF",
+        }}
+      />
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: 0.66,
+          top: 27.14,
+          width: 45.79,
+          height: 0,
+          borderTop: "0.6px solid #FFFFFF",
+        }}
+      />
+      {/* 4 corner dots */}
+      <Dot left={0} top={0} />
+      <Dot left={45.79} top={0} />
+      <Dot left={0} top={26.47} />
+      <Dot left={45.79} top={26.47} />
+
+      {/* Rounded rect bg + label */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0.84,
+          top: 1.93,
+          width: 45.61,
+          height: 24.25,
+          background: "rgba(217, 217, 217, 0.4)",
+          borderRadius: 1.5,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--v1-display)",
+            fontStyle: "normal",
+            fontWeight: 275,
+            fontSize: 18.22,
+            lineHeight: 1,
+            color: "#FFFFFF",
+          }}
+        >
+          {label}
+        </span>
       </div>
     </div>
   );
 }
 
-function Stat({
-  label,
-  value,
-  accent = "#FFFFFF",
-}: {
-  label: string;
-  value: number;
-  accent?: string;
-}) {
+function Dot({ left, top }: { left: number; top: number }) {
   return (
-    <div className="px-3 py-1.5 bg-[#06013A]/80 border border-[#1800E7]/40 rounded">
-      <span className="text-[10px] tracking-wider text-[#A8B0D6] font-medium">
-        {label}
-      </span>
-      <span
-        className="ml-2 text-sm font-display font-bold tabular-nums"
-        style={{ color: accent }}
-      >
-        {value}
-      </span>
-    </div>
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        left,
+        top,
+        width: 1.26,
+        height: 1.26,
+        background: "#FFFFFF",
+      }}
+    />
   );
 }

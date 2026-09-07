@@ -1,0 +1,497 @@
+/* ──────────────────────────────────────────────────────────────────
+   TM Submarine Cable Map · v1.0 design tokens
+   Source: Figma "Submarine Cable UI UX.fig" → /Wireframe/UI-UI-Concept-V1.3
+   Verified against: subcable/docs/design_handoff_subcable_v1/tokens-v1.json
+                     subcable/src/app/globals.css
+
+   Visual language: TACTICAL HUD / mission-control kiosk
+   Surface  : near-black navy (#040E1F) with 3×3 TV-wall grid backdrop
+   Brand    : TM blue (#034DA1) + TM orange (#F05A22)
+   Status   : lime/red dual-state (NEW vs v0.1 grey)
+   Type     : Chakra Petch (display) + Rajdhani (headings) + IBM Plex Mono (body)
+   ────────────────────────────────────────────────────────────────── */
+
+
+/* ============================================================
+   §1 · @font-face — local TTFs, paths relative to this file
+   ============================================================ */
+
+@font-face { font-family: "Chakra Petch"; src: url("./fonts/Chakra_Petch/ChakraPetch-Light.ttf")    format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("./fonts/Chakra_Petch/ChakraPetch-Regular.ttf")  format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("./fonts/Chakra_Petch/ChakraPetch-Medium.ttf")   format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("./fonts/Chakra_Petch/ChakraPetch-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("./fonts/Chakra_Petch/ChakraPetch-Bold.ttf")     format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+@font-face { font-family: "Rajdhani"; src: url("./fonts/Rajdhani/Rajdhani-Light.ttf")    format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("./fonts/Rajdhani/Rajdhani-Regular.ttf")  format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("./fonts/Rajdhani/Rajdhani-Medium.ttf")   format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("./fonts/Rajdhani/Rajdhani-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("./fonts/Rajdhani/Rajdhani-Bold.ttf")     format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+@font-face { font-family: "IBM Plex Mono"; src: url("./fonts/IBM_Plex_Mono/IBMPlexMono-Light.ttf")    format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("./fonts/IBM_Plex_Mono/IBMPlexMono-Regular.ttf")  format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("./fonts/IBM_Plex_Mono/IBMPlexMono-Medium.ttf")   format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("./fonts/IBM_Plex_Mono/IBMPlexMono-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("./fonts/IBM_Plex_Mono/IBMPlexMono-Bold.ttf")     format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+@font-face { font-family: "B612 Mono"; src: url("./fonts/B612_Mono/B612Mono-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "B612 Mono"; src: url("./fonts/B612_Mono/B612Mono-Bold.ttf")    format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* Space Mono pulled from Google Fonts — we don't ship the file with the kit */
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
+
+
+/* ============================================================
+   §2 · Design tokens — CSS custom properties
+   ============================================================ */
+
+:root {
+  /* ────────── Surface ────────── */
+  --tm-bg:            #040E1F;            /* page bg, tactical near-black */
+  --tm-bg-deep:       #061630;            /* alt panel bg */
+  --tm-bg-cobalt:     #0A0449;            /* deep cobalt accent */
+  --tm-bg-line:       rgba(255,255,255,0.06);
+
+  /* ────────── Brand — blue ────────── */
+  --tm-blue:          #034DA1;            /* primary */
+  --tm-blue-2:        #0362A1;
+  --tm-blue-soft:     rgba(3,77,161,0.30);
+  --tm-blue-fill:     rgba(3,77,161,0.44);
+
+  /* ────────── Brand — orange ────────── */
+  --tm-orange:        #F05A22;            /* primary accent */
+  --tm-orange-hot:    #FF4D00;            /* stat numbers */
+  --tm-orange-60:     rgba(240,90,34,0.60);
+  --tm-orange-43:     rgba(240,90,34,0.43);
+  --tm-orange-40:     rgba(240,90,34,0.40);
+  --tm-orange-deep:   #BC3514;
+
+  /* ────────── Status — lime/red dual-state ────────── */
+  --tm-active:        #8FFF3F;            /* outer ring */
+  --tm-active-2:      #00FF4D;            /* alt bright */
+  --tm-active-bg:     #3F642E;            /* middle ring */
+  --tm-inactive:      #FF3F3F;            /* outer ring */
+  --tm-inactive-2:    #ED1B2E;            /* hot red — selected cable line */
+  --tm-inactive-bg:   #642E2E;            /* middle ring */
+
+  /* ────────── Text ────────── */
+  --tm-fg:            #FFFFFF;
+  --tm-fg-cream:      #FFF6F6;
+  --tm-fg-iceblue:    #F1F7FF;
+  --tm-mute:          #C4C4C4;            /* secondary text */
+  --tm-mute-2:        #D9D9D9;            /* light fill (morse message bg) */
+  --tm-mute-dark:     #4E4F4E;            /* placeholder, disabled */
+  --tm-brown:         #78625A;            /* backspace key */
+
+  /* ────────── Type families ────────── */
+  --tm-display: "Chakra Petch", "Rajdhani", system-ui, sans-serif; /* page titles 56–88px */
+  --tm-heading: "Rajdhani", "Helvetica Neue", sans-serif;          /* UI labels, buttons */
+  --tm-mono:    "IBM Plex Mono", ui-monospace, Menlo, monospace;   /* body, captions */
+  --tm-stat:    "B612 Mono", "IBM Plex Mono", monospace;           /* big stat numbers */
+  --tm-pixel:   "Space Mono", monospace;                           /* tactical coords */
+
+  /* ────────── Radius ────────── */
+  --tm-radius-0:  0px;       /* tactical default */
+  --tm-radius-xs: 2px;
+  --tm-radius-sm: 4px;       /* cable card */
+  --tm-radius-md: 8px;
+  --tm-radius-pill: 9999px;  /* language toggle only */
+
+  /* ────────── Spacing ────────── */
+  --tm-space-1:  4px;
+  --tm-space-2:  8px;
+  --tm-space-3:  12px;
+  --tm-space-4:  16px;
+  --tm-space-5:  20px;
+  --tm-space-6:  24px;
+  --tm-space-8:  32px;
+  --tm-space-12: 48px;
+
+  /* ────────── Strokes ────────── */
+  --tm-stroke-hair: 0.5px solid rgba(255,255,255,0.5);
+  --tm-stroke-firm: 1px solid rgba(255,255,255,0.5);
+  --tm-stroke-bold: 2px solid rgba(255,255,255,0.7);
+
+  /* ────────── Bevel ────────── */
+  --tm-bevel-cut: 17.5px;  /* clip-path corner-snip — matches Figma KeyStatistic path (335:263) */
+
+  /* ────────── Shadow / glow ────────── */
+  --tm-glow-active:   0 0 24px rgba(143,255,63,0.5);
+  --tm-glow-inactive: 0 0 24px rgba(237,27,46,0.5);
+}
+
+
+/* ============================================================
+   §3 · Semantic typography classes
+   ============================================================ */
+
+/* Page-banner — Chakra Petch · 56–88px */
+.tm-h-display {
+  font-family: var(--tm-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Section / panel heading — Rajdhani · 16–24px */
+.tm-h-heading {
+  font-family: var(--tm-heading);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Field label — Rajdhani · 11px · uppercase tracking */
+.tm-h-label {
+  font-family: var(--tm-heading);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--tm-mute);
+}
+
+/* Eyebrow — Rajdhani · 10px · uppercase WIDE tracking */
+.tm-h-eye {
+  font-family: var(--tm-heading);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--tm-mute);
+}
+
+/* Big stat number — B612 Mono · 28–32px · tabular */
+.tm-h-stat {
+  font-family: var(--tm-stat);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--tm-orange-hot);
+  line-height: 1;
+}
+
+/* Body — IBM Plex Mono · 11–13px */
+.tm-body {
+  font-family: var(--tm-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--tm-mute);
+}
+
+/* Caption — IBM Plex Mono · 9–10px */
+.tm-caption {
+  font-family: var(--tm-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--tm-mute);
+}
+
+/* Tactical coords — Space Mono · 9px */
+.tm-coords {
+  font-family: var(--tm-pixel);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--tm-mute);
+}
+
+/* Plain mono */
+.tm-mono { font-family: var(--tm-mono); }
+
+
+/* ============================================================
+   §4 · Atomic components
+   ============================================================ */
+
+/* TV-wall background grid (3×3 wall divisions) */
+.tm-tv-grid {
+  background-image:
+    linear-gradient(to right,  rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: calc(100%/3) calc(100%/3);
+}
+
+/* Tactical corner-bracket frame — 4 L-shaped corner ticks */
+.tm-bracket { position: relative; }
+.tm-bracket::before,
+.tm-bracket::after,
+.tm-bracket > .bracket-tl,
+.tm-bracket > .bracket-br {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border-color: var(--tm-fg);
+  border-style: solid;
+}
+.tm-bracket::before        { top: -1px; left: -1px;  border-width: 1px 0 0 1px; }
+.tm-bracket::after         { top: -1px; right: -1px; border-width: 1px 1px 0 0; }
+.tm-bracket > .bracket-tl  { bottom: -1px; left: -1px;  top: auto; border-width: 0 0 1px 1px; }
+.tm-bracket > .bracket-br  { bottom: -1px; right: -1px; top: auto; border-width: 0 1px 1px 0; }
+
+/* Bevelled card — top-right corner cut */
+.tm-card-bevel {
+  --c: var(--tm-bevel-cut);
+  background:
+    linear-gradient(303.52deg, var(--tm-blue) -11.48%, rgba(3,77,161,0) 82.93%),
+    linear-gradient(123.48deg, var(--tm-orange-60) -7.19%, rgba(240,90,34,0) 100%);
+  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%);
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.5);
+}
+
+/* Inverse bevel — bottom-left corner cut */
+.tm-card-bevel-bl {
+  --c: var(--tm-bevel-cut);
+  background:
+    linear-gradient(303.52deg, var(--tm-blue) -11.48%, rgba(3,77,161,0) 82.93%),
+    linear-gradient(123.48deg, var(--tm-orange-60) -7.19%, rgba(240,90,34,0) 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--c) 100%, 0 calc(100% - var(--c)));
+  border: 1px solid rgba(255,255,255,0.5);
+}
+
+/* Mini Cable Card — 3×3 grid item (uses same 303.52deg/123.48deg gradient as the parent panel) */
+.tm-cablecard {
+  background:
+    linear-gradient(303.52deg, var(--tm-blue) -11.48%, rgba(3,77,161,0) 82.93%),
+    linear-gradient(123.48deg, var(--tm-orange-60) -7.19%, rgba(240,90,34,0) 100%);
+  border: 0.5px solid rgba(255,255,255,0.65);
+  border-radius: 4px;
+  padding: 8px 10px;
+  min-height: 60px;
+  display: flex; flex-direction: column; gap: 3px;
+  position: relative;
+}
+.tm-cablecard.is-selected {
+  background: var(--tm-orange);
+  border-color: var(--tm-orange-hot);
+}
+.tm-cablecard.is-inactive { opacity: 0.85; }
+
+/* Triple concentric ring status indicator */
+.tm-status {
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1.4px solid var(--tm-active);
+  position: relative;
+  flex-shrink: 0;
+}
+.tm-status::before {
+  content: ''; position: absolute; inset: 2px;
+  border-radius: 50%;
+  background: var(--tm-active-bg);
+}
+.tm-status::after {
+  content: ''; position: absolute; inset: 4px;
+  border-radius: 50%;
+  background: var(--tm-active);
+}
+.tm-status.inactive               { border-color: var(--tm-inactive); }
+.tm-status.inactive::before       { background: var(--tm-inactive-bg); }
+.tm-status.inactive::after        { background: var(--tm-inactive); }
+
+/* Tag / hex chip — INT / DOM / owner names */
+.tm-tag {
+  display: inline-flex; align-items: center;
+  padding: 3px 8px;
+  font-family: var(--tm-heading); font-weight: 600;
+  font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.02);
+  color: var(--tm-fg);
+}
+
+/* Pulse animation */
+.tm-pulse { animation: tm-pulse 1.5s ease-in-out infinite; }
+@keyframes tm-pulse {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.85); }
+}
+
+/* Bottom titlebar gradient */
+.tm-titlebar {
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.90) 60%, #000 100%);
+}
+
+/* Info-frame panel background */
+.tm-info-frame {
+  background: linear-gradient(180deg, var(--tm-blue) 0%, rgba(3,77,161,0.30) 60%, var(--tm-orange-43) 100%);
+  border: 1px solid rgba(255,255,255,0.45);
+  position: relative;
+}
+
+/* Circular cluster button (How-To / Info / Morse) — 76×76 per Figma V1.3 */
+.tm-circle-btn {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0) 80%),
+    rgba(255,255,255,0.03);
+  border: 1.5px solid rgba(255,255,255,0.85);
+  color: var(--tm-fg);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 200ms;
+}
+.tm-circle-btn.is-active {
+  border-color: var(--tm-active);
+  color: var(--tm-active);
+  box-shadow: var(--tm-glow-active);
+}
+.tm-circle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Filter tab — 44px tall, orange when active */
+.tm-filter-tab {
+  flex: 1;
+  height: 44px;
+  padding: 0 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.40);
+  color: var(--tm-fg);
+  font-family: var(--tm-heading); font-weight: 500;
+  font-size: 11px; letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tm-filter-tab.is-active {
+  background: var(--tm-orange);
+  border-color: var(--tm-orange-hot);
+}
+
+/* Language toggle — pill (matches Figma V1.3 HomeScreen / Language Toggle Function).
+   Anatomy:
+   · Outer pill: blue-tint LEFT half / orange-tint RIGHT half, white hairline border
+   · Two equal-width options (50% each), `white-space: nowrap`
+   · Active option fills its half with a blue→white vertical gradient
+   · Active text colour FLIPS by side: orange on the left, blue on the right */
+.tm-pill {
+  position: relative;
+  display: inline-flex;
+  height: 44px;
+  padding: 0;
+  border-radius: var(--tm-radius-pill);
+  background:
+    linear-gradient(to right,
+      var(--tm-blue)     0%,
+      rgba(3,77,161,0)  45%,
+      rgba(240,90,34,0) 55%,
+      rgba(240,90,34,0.55) 100%),
+    var(--tm-bg);
+  border: 0.6px solid rgba(255,255,255,0.65);
+  overflow: hidden;
+}
+.tm-pill__opt {
+  flex: 1 1 0;
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--tm-radius-pill);
+  color: var(--tm-fg);
+  font-family: var(--tm-heading); font-weight: 400;
+  font-size: 18.5px; letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 200ms;
+  margin: 0;
+}
+.tm-pill__opt.is-active {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 70%, var(--tm-blue) 100%);
+  border: 0.7px solid rgba(255,255,255,0.85);
+  font-weight: 700;
+}
+/* First child active → text orange */
+.tm-pill__opt:first-child.is-active { color: var(--tm-orange); }
+/* Last child active → text blue */
+.tm-pill__opt:last-child.is-active  { color: var(--tm-blue); }
+
+/* Primary CTA — orange */
+.tm-btn-primary {
+  min-height: 48px;
+  padding: 0 18px;
+  background: var(--tm-orange);
+  border: 1px solid var(--tm-orange-hot);
+  color: var(--tm-fg);
+  font-family: var(--tm-heading); font-weight: 700;
+  font-size: 13px; letter-spacing: 0.20em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Secondary CTA — blue */
+.tm-btn-blue {
+  min-height: 44px;
+  padding: 0 16px;
+  background: var(--tm-blue);
+  border: none;
+  color: var(--tm-fg);
+  font-family: var(--tm-heading); font-weight: 700;
+  font-size: 12px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Destructive CTA — red */
+.tm-btn-danger {
+  min-height: 56px;
+  background: var(--tm-inactive-2);
+  border: none;
+  color: var(--tm-fg);
+  font-family: var(--tm-heading); font-weight: 700;
+  font-size: 13px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* "Send" CTA — inverted white */
+.tm-btn-send {
+  min-height: 56px;
+  background: var(--tm-fg);
+  border: none;
+  color: var(--tm-blue);
+  font-family: var(--tm-heading); font-weight: 700;
+  font-size: 14px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Form input — blue fill, white border */
+.tm-input {
+  display: flex; align-items: center;
+  padding: 10px 14px;
+  min-height: 48px;
+  background: var(--tm-blue-fill);
+  border: 1px solid rgba(255,255,255,0.55);
+  color: var(--tm-fg);
+  font-family: var(--tm-mono);
+  font-size: 12px;
+  outline: none;
+}
+
+/* "NEW" / "CHANGED" flag */
+.tm-new {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: var(--tm-heading); font-weight: 700;
+  font-size: 9px; letter-spacing: 0.20em;
+  text-transform: uppercase;
+  background: var(--tm-orange);
+  color: var(--tm-fg);
+}
+.tm-changed {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: var(--tm-heading); font-weight: 700;
+  font-size: 9px; letter-spacing: 0.20em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--tm-orange);
+  border: 1px solid var(--tm-orange);
+}
+
+/* Kiosk-safe scrollbar */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.30); }

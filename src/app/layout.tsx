@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
 import "./globals.css";
 
-// Roboto = TM Global body/subhead font. HK Grotesk Wide (headlines) is
-// self-hosted via @font-face in globals.css.
-const roboto = Roboto({
-  variable: "--font-roboto",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
-});
+// Font wiring: all 5 v1.0 families (Chakra Petch / Rajdhani / IBM Plex Mono /
+// B612 Mono / Space Mono) are served as plain @font-face declarations in
+// globals.css, pointing at TTFs in /public/fonts/ — the kiosk runs offline,
+// so no CDN fonts. next/font was bypassed because Next.js 16 Turbopack
+// registered the faces but never applied them to elements.
 
 export const metadata: Metadata = {
   title: "TM Global · Submarine Cable Network",
@@ -23,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${roboto.variable} antialiased font-light`}>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

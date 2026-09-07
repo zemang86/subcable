@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Bottom titlebar</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card" style="padding:0;">
+  <div class="tm-titlebar" style="padding:18px 28px; display:flex; justify-content:space-between; align-items:flex-end; min-height:96px;">
+    <div style="font-family:var(--tm-display); font-weight:700; font-size:36px; letter-spacing:0.02em; color:var(--tm-fg); line-height:1;">Submarine Cable Map</div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div style="font-family:var(--tm-display); font-weight:700; font-size:36px; letter-spacing:0.04em; color:var(--tm-fg); line-height:1;">MCT</div>
+      <span style="font-family:var(--tm-pixel); font-size:9px; color:var(--tm-fg); padding:2px 7px; border:1px solid rgba(255,255,255,0.6);">INT</span>
+    </div>
+  </div>
+</div></body></html>

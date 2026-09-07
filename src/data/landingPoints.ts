@@ -23,7 +23,7 @@ export const landingPoints: LandingPoint[] = [
     region: "Malaysia",
     lat: 4.1259,
     lng: 103.3939,
-    cableIds: ["mct", "skr1m", "apcn2", "mdscs"],
+    cableIds: ["mct", "skr1m", "mdscs"],
   },
   {
     id: "kuantan",
@@ -439,6 +439,19 @@ export const landingPoints: LandingPoint[] = [
     cableIds: ["cm"],
   },
   {
+    // NuGate's Singapore end is a carrier-neutral PoP, not a CLS — modelled
+    // the same way as its Jakarta end rather than reusing a subsea station.
+    id: "singapore-pop",
+    name: "Singapore (PoP)",
+    city: "Singapore",
+    country: "Singapore",
+    region: "Southeast Asia",
+    lat: 1.32,
+    lng: 103.79,
+    cableIds: ["nugate"],
+    kind: "pop",
+  },
+  {
     id: "tungku",
     name: "Tungku, Brunei",
     city: "Tungku",
@@ -521,9 +534,14 @@ export const landingPoints: LandingPoint[] = [
     cableIds: ["smw4", "bbg", "flag"],
   },
   {
+    // id stays "cochin": it keys the assets/ drop-zone folder, the image
+    // manifest and this point's cable back-references. The city was renamed
+    // Kochi in 1996 and the client uses the modern name, so only the display
+    // name changed — the client's board still reads "Cochin, India" (README
+    // row 84), which is why that mapping table was left alone.
     id: "cochin",
-    name: "Cochin, India",
-    city: "Cochin",
+    name: "Kochi, India",
+    city: "Kochi",
     country: "India",
     region: "South Asia",
     lat: 9.95,
@@ -916,7 +934,7 @@ export const landingPoints: LandingPoint[] = [
     region: "Europe",
     lat: 43.3,
     lng: 5.37,
-    cableIds: ["smw4", "smw5"],
+    cableIds: ["smw4"],
   },
   {
     id: "toulon",
@@ -946,7 +964,7 @@ export const landingPoints: LandingPoint[] = [
     region: "Europe",
     lat: 38.12,
     lng: 13.36,
-    cableIds: ["smw4", "smw5", "flag"],
+    cableIds: ["smw4", "flag"],
   },
   {
     id: "catania",

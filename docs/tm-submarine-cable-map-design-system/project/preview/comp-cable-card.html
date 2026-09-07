@@ -1,0 +1,52 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cable card</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card row" style="gap:18px; align-items:flex-start;">
+  <div class="tm-cablecard" style="width:140px;">
+    <div style="display:flex; justify-content:space-between; gap:6px;">
+      <span style="font-family:var(--tm-display); font-weight:700; font-size:11px; color:var(--tm-fg); letter-spacing:0.04em;">MCT</span>
+      <span style="font-family:var(--tm-pixel); font-size:8px; color:var(--tm-fg); padding:1px 5px; border:1px solid rgba(255,255,255,0.6);">INT</span>
+    </div>
+    <div style="font-family:var(--tm-mono); font-size:8px; color:rgba(255,255,255,0.85); line-height:1.3;">Malaysia-Cambodia-Thailand</div>
+    <div style="display:flex; align-items:center; gap:6px; margin-top:auto;">
+      <span class="tm-status tm-pulse" style="transform:scale(0.6);"></span>
+      <span style="font-family:var(--tm-mono); font-size:7px; color:var(--tm-mute);">1,300 km · 3 POINTS</span>
+    </div>
+  </div>
+
+  <div class="tm-cablecard is-selected" style="width:140px;">
+    <div style="display:flex; justify-content:space-between; gap:6px;">
+      <span style="font-family:var(--tm-display); font-weight:700; font-size:11px; color:var(--tm-fg); letter-spacing:0.04em;">SKR1M</span>
+      <span style="font-family:var(--tm-pixel); font-size:8px; color:var(--tm-fg); padding:1px 5px; border:1px solid rgba(255,255,255,0.6);">DOM</span>
+    </div>
+    <div style="font-family:var(--tm-mono); font-size:8px; color:rgba(255,255,255,0.95); line-height:1.3;">Sistem Kabel Rakyat 1Malaysia</div>
+    <div style="display:flex; align-items:center; gap:6px; margin-top:auto;">
+      <span class="tm-status tm-pulse" style="transform:scale(0.6);"></span>
+      <span style="font-family:var(--tm-mono); font-size:7px; color:var(--tm-fg);">3,800 km · 6 POINTS</span>
+    </div>
+  </div>
+
+  <div class="tm-cablecard is-inactive" style="width:140px;">
+    <div style="display:flex; justify-content:space-between; gap:6px;">
+      <span style="font-family:var(--tm-display); font-weight:700; font-size:11px; color:var(--tm-fg); letter-spacing:0.04em;">MDSCS</span>
+      <span style="font-family:var(--tm-pixel); font-size:8px; color:var(--tm-fg); padding:1px 5px; border:1px solid rgba(255,255,255,0.6);">DOM</span>
+    </div>
+    <div style="font-family:var(--tm-mono); font-size:8px; color:rgba(255,255,255,0.85); line-height:1.3;">Malaysia Domestic Cable</div>
+    <div style="display:flex; align-items:center; gap:6px; margin-top:auto;">
+      <span class="tm-status inactive" style="transform:scale(0.6);"></span>
+      <span style="font-family:var(--tm-mono); font-size:7px; color:var(--tm-mute);">4,134 km</span>
+    </div>
+  </div>
+</div>
+<div class="meta" style="padding:0 22px;">DEFAULT · SELECTED (orange fill) · INACTIVE (red status, dimmed)</div></body></html>

@@ -1,0 +1,24 @@
+{
+  "cableId": "nugate",
+  "note": "Hand-traced (NuGate is not in the TeleGeography dataset). Singapore PoP -> Batam across the Singapore Strait, then Batam -> Jakarta via the Riau Strait, east of the Lingga group, through the Gaspar Strait (between Bangka and Belitung) and across the Java Sea — the open-water corridor Singapore-Jakarta systems use. Endpoints match landingPoints.ts coords exactly so the call-route graph stitches them.",
+  "segments": [
+    [
+      [1.32, 103.79],
+      [1.26, 103.88],
+      [1.1494, 104.0249]
+    ],
+    [
+      [1.1494, 104.0249],
+      [1.02, 104.24],
+      [0.75, 104.35],
+      [0.3, 104.75],
+      [-0.4, 105.35],
+      [-1.3, 106.1],
+      [-2.3, 107.0],
+      [-3.3, 107.05],
+      [-4.4, 106.95],
+      [-5.4, 106.9],
+      [-6.18, 106.83]
+    ]
+  ]
+}

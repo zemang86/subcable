@@ -3,6 +3,20 @@
 import { MORSE } from "./morse";
 
 let ctx: AudioContext | null = null;
+let _muted = false;
+
+/** AudioMute toggle. When muted, every public play function returns early. */
+export function setMuted(m: boolean) {
+  _muted = m;
+}
+
+/** Hard-stop everything currently scheduled (e.g. a skipped call). All nodes
+ * connect straight to the context destination, so the only reliable kill is
+ * closing the context — ensureCtx lazily recreates it on the next sound. */
+export function stopAll() {
+  if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
+  ctx = null;
+}
 
 const FREQ = 650;
 const UNIT_MS = 80;       // 1 unit = dot length
@@ -64,11 +78,11 @@ function clickDown(freq = 220, gain = 0.08) {
   osc.stop(t0 + 0.05);
 }
 
-export function playDot() { beep(UNIT_MS); }
-export function playDash() { beep(UNIT_MS * DASH_UNITS); }
-export function playLetterCommit() { clickDown(440, 0.05); }
-export function playSpace() { clickDown(330, 0.05); }
-export function playBackspace() { clickDown(180, 0.07); }
+export function playDot() { if (_muted) return; beep(UNIT_MS); }
+export function playDash() { if (_muted) return; beep(UNIT_MS * DASH_UNITS); }
+export function playLetterCommit() { if (_muted) return; clickDown(440, 0.05); }
+export function playSpace() { if (_muted) return; clickDown(330, 0.05); }
+export function playBackspace() { if (_muted) return; clickDown(180, 0.07); }
 
 // Internal: tone at a given frequency for a given duration, scheduled at
 // `startSec` from now. Used by the dialing/connect sequences.
@@ -98,6 +112,7 @@ function tone(
 
 // "Dialing" — 5 quick descending DTMF-flavoured pips. ~1200ms total.
 export function playDialing(): number {
+  if (_muted) return 1150;
   const pips = [880, 740, 660, 580, 520];
   const pipMs = 110;
   const gapMs = 120;
@@ -111,6 +126,7 @@ export function playDialing(): number {
 
 // "Connecting" — a single rising tone that holds, like a line lock-on.
 export function playConnect(): number {
+  if (_muted) return 900;
   const c = ensureCtx();
   if (!c) return 800;
   const t0 = c.currentTime;
@@ -134,6 +150,7 @@ export function playConnect(): number {
 // sequence. Used when the call is sent — the audio rides alongside the
 // visual pulse so the user can hear what they typed.
 export function playMessage(text: string, totalMs?: number) {
+  if (_muted) return;
   const c = ensureCtx();
   if (!c) return;
 

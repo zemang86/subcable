@@ -48,7 +48,7 @@ export interface CableSystem {
   owners: string[];
   landingPointIds: string[];
   color: string;
-  description: string;
+  description: L;
 }
 
 export interface CableSegment {
@@ -68,4 +68,29 @@ export interface CableLandingStation {
   region: "Peninsular" | "East Malaysia";
   status: "existing" | "ongoing";
   cables: string[];
+}
+
+// ───────── v1.0 UI state types ─────────
+
+export type Filter = "all" | "international" | "domestic";
+
+export type Language = "en" | "bm";
+
+/**
+ * A string that exists in both languages. Canonical here rather than in
+ * generalInfo.ts, which used to own it, because cable descriptions carry it too.
+ */
+export type L = { en: string; bm: string };
+
+export type DialogId = "morse" | "funfact" | "howto" | null;
+
+export interface MorseState {
+  /** In-progress morse symbol buffer (dots and dashes). */
+  buffer: string;
+  /** Committed decoded text. */
+  text: string;
+  /** Landing-point id of the sender end. */
+  from: string;
+  /** Landing-point id of the recipient end. */
+  to: string;
 }

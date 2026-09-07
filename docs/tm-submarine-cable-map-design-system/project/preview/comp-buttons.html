@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Buttons</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card row" style="gap:12px; flex-wrap:wrap;">
+  <button class="tm-btn-primary">Send Message →</button>
+  <button class="tm-btn-blue">Enter Letter</button>
+  <button class="tm-btn-danger" style="min-height:48px; padding:0 18px;">Clear All</button>
+  <button class="tm-btn-send" style="min-height:48px; padding:0 18px;">Send Message</button>
+  <button style="min-height:44px; padding:0 16px; background:#78625A; border:none; color:var(--tm-fg); font-family:var(--tm-heading); font-weight:700; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; cursor:pointer;">⌫ Backspace</button>
+</div>
+<div class="meta" style="padding:0 22px;">PRIMARY orange · SECONDARY blue · DANGER red · SEND inverted · BACKSPACE brown</div></body></html>

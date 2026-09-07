@@ -1,51 +1,102 @@
 "use client";
 
-export default function LoadingScreen() {
+import { useT } from "@/lib/i18n";
+import type { Language } from "@/lib/types";
+
+interface LoadingScreenProps {
+  language?: Language;
+}
+
+// Loading bar geometry from Figma (temp/loading.css, 2048-wide canvas):
+//   track  — left 198, width 1652  → 80.66% wide, centred (symmetric 9.67% margins)
+//   fill   — white, 3px, sweeps 0 → 100%
+//   glow   — blurred white copy trailing the leading edge (blur 4.95px)
+const BAR_WIDTH = "80.66%";
+const BAR_THICKNESS = 3;
+// Just for show — a leisurely 3s sweep. (Globe reveal is gated separately by
+// GlobeScene's own min-hold; this is purely the visual fill duration.)
+const FILL_MS = 3000;
+
+export default function LoadingScreen({ language = "en" }: LoadingScreenProps) {
+  const t = useT(language);
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#06013A] overflow-hidden">
-      {/* Brand chevron motif corners — subtle */}
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        background: "#040E1F",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}
+    >
+      {/* 3×3 TV wall grid pattern */}
       <div
-        className="absolute top-0 left-0 w-32 h-32 opacity-30"
+        className="v1-tv-grid"
         style={{
-          background:
-            "repeating-linear-gradient(135deg, #1800E7 0 14px, transparent 14px 24px, #FF5E00 24px 30px, transparent 30px 44px)",
-          maskImage: "linear-gradient(135deg, black, transparent 70%)",
-          WebkitMaskImage: "linear-gradient(135deg, black, transparent 70%)",
-        }}
-      />
-      <div
-        className="absolute bottom-0 right-0 w-32 h-32 opacity-30"
-        style={{
-          background:
-            "repeating-linear-gradient(135deg, #1800E7 0 14px, transparent 14px 24px, #FF5E00 24px 30px, transparent 30px 44px)",
-          maskImage: "linear-gradient(-45deg, black, transparent 70%)",
-          WebkitMaskImage: "linear-gradient(-45deg, black, transparent 70%)",
+          position: "absolute",
+          inset: 0,
+          opacity: 0.38,
         }}
       />
 
-      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded mb-6">
-        <span className="font-display font-black text-[#1800E7] text-2xl leading-none tracking-tight">
-          TM
-        </span>
-        <span className="font-display font-bold text-[#06013A] text-xs leading-none tracking-[0.25em]">
-          GLOBAL
-        </span>
-      </div>
+      <span
+        className="v1-h-display"
+        style={{
+          fontFamily: "var(--v1-heading)",
+          fontSize: 60,
+          color: "var(--v1-fg)",
+          letterSpacing: "0.15em",
+          textTransform: "uppercase",
+          fontWeight: 400,
+          marginBottom: 48,
+        }}
+      >
+        {t("loading")}
+      </span>
 
-      <div className="relative mb-8">
-        <div className="h-12 w-12 rounded-full border-2 border-[#1800E7]/30 border-t-[#1800E7] animate-spin" />
+      {/* Loading bar — dark track with an animated white fill + leading glow */}
+      <div
+        style={{
+          position: "relative",
+          width: BAR_WIDTH,
+          height: BAR_THICKNESS,
+          background: "#293445",
+        }}
+      >
+        {/* Blurred glow underlay — follows the fill's leading edge */}
         <div
-          className="absolute inset-0 h-12 w-12 rounded-full border-2 border-transparent border-b-[#FF5E00]/60 animate-spin"
-          style={{ animationDirection: "reverse", animationDuration: "1.5s" }}
+          style={{
+            position: "absolute",
+            insetBlock: 0,
+            left: 0,
+            width: "100%",
+            height: BAR_THICKNESS,
+            background: "#FFFFFF",
+            filter: "blur(4.95px)",
+            transformOrigin: "left center",
+            willChange: "transform",
+            animation: `v1-loadbar ${FILL_MS}ms ease-out forwards`,
+          }}
+        />
+        {/* Solid white fill */}
+        <div
+          style={{
+            position: "absolute",
+            insetBlock: 0,
+            left: 0,
+            width: "100%",
+            height: BAR_THICKNESS,
+            background: "#FFFFFF",
+            transformOrigin: "left center",
+            willChange: "transform",
+            animation: `v1-loadbar ${FILL_MS}ms ease-out forwards`,
+          }}
         />
       </div>
-
-      <h2 className="font-display text-base font-bold tracking-[0.25em] text-white mb-2 uppercase">
-        Submarine Cable Network
-      </h2>
-      <p className="text-[10px] tracking-[0.2em] text-[#A8B0D6] animate-pulse uppercase font-medium">
-        Initializing globe…
-      </p>
     </div>
   );
 }

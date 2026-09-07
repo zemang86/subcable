@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cable line on globe</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box;
+          display:flex; flex-direction:column; gap:14px; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+<div class="card">
+  <svg width="660" height="140" viewBox="0 0 660 140">
+    <defs>
+      <!-- Neon glow filter — outer halo around the 3px core stroke -->
+      <filter id="cableGlow" x="-20%" y="-50%" width="140%" height="200%">
+        <feGaussianBlur stdDeviation="3.5" result="b1"/>
+        <feGaussianBlur stdDeviation="8"   in="SourceGraphic" result="b2"/>
+        <feMerge>
+          <feMergeNode in="b2"/>
+          <feMergeNode in="b1"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+
+    <!-- Unselected — 1px white 30% -->
+    <path d="M 20 100 Q 200 60, 360 86 T 640 80"
+          stroke="rgba(255,255,255,0.30)" stroke-width="1" fill="none"/>
+    <text x="20" y="124" font-family="Space Mono" font-size="9" fill="#C4C4C4">
+      UNSELECTED · 1px · rgba(255,255,255,0.30)
+    </text>
+
+    <!-- Selected — 3px red + glow filter (matches the neon-line reference) -->
+    <g filter="url(#cableGlow)">
+      <path d="M 20 36 Q 200 -4, 360 18 T 640 12"
+            stroke="#ED1B2E" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </g>
+    <text x="20" y="58" font-family="Space Mono" font-size="9" fill="#C4C4C4">
+      SELECTED · 3px · #ED1B2E + outer-glow (stdDev 3.5 + 8 merged)
+    </text>
+  </svg>
+
+  <div class="meta">
+    Selected cable carries a soft neon halo around the 3px hot-red core using stacked Gaussian blurs (stdDev 3.5 inner glow + stdDev 8 outer wash). All non-selected cables on the globe render as flat 1px white at 30% opacity — no glow, no per-cable colour.
+  </div>
+</div>
+</body></html>

@@ -17,7 +17,3 @@ const REVERSE: Record<string, string> = Object.fromEntries(
 export function decodeSymbols(symbols: string): string | null {
   return REVERSE[symbols] ?? null;
 }
-
-export const MORSE_ALPHABET: { char: string; code: string }[] = Object.entries(
-  MORSE
-).map(([char, code]) => ({ char, code }));

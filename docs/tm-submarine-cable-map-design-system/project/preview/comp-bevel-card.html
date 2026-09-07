@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Bevelled card</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box;
+          display:flex; flex-direction:column; gap:14px; }
+  .row { display:flex; gap: 18px; align-items:flex-start; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="row">
+    <!-- Bevelled = KeyStatistic only (top-right ~17.5px chamfer) -->
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div class="tm-card-bevel" style="width:220px; height:78px; padding:12px 16px; display:flex; flex-direction:column; justify-content:space-between;">
+        <span class="tm-h-eye" style="font-size:9px;">of global internet traffic</span>
+        <span class="tm-h-stat" style="font-size:32px; text-align:right;">95%+</span>
+      </div>
+      <div class="meta" style="color:var(--tm-fg);">BEVELLED (.tm-card-bevel)</div>
+      <div class="meta">USED ON: KeyStatistic ONLY · top-right 17.5px chamfer · matches Figma node 335:263.</div>
+    </div>
+
+    <!-- Plain panel = Cable System / Cable Information -->
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div style="width:220px; height:78px; padding:12px 16px;
+                  background: linear-gradient(rgb(3,77,161) 22%, rgba(3,77,161,0) 88%),
+                              linear-gradient(rgba(240,90,34,0.6) 0%, rgba(240,90,34,0) 100%);
+                  border: 1px solid rgba(255,255,255,0.5);
+                  display:flex; flex-direction:column; justify-content:space-between;">
+        <span class="tm-h-eye" style="font-size:9px;">Cable Information</span>
+        <span class="tm-h-heading" style="font-size:18px; color:var(--tm-active);">SKR1M</span>
+      </div>
+      <div class="meta" style="color:var(--tm-fg);">PLAIN PANEL (no class)</div>
+      <div class="meta">USED ON: Cable System sidebar · Cable Information · Container. Same blue+orange gradient + 1px white border, but NO corner cut.</div>
+    </div>
+  </div>
+
+  <div class="meta" style="padding-top:6px; border-top: 0.5px solid rgba(255,255,255,0.15);">
+    The "bevel" is <span style="color:var(--tm-fg);">not</span> a general design system convention. It's a single-use shape on the three top-right key statistic cards. Everything else is a plain rectangle with the same gradient + hairline.
+  </div>
+</div>
+</body></html>

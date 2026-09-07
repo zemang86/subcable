@@ -1,51 +1,46 @@
-// TM Global brand palette — per "Quick Reference to Brand Guidelines" v1/10/2022.
-// Primary blues + black/white; secondary oranges + red as accents.
-export const TM_COLORS = {
-  // TM Global brand — primary
-  cobalt: "#1800E7",
-  navy: "#180092",
-  darkBlue: "#06013A",
-  black: "#000000",
-  white: "#FFFFFF",
+// v1.0 tactical-HUD palette — source of truth is
+// docs/design_handoff_subcable_v1/tokens-v1.json. Mirrored here so TS code
+// can reference values without going through CSS variables.
+export const V1_COLORS = {
+  // Surface
+  bg:           "#040E1F",
+  bgDeep:       "#061630",
+  bgCobalt:     "#0A0449",
 
-  // TM Global brand — secondary (accents)
-  red: "#D82E00",
-  accentOrange: "#FF5E00",
-  orange: "#FF7A00",
-  lightOrange: "#F7B986",
+  // Brand
+  blue:         "#034DA1",
+  blue2:        "#0362A1",
+  orange:       "#F05A22",
+  orangeHot:    "#FF4D00",
+  orangeDeep:   "#BC3514",
 
-  // Legacy alias kept for any imports still referencing primary.
-  primary: "#1800E7",
+  // Status (NEW in v1)
+  active:       "#8FFF3F",
+  active2:      "#00FF4D",
+  activeBg:     "#3F642E",
+  inactive:     "#FF3F3F",
+  inactive2:    "#ED1B2E",   // selected-cable hot red
+  inactiveBg:   "#642E2E",
 
-  // UI dark theme — built around darkBlue/navy, not arbitrary slate
-  bgPrimary: "#06013A",
-  bgSecondary: "#0B0750",
-  bgCard: "#120A6B",
-  borderGlow: "rgba(24, 0, 231, 0.35)",
-  textPrimary: "#F5F5F5",
-  textSecondary: "#A8B0D6",
-  textAccent: "#7A8AFF",
-
-  // Status — biased to brand where possible
-  statusActive: "#22C55E",
-  statusPlanned: "#F7B986",
-  statusRetired: "#64748B",
-  statusInactive: "#475569",
+  // Text
+  fg:           "#FFFFFF",
+  fgCream:      "#FFF6F6",
+  fgIceblue:    "#F1F7FF",
+  mute:         "#C4C4C4",
+  mute2:        "#D9D9D9",
+  muteDark:     "#4E4F4E",
 
   // Globe
-  atmosphereColor: "#1800E7",
-  landingPointDefault: "#7A8AFF",
-  landingPointActive: "#FF5E00",
-  cableHighlight: "#FF5E00",
-  cableMuted: "rgba(120, 130, 170, 0.18)",
-  cableRetired: "rgba(120, 130, 170, 0.55)",
-  cablePlanned: "#F7B986",
+  atmosphere:   "#034DA1",
+  cableSelected:"#ED1B2E",
+  cableMuted:   "rgba(255, 255, 255, 0.30)",
+  cableMutedHex:"#FFFFFF",
 } as const;
 
-// One color per cable family. Palette stays varied for legibility on the globe;
-// retuned to lean on brand primaries + accents where it doesn't hurt distinction.
+// One color per cable family — kept for per-cable identity in the side panel,
+// even though the globe now renders selected/unselected uniformly.
 export const CABLE_COLORS: Record<string, string> = {
-  // International — TM-owned hero cables
+  // International
   smw4: "#FFB347",
   smw5: "#FF7A00",
   bbg: "#E25B7B",

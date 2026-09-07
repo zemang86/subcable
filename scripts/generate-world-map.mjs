@@ -17,16 +17,29 @@ const W = 8192;
 const H = 4096;
 const STROKE_WIDTH = 0.6;
 
+// ── Graticule (v7 hologram grid) ──
+// Faint lat/lng lines baked UNDER the land fills, so the grid only shows on
+// open ocean. Major lines every 30°, minor every 10°. To restore the plain
+// map, set GRID_ENABLED = false and rebake (or git-checkout the webp files).
+const GRID_ENABLED = true;
+const GRID_STEP_DEG = 10;
+const GRID_MAJOR_EVERY_DEG = 30;
+const GRID_STROKE = 1.2;
+
 const PRESETS = {
   light: {
     sea: "#C9D7E8",
     land: "#FAF6EB",
     stroke: "rgba(60, 70, 95, 0.45)",
+    gridMinor: "rgba(60, 80, 120, 0.10)",
+    gridMajor: "rgba(60, 80, 120, 0.18)",
   },
   dark: {
-    sea: "#0B1322",
-    land: "#152033",
+    sea: "#153762",
+    land: "#237ED0",
     stroke: "rgba(150, 165, 200, 0.30)",
+    gridMinor: "rgba(120, 170, 255, 0.08)",
+    gridMajor: "rgba(120, 170, 255, 0.16)",
   },
 };
 
@@ -71,11 +84,33 @@ for (const f of geojson.features) {
   }
 }
 
+// One <path> per opacity tier — each grid line is a single M…V/H command.
+const graticuleSvg = (gridMinor, gridMajor) => {
+  if (!GRID_ENABLED) return "";
+  const minor = [];
+  const major = [];
+  for (let lng = -180; lng < 180; lng += GRID_STEP_DEG) {
+    const [x] = project(lng, 0);
+    const bucket = lng % GRID_MAJOR_EVERY_DEG === 0 ? major : minor;
+    bucket.push(`M${x.toFixed(1)},0V${H}`);
+  }
+  for (let lat = -90 + GRID_STEP_DEG; lat <= 90 - GRID_STEP_DEG; lat += GRID_STEP_DEG) {
+    const [, y] = project(0, lat);
+    const bucket = lat % GRID_MAJOR_EVERY_DEG === 0 ? major : minor;
+    bucket.push(`M0,${y.toFixed(1)}H${W}`);
+  }
+  return `<g fill="none" stroke-width="${GRID_STROKE}">
+<path stroke="${gridMinor}" d="${minor.join("")}"/>
+<path stroke="${gridMajor}" d="${major.join("")}"/>
+</g>`;
+};
+
 for (const theme of themes) {
-  const { sea, land, stroke } = PRESETS[theme];
+  const { sea, land, stroke, gridMinor, gridMajor } = PRESETS[theme];
   const outFile = path.resolve(`public/textures/world-mono-${theme}.webp`);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
 <rect width="${W}" height="${H}" fill="${sea}"/>
+${graticuleSvg(gridMinor, gridMajor)}
 <g fill="${land}" stroke="${stroke}" stroke-width="${STROKE_WIDTH}" stroke-linejoin="round" fill-rule="evenodd">
 ${paths.map((p) => `<path d="${p}"/>`).join("\n")}
 </g>

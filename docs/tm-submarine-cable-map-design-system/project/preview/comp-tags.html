@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tags & chips</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card row" style="gap:10px; flex-wrap:wrap; align-items:center;">
+  <span class="tm-tag">Telekom Malaysia</span>
+  <span class="tm-tag">NTT</span>
+  <span class="tm-tag">Symphony</span>
+  <span style="font-family:var(--tm-pixel); font-size:8px; color:var(--tm-fg); padding:1px 5px; border:1px solid rgba(255,255,255,0.6);">INT</span>
+  <span style="font-family:var(--tm-pixel); font-size:8px; color:var(--tm-fg); padding:1px 5px; border:1px solid rgba(255,255,255,0.6);">DOM</span>
+  <span class="tm-new">NEW</span>
+  <span class="tm-changed">CHANGED</span>
+  <span style="padding:3px 8px; background:var(--tm-inactive-2); color:var(--tm-fg); font-family:var(--tm-heading); font-weight:700; font-size:9px; letter-spacing:0.20em; text-transform:uppercase;">Decommissioned</span>
+</div></body></html>

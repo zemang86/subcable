@@ -2,34 +2,92 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+
 import Globe from "./GlobeWrapper";
-import Header from "./Header";
 import Sidebar from "./Sidebar";
+import SystemButtons from "./SystemButtons";
+import { useNarration } from "@/lib/useNarration";
 import LoadingScreen from "./LoadingScreen";
+import CableInformation from "./CableInformation";
+import DidYouKnow from "./DidYouKnow";
+import { Header } from "./Header";
+import { LanguageToggle } from "./LanguageToggle";
+import { RightCluster } from "./RightCluster";
+import { ClusterStem } from "./ClusterStem";
+import { LandingPointCallout } from "./LandingPointCallout";
+import IntroSequence from "./IntroSequence";
+import HowToGuideDialog from "./HowToGuideDialog";
+import GeneralInfoDialog from "./GeneralInfoDialog";
+import MorseCodePop from "./MorseCodePop";
+
 import { cables, cablesById } from "@/data/cables";
 import { landingPoints } from "@/data/landingPoints";
 import { cableRoutes } from "@/data/cableRoutes";
-import countries from "@/data/countries.json";
+// Precomputed extracts of countries.json (see scripts/trim-countries.mjs) —
+// the full 496 KB Natural Earth file stays out of the client bundle.
+import countryLabelData from "@/data/countryLabels.json";
+import landingCountries from "@/data/landingCountries.json";
 import robotoMedium from "@/data/roboto-medium.typeface.json";
-import { CableSystem, LandingPoint } from "@/lib/types";
-import { TM_COLORS, CABLE_COLORS } from "@/lib/colors";
-import CallDialog from "./CallDialog";
-import InfoModal from "./InfoModal";
-import { resolveCallRoute } from "@/lib/callRoutes";
-import { playConnect, playDialing, playMessage } from "@/lib/morseAudio";
 
-// Travelling-dot tuning. Replaced the path-dash trick (dot length scaled with
-// segment length → wildly variable visual size). These spheres are constant
-// world-size; speed is clamped on short segments to avoid 0.5s loops.
-const DOT_RADIUS = 0.11;
-const DOT_SPEED_KM_PER_SEC = 375;
-const DOT_MIN_LOOP_SEC = 4;
+import type {
+  CableSystem,
+  DialogId,
+  Language,
+  LandingPoint,
+} from "@/lib/types";
+import { V1_COLORS, CABLE_COLORS } from "@/lib/colors";
+import {
+  resolveNetworkRoute,
+  type ResolvedNetworkRoute,
+} from "@/lib/callRoutes";
+import {
+  playConnect,
+  playDialing,
+  playMessage,
+  setMuted as setAudioMuted,
+  stopAll as stopAllAudio,
+} from "@/lib/morseAudio";
+import { useIdleAttractor } from "@/lib/useIdleAttractor";
+import { useT } from "@/lib/i18n";
+import { attachCableFlow, type CableFlowState } from "@/lib/cableFlow";
+import { attachHologramRim } from "@/lib/hologramRim";
+// import { attachScanSweep } from "@/lib/_archive/scanSweep"; // radar sweep hidden (client)
+import { attachTouchRipple, type TouchRipple } from "@/lib/touchRipple";
 
-// Quantized zoom buckets — three-globe rebuilds TextGeometry for every label
-// each time labelSize/labelDotRadius returns a new value. A continuous scalar
-// from piecewiseByZoom triggers ~163 dispose+tessellate-glyph-paths per zoom
-// tick → catastrophic stutter. Buckets cap the rebuilds at one per threshold
-// crossing instead of one per pixel of pinch.
+// ───────── Tuning ─────────
+
+// Dev escape hatch: `NEXT_PUBLIC_DEV_NO_IDLE=1` in .env.local parks the idle
+// attractor, so the live screen never submerges back to the attract loop while
+// you're working on it. Lives in a (gitignored) env file rather than a source
+// constant on purpose — a hardcoded testing override is exactly what shipped as
+// the 15s idle window fixed in 93e4609. Belt and braces: the NODE_ENV guard
+// makes it inert in any production build even if .env.local is left in place.
+const DEV_NO_IDLE =
+  process.env.NODE_ENV !== "production" &&
+  process.env.NEXT_PUBLIC_DEV_NO_IDLE === "1";
+
+// Sibling escape hatch: `NEXT_PUBLIC_DEV_IDLE_MS=10000` SHORTENS the idle window
+// so the submerge → attract → emerge cycle can be exercised without sitting
+// through the real one. Same reasoning as DEV_NO_IDLE — env file, not a source
+// constant, and NODE_ENV-guarded — because a shortened idle window hardcoded
+// here is precisely the bug 93e4609 had to fix. 0/unset = the real window.
+const DEV_IDLE_MS =
+  process.env.NODE_ENV !== "production"
+    ? Number(process.env.NEXT_PUBLIC_DEV_IDLE_MS) || 0
+    : 0;
+/** Kiosk idle window. */
+const IDLE_MS = DEV_IDLE_MS || 60_000;
+/**
+ * Pre-idle countdown toast. Capped at the usual 10s, but scaled down for a short
+ * dev window — at idleMs === warnMs the hook fires the warning at t=0, so a 10s
+ * dev window would sit under a permanent countdown instead of idling.
+ */
+const IDLE_WARN_MS = Math.min(10_000, Math.round(IDLE_MS * 0.3));
+
+// Quantized zoom buckets — three-globe rebuilds TextGeometry whenever
+// labelSize / labelDotRadius returns a new value. A continuous scalar from
+// piecewiseByZoom triggers ~163 dispose+tessellate-glyph-paths per zoom tick →
+// catastrophic stutter. Buckets cap rebuilds at one per threshold crossing.
 type ZoomBucket = 0 | 1 | 2 | 3 | 4 | 5;
 const bucketForAltitude = (alt: number): ZoomBucket => {
   if (alt >= 1.5) return 0;
@@ -40,12 +98,42 @@ const bucketForAltitude = (alt: number): ZoomBucket => {
   return 5;
 };
 const POINT_RADIUS_BY_BUCKET = [0, 0, 0.06, 0.04, 0.025, 0.025] as const;
+// Cable glow width multiplier per zoom bucket (0 = far, 5 = closest). Bucketed
+// rather than computed from raw altitude so the path-stroke accessor only
+// changes identity on a bucket crossing — avoids re-tessellating every path on
+// each zoom poll. Grows as you zoom in so the neon glow keeps constant visual
+// thickness instead of appearing to shrink.
+const GLOW_SCALE_BY_BUCKET = [1.0, 1.3, 1.7, 2.1, 2.4, 2.6] as const;
+// Horizontal placement of the globe's centre as a fraction of viewport width.
+// 0.5 = dead-centre; we push it left so the sphere sits between the left edge
+// and the Cable System panel, leaving room on the right for the panels.
+// The canvas is translated by this offset and the callout/label projections
+// add the same offset so they stay locked to the sphere.
+const GLOBE_CENTER_FRAC = 0.4;
+const globeOffsetX = (width: number) => (GLOBE_CENTER_FRAC - 0.5) * width;
+// The translate above would drag the canvas edge into view and expose a bare
+// strip of page background (right edge when offset, left edge when idle slides
+// back to centre). So the canvas is oversized by the offset amount on BOTH
+// sides and statically shifted left by one bleed — its edges stay off-screen
+// at every point of the idle⇄active slide, and the globe lands on exactly the
+// same screen position as before. Projections map canvas→viewport with
+// `globeProjectionOffsetX`.
+const GLOBE_BLEED_FRAC = Math.abs(GLOBE_CENTER_FRAC - 0.5);
+const globeBleedX = (width: number) => GLOBE_BLEED_FRAC * width;
+const globeCanvasWidth = (width: number) =>
+  width + 2 * globeBleedX(width);
+// canvasX → viewportX for the non-idle pose (static -bleed shift + offset
+// translate). Takes the CANVAS width since projection code reads the renderer
+// DOM element (always current), not the React dimensions state (stale-closure
+// prone inside long-lived rAF loops).
+const globeProjectionOffsetX = (canvasWidth: number) => {
+  const viewportWidth = canvasWidth / (1 + 2 * GLOBE_BLEED_FRAC);
+  return globeOffsetX(viewportWidth) - globeBleedX(viewportWidth);
+};
 
-// City labels: one threshold instead of buckets. Above the threshold
-// (alt 0.314 ≈ 2000 km) cities are invisible. Below, geometry is built once
-// at CITY_LABEL_BASE_SIZE; the per-frame scaler handles fade-in across a
-// narrow band and a sub-linear shrink with altitude. Sub-linear (sqrt) keeps
-// labels visible at very close zoom instead of vanishing.
+// City labels: one threshold instead of buckets. Above it cities vanish.
+// Below, geometry is built once and a per-frame scaler handles fade-in + a
+// sqrt shrink with altitude (keeps labels visible at very close zoom).
 const CITY_LABEL_BASE_SIZE = 0.13;
 const CITY_VISIBLE_ALT = 0.314;
 const CITY_FADE_BAND = 0.05;
@@ -54,18 +142,20 @@ const CITY_MIN_SCALE = 0.18;
 const cityScaleAt = (alt: number): number => {
   if (alt >= CITY_VISIBLE_ALT) return 0;
   const fade = Math.min(1, (CITY_VISIBLE_ALT - alt) / CITY_FADE_BAND);
-  const shrink = Math.max(CITY_MIN_SCALE, Math.sqrt(Math.max(0, alt) / CITY_REF_ALT));
+  const shrink = Math.max(
+    CITY_MIN_SCALE,
+    Math.sqrt(Math.max(0, alt) / CITY_REF_ALT),
+  );
   return fade * shrink;
 };
 
 // Country labels: mirror of the city pattern, but inverted. Fade OUT as you
-// zoom in past a threshold (you're focused on a region, country names become
-// noise). Always visible above the threshold, sub-linear shrink with altitude
-// so big country names don't dominate at mid-zoom.
+// zoom in past a threshold; visible above with sqrt shrink so big country
+// names don't dominate at mid-zoom.
 const COUNTRY_LABEL_BASE_SIZE = 0.85;
-const COUNTRY_HIDDEN_ALT = 0.2;            // alt 0.20 ≈ 1270 km — hidden below
-const COUNTRY_FADE_BAND = 0.1;             // 640 km fade-out band
-const COUNTRY_REF_ALT = 1.5;               // alt at which base size applies fully
+const COUNTRY_HIDDEN_ALT = 0.2;
+const COUNTRY_FADE_BAND = 0.1;
+const COUNTRY_REF_ALT = 1.5;
 const countryScaleAt = (alt: number): number => {
   if (alt <= COUNTRY_HIDDEN_ALT) return 0;
   const fade = Math.min(1, (alt - COUNTRY_HIDDEN_ALT) / COUNTRY_FADE_BAND);
@@ -73,128 +163,148 @@ const countryScaleAt = (alt: number): number => {
   return fade * shrink;
 };
 
-// 1x1 transparent PNG — fed to globeImageUrl in outline mode so three.js
-// loads a clean (color-keyed) texture instead of holding onto the earth bitmap.
-const BLANK_PIXEL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+// ───────── Static assets ─────────
 
-// Pre-baked equirectangular world maps (sea + land + country strokes), used
-// as the basemap for both mono modes. Generated by scripts/generate-world-map.mjs.
-// Replaces CARTO tile streaming so the kiosk works fully offline.
-const WORLD_MAP_LIGHT_URL = "/textures/world-mono-light.webp";
+// Pre-baked equirectangular dark world map (sea + land + country strokes).
+// Generated by scripts/generate-world-map.mjs. Replaces tile streaming so the
+// kiosk works fully offline. Light variant + outline-mode + texture-mode all
+// removed in v1.0 (resolution §H.11 = dark only, §H.1 = re-skin).
 const WORLD_MAP_DARK_URL = "/textures/world-mono-dark.webp";
 
-// Regional high-density bake (4096² over a 40°×40° SEA window — ~1.2 km/texel
-// vs ~5 km for the global). Drawn as a single grid-mesh overlay that fades in
-// at close zoom; one extra draw call, no polygon overhead. See
-// scripts/generate-regional-map.mjs.
-const SEA_OVERLAY_LIGHT_URL = "/textures/world-mono-light-sea.webp";
+// Regional sharpness overlay — 4K bake over the SEA window (~1.2 km/texel vs
+// ~5 km for the global). One grid-mesh draw call, fades in at close zoom.
 const SEA_OVERLAY_DARK_URL = "/textures/world-mono-dark-sea.webp";
+
+// Starfield behind the globe (globe.gl background sphere). Baked by
+// scripts/generate-starfield.mjs on the same #040E1F as the canvas so the
+// stars sit seamlessly on the dark background.
+const STARFIELD_URL = "/textures/starfield.webp";
+
+// WebGLRenderer options (module-level: a fresh object identity here would
+// re-create the whole renderer). alpha/antialias match the defaults;
+// powerPreference asks the OS for the discrete/high-perf GPU on hybrid
+// hardware.
+const RENDERER_CONFIG = {
+  antialias: true,
+  alpha: true,
+  powerPreference: "high-performance",
+} as const;
 const SEA_LAT_MIN = -15;
 const SEA_LAT_MAX = 25;
 const SEA_LNG_MIN = 90;
 const SEA_LNG_MAX = 130;
-const SEA_GRID = 32;             // 33×33 vertices, 2048 triangles
-const SEA_OVERLAY_ALT = 0.0008;  // sit just above the globe surface
-const SEA_FADE_IN_ALT = 0.6;     // start fading in below ~3800 km
-const SEA_FADE_OUT_ALT = 0.3;    // fully opaque below ~1900 km
+const SEA_GRID = 32;
+const SEA_OVERLAY_ALT = 0.0008;
+const SEA_FADE_IN_ALT = 0.6;
+const SEA_FADE_OUT_ALT = 0.3;
 
-// Globe styles (textured = full earth bitmap; outline = country borders only)
-const STYLES = {
-  "texture-dark": {
-    globe: "/textures/earth-night-hires.webp",
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#2362DD",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-  "texture-light": {
-    globe: "/textures/earth-day-hires.webp",
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#4da6ff",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-  "outline-dark": {
-    globe: BLANK_PIXEL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#2362DD",
-    globeColor: "#0B1A3A", // deep navy "sea"
-    countryStroke: "rgba(180, 220, 255, 0.9)",
-    countryFill: "rgba(34, 70, 50, 0.85)", // muted green "land"
-  },
-  "outline-light": {
-    globe: BLANK_PIXEL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#cfe6ff",
-    globeColor: "#EDE9DE", // cream sea — soft mono backdrop
-    countryStroke: "rgba(40, 50, 70, 0.85)", // charcoal hairline
-    countryFill: "#FAFAF6", // off-white land
-  },
-  "mono-dark": {
-    // Pre-baked dark basemap — fully offline, same approach as mono-light.
-    globe: WORLD_MAP_DARK_URL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#2362DD",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-  "mono-light": {
-    // Pre-baked basemap — sea + land + country strokes are all in this WebP.
-    // No tile streaming, no polygon overlay needed.
-    globe: WORLD_MAP_LIGHT_URL,
-    bg: "/textures/night-sky.webp",
-    atmosphere: "#cfe6ff",
-    globeColor: undefined,
-    countryStroke: undefined,
-    countryFill: undefined,
-  },
-} as const;
-const BUMP_IMAGE = "/textures/earth-topology.png";
+// ───────── v1.0 palette → globe constants ─────────
 
-// XYZ tile servers
-const SATELLITE_TILE_URL = (x: number, y: number, level: number) =>
-  `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${level}/${y}/${x}`;
+// Globe glow ramp follows temp/globe.svg: a #237ED0 halo that whitens at the
+// silhouette. Recoloured off the deep v1 atmosphere (#034DA1) and dimmed —
+// the broad outer falloff is the atmosphere, the crisp rim is hologramRim.
+const ATMOSPHERE_COLOR = "#237ED0";                     // globe.svg halo stop
+const CABLE_SELECTED_COLOR = V1_COLORS.cableSelected;   // #ED1B2E
+const CABLE_MUTED_COLOR = V1_COLORS.cableMuted;         // rgba(255,255,255,0.30)
+// Neon glow (both default + selected): one saturated colour ring hugging the
+// white-hot core.
+const CABLE_HALO_DEFAULT_OUTER_ALPHA = 0.15; // saturated colour glow around core
 
-// CARTO basemaps (monochrome, free for non-commercial w/ attribution).
-// Subdomain rotation a/b/c/d to spread requests across CDN edges.
-// Use the `_nolabels` variants — we draw our own city/cable labels on top, and
-// dropping CARTO's baked glyphs halves PNG size and skips a render pass.
-const cartoSub = (z: number) => "abcd"[(z * 7) % 4];
-const CARTO_LIGHT_TILE_URL = (x: number, y: number, level: number) =>
-  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/light_nolabels/${level}/${x}/${y}.png`;
-const CARTO_DARK_TILE_URL = (x: number, y: number, level: number) =>
-  `https://${cartoSub(x + y)}.basemaps.cartocdn.com/dark_nolabels/${level}/${x}/${y}.png`;
 
-const TILE_ZOOM_THRESHOLD = 1.0; // altitude below this enables satellite tiles
+const hexToRgb = (hex: string): [number, number, number] => {
+  const h = hex.replace("#", "");
+  const full =
+    h.length === 3
+      ? h.split("").map((c) => c + c).join("")
+      : h;
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+  ];
+};
+const hexToRgba = (hex: string, alpha: number) => {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+// Neon "hot filament" core — push the identity colour most of the way to white
+// so the centre of the line reads as a bright lit core (lightsaber style),
+// leaving the saturated colour to live in the surrounding glow.
+const neonCore = (hex: string, toward = 0.72) => {
+  const [r, g, b] = hexToRgb(hex);
+  const mix = (c: number) => Math.round(c + (255 - c) * toward);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+};
+const LANDING_POINT_DEFAULT = V1_COLORS.fg;             // white
+const LANDING_POINT_ACTIVE = V1_COLORS.active;          // #8FFF3F lime
+const LANDING_POINT_MUTED = "rgba(120, 120, 120, 0.30)";
 
-const TOOLTIP_STYLE =
-  "padding:6px 10px;background:rgba(6,1,58,0.92);border:1px solid rgba(24,0,231,0.5);border-radius:4px;color:#FFFFFF;font-size:12px;font-family:'HK Grotesk Wide','Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:0.04em;";
-const renderPathLabel = (path: any) =>
-  `<div style="${TOOLTIP_STYLE}">${path.name}</div>`;
-const renderPointLabel = (p: any) =>
-  `<div style="${TOOLTIP_STYLE}">${p.city}, ${p.country}</div>`;
-
-type GlobeStyle = keyof typeof STYLES;
-type Theme = "dark" | "light";
-type RenderStyle = "texture" | "outline" | "mono";
-
-const RENDER_STYLE_LABEL: Record<RenderStyle, string> = {
-  texture: "TEXTURE",
-  outline: "OUTLINE",
-  mono: "MONO",
+// Country highlight (Phase 2): when a cable is selected, the countries it lands
+// in get a flat translucent light-grey fill — no border, no pattern. Sits just
+// above the globe texture but below the cable lines so the cables stay on top.
+const COUNTRY_FILL_CAP = "rgba(232, 236, 243, 0.20)";
+const COUNTRY_FILL_SIDE = "rgba(232, 236, 243, 0.08)";
+const COUNTRY_FILL_STROKE = "rgba(0, 0, 0, 0)"; // transparent — no outline
+const COUNTRY_FILL_ALTITUDE = 0.002;
+// landingPoint.country → countries.json properties.name, where they differ.
+// (Réunion has no feature in this Natural Earth extract, so it stays unhighlighted
+// rather than wrongly lighting up mainland France.)
+const COUNTRY_NAME_ALIASES: Record<string, string> = {
+  "United States": "United States of America",
 };
 
-function nextStyle(s: RenderStyle): RenderStyle {
-  return s === "texture" ? "outline" : s === "outline" ? "mono" : "texture";
+// Home pose. LOCKED TO THE VIDEO: the emerge clip was rendered from a globe
+// shot taken at exactly these coordinates, so its last frame — which is also
+// the submerge clip's first frame — shows the sphere in this pose. Anything
+// that hands off to or from a clip has to fly here, or the globe visibly
+// rotates under the bloom. Don't retune without re-rendering the clips.
+const DEFAULT_LAT = 5;
+const DEFAULT_LNG = 108;
+const DEFAULT_ALT = 2.2;
+const HOME_POSE = { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT };
+
+// A cable system's "default view": the zoom-to-fit framing of its landing
+// points. This is the destination for every control that means "show me the
+// thing I'm looking at" — selecting the cable, Back out of a landing point,
+// and Centre. With no cable in play it degrades to the home pose, which is
+// also what the two buttons mean by "default centre view".
+function cablePose(cable: CableSystem | null) {
+  if (!cable) return HOME_POSE;
+  const points = landingPoints.filter((p) =>
+    cable.landingPointIds.includes(p.id),
+  );
+  if (points.length === 0) return HOME_POSE;
+  // Unwrap longitudes around the first point so trans-Pacific systems
+  // (AAG: Malaysia → Guam → Hawaii → US) average across the antimeridian
+  // instead of cancelling out to the wrong side of the planet.
+  const anchor = points[0].lng;
+  const lngs = points.map((p) => {
+    let lng = p.lng;
+    while (lng - anchor > 180) lng -= 360;
+    while (lng - anchor < -180) lng += 360;
+    return lng;
+  });
+  const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
+  const avgLng = lngs.reduce((s, lng) => s + lng, 0) / lngs.length;
+  const latSpread =
+    Math.max(...points.map((p) => p.lat)) -
+    Math.min(...points.map((p) => p.lat));
+  const lngSpread = Math.max(...lngs) - Math.min(...lngs);
+  const spread = Math.max(latSpread, lngSpread);
+  const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
+  return { lat: avgLat, lng: avgLng, altitude };
 }
 
-function styleKey(render: RenderStyle, theme: Theme): GlobeStyle {
-  return `${render}-${theme}` as GlobeStyle;
-}
+// Zoom clamps. three-globe camera distance = 100 × (1 + altitude), so these
+// bound the OrbitControls dolly: MAX caps zoom-out at ~altitude 3.4 (a touch
+// past the default 2.2 view) so the globe never shrinks to a dot in the
+// starfield; MIN floors zoom-in so the camera can't tunnel through the surface.
+const MIN_CAM_DISTANCE = 108; // ~altitude 0.08 (close detail)
+const MAX_CAM_DISTANCE = 440; // ~altitude 3.4
+
+// NOTE: no pathLabel/pointLabel hover tooltips — they never fire on the
+// touch kiosk (no hover), and with tap forgiveness every tap already lands
+// on the full info (cable panel / landing-point card) in one step.
 
 interface PathData {
   coords: [number, number][];
@@ -202,25 +312,321 @@ interface PathData {
   name: string;
   color: string;
   status: CableSystem["status"];
+  // Position of this segment within its cable's route — the circuit-trace
+  // selection effect energizes segments in this order (src/lib/cableFlow.ts).
+  _segIndex: number;
+  // Neon glow ring index: undefined = white-hot core line,
+  // 2 = saturated colour glow hugging the core.
+  _halo?: 2;
 }
 
 export default function GlobeScene() {
   const globeRef = useRef<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // ── Cancellable camera flights ──
+  // globe.gl's pointOfView tweens can't be interrupted (the tween group isn't
+  // exposed, and a 0-duration set doesn't kill an in-flight tween), so a long
+  // programmatic move fights the user's drag for its whole duration. Instead,
+  // every user-flow camera move goes through flyTo: our own rAF loop stepping
+  // pointOfView(…, 0) frames with the same cubic in-out easing — and any
+  // pointerdown cancels it instantly, handing control back to the finger.
+  const flyRafRef = useRef<number | null>(null);
+  const cancelFly = useCallback(() => {
+    if (flyRafRef.current !== null) {
+      cancelAnimationFrame(flyRafRef.current);
+      flyRafRef.current = null;
+    }
+  }, []);
+  const flyTo = useCallback(
+    (
+      target: { lat?: number; lng?: number; altitude?: number },
+      ms: number,
+    ) => {
+      const g = globeRef.current;
+      if (!g) return;
+      cancelFly();
+      const from = g.pointOfView?.();
+      if (!from || ms <= 0) {
+        g.pointOfView(target, 0);
+        return;
+      }
+      const to = {
+        lat: target.lat ?? from.lat,
+        lng: target.lng ?? from.lng,
+        altitude: target.altitude ?? from.altitude,
+      };
+      // Shortest way around for longitude (never rotate >180°).
+      let dLng = to.lng - from.lng;
+      while (dLng > 180) dLng -= 360;
+      while (dLng < -180) dLng += 360;
+      const startTs = performance.now();
+      const ease = (t: number) =>
+        t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+      const step = () => {
+        const t = Math.min(1, (performance.now() - startTs) / ms);
+        const e = ease(t);
+        globeRef.current?.pointOfView(
+          {
+            lat: from.lat + (to.lat - from.lat) * e,
+            lng: from.lng + dLng * e,
+            altitude: from.altitude + (to.altitude - from.altitude) * e,
+          },
+          0,
+        );
+        if (t < 1) flyRafRef.current = requestAnimationFrame(step);
+        else flyRafRef.current = null;
+      };
+      flyRafRef.current = requestAnimationFrame(step);
+    },
+    [cancelFly],
+  );
+  useEffect(() => cancelFly, [cancelFly]);
+  // First boot: show the LoadingScreen, then reveal the live globe directly
+  // (NOT the attract video — that only appears after the app later goes idle).
+  // `booted` flips true on the first reveal and never resets, so the loading
+  // screen is a one-time boot cover; subsequent idle→attract cycles are owned
+  // by the IntroSequence video layer instead.
+  const [booted, setBooted] = useState(false);
   const [selectedCable, setSelectedCable] = useState<CableSystem | null>(null);
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [renderStyle, setRenderStyle] = useState<RenderStyle>("mono");
-  const style = STYLES[styleKey(renderStyle, theme)];
+  const [selectedLandingPoint, setSelectedLandingPoint] =
+    useState<LandingPoint | null>(null);
+  /** Screen-space position of every landing point along the selected cable —
+      keyed by point id. Used to position the per-point callouts. */
+  const [calloutScreens, setCalloutScreens] = useState<
+    Record<string, { x: number; y: number; visible: boolean }>
+  >({});
+  const [openDialog, setOpenDialog] = useState<DialogId>(null);
+  const [expandedPointId, setExpandedPointId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<Language>("en");
+  const [muted, setMuted] = useState(false);
+  const [narrationOn, setNarrationOn] = useState(true);
+  // Which General Information screen is showing. Owned by the dialog; mirrored
+  // here only so narration knows what to speak.
+  const [infoScreenRef, setInfoScreenRef] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [zoomLevel, setZoomLevel] = useState(2.2);
+  const [zoomLevel, setZoomLevel] = useState(DEFAULT_ALT);
   const [autoRotate, setAutoRotate] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [callOpen, setCallOpen] = useState(false);
   const [activeCall, setActiveCall] = useState<{
     message: string;
+    route: ResolvedNetworkRoute;
     startedAt: number;
   } | null>(null);
+
+  // v8 intro/idle: `revealed` = live globe + chrome are up; `submerging` = idle
+  // reached, chrome reversing out while clip3 plays. See the IntroSequence
+  // block below. Declared here so the idle attractor can suspend off them.
+  const [revealed, setRevealed] = useState(false);
+  const [submerging, setSubmerging] = useState(false);
+  // v8: clip2 (fullseq) ends with the globe CENTERED, so the live globe is
+  // revealed centered too (seamless cut), then slides left into its working
+  // offset pose to clear the right-side panels. `globeSlid` drives that slide;
+  // it stays true through the live session + submerge (clip3 hands off from the
+  // offset pose) and resets on idle so the next reveal starts centered again.
+  const [globeSlid, setGlobeSlid] = useState(false);
+
+  // Raised by the General Information panel while a clip is running. Lives here
+  // rather than in the panel because the attractor is a screen-level concern,
+  // and the panel lowers it on unmount so closing mid-play can't strand it.
+  const [holdIdle, setHoldIdle] = useState(false);
+
+  // Idle attractor (§H.12): fires after IDLE_MS of no interaction (~60s, unless
+  // a dev override is set — see DEV_IDLE_MS). Suspended unless the live globe is
+  // up (the attract/emerge/submerge clips own those phases), and while a call
+  // animation or a Fun Fact clip runs — watching IS engagement, and both produce
+  // zero touches over well past the window (long routes travel >60s; the repair
+  // clip is 3:08). The timer re-arms fresh on unsuspend, so a finished clip buys
+  // a full window rather than a leftover slice.
+  const { isIdle, warnSecondsLeft } = useIdleAttractor(
+    IDLE_MS,
+    IDLE_WARN_MS,
+    DEV_NO_IDLE ||
+      !revealed ||
+      submerging ||
+      activeCall !== null ||
+      holdIdle,
+  );
+  const t = useT(language);
+
+  // Stable handlers for the memoized chrome — an inline arrow here would give
+  // SystemButtons/RightCluster a fresh prop identity every render and defeat
+  // their memo.
+  const handleAudioToggle = useCallback(() => setMuted((m) => !m), []);
+  const handleNarationToggle = useCallback(
+    () => setNarrationOn((n) => !n),
+    [],
+  );
+  // All three cluster dialogs are standalone now — Morse dials cross-network,
+  // and the Fun Fact deck is its own looping content, not scoped to a cable —
+  // so none of them need a selection guard or the old "choose a network" hint.
+  const handleClusterOpen = useCallback((id: Exclude<DialogId, null>) => {
+    setOpenDialog((current) => (current === id ? null : id));
+  }, []);
+
+  // Push mute state down to morseAudio so playDot/playMessage/etc no-op.
+  useEffect(() => {
+    setAudioMuted(muted);
+  }, [muted]);
+
+  // What the visitor is looking at, as a narration unit. The General
+  // Information panel wins while it is open because it covers the globe; with
+  // it closed, a selected cable is the subject. Neither means silence.
+  const narrationUnit =
+    openDialog === "funfact"
+      ? infoScreenRef
+      : selectedCable
+        ? `cable/${selectedCable.id}`
+        : null;
+
+  // Mute silences narration as well as morse — a speaker icon that leaves a
+  // voice talking would be a lie.
+  useNarration(narrationOn && !muted, language, narrationUnit);
+
+  // The cable network is dormant (ghosted by cableFlow) until the globe is
+  // revealed at the end of the emerge clip, when a one-shot circuit-trace beams
+  // every cable on at once. `cableBootAt` is that power-on timestamp (0 = never
+  // fired). Stays dormant again across each submerge → attract cycle.
+  const [networkDormant, setNetworkDormant] = useState(true);
+  const [cableBootAt, setCableBootAt] = useState(0);
+
+  // Chrome (panels + HUD) boots in subsystem order after reveal: Header →
+  // Sidebar/system buttons → info panel → cluster/controls, each replaying its
+  // slide-in. 0 = nothing (attract video is up), 4 = fully booted.
+  const BOOT_STEP_MS = 360;
+  // Reveal beats (from the moment the bare globe is shown): hold, then beam the
+  // network on; then a further hold before the chrome panels boot in. Spreads
+  // the reveal out instead of everything firing at once.
+  // The hold is long enough to read the bare globe as a globe before the network
+  // draws itself over it, which also puts the beam just after the globe starts
+  // gliding left (GLOBE_SLIDE_DELAY_MS) — so the trace plays across the move
+  // rather than onto a static globe. The trace runs 3s from here (cableFlow
+  // BOOT_DURATION_SEC), overlapping the chrome boot by design.
+  const BEAM_DELAY_MS = 1500; // bare globe → network pulses on
+  // Center→offset slide: globe is revealed centered (matching clip2's last
+  // frame) and holds while clip2 dissolves out over it (IntroSequence
+  // REVEAL_FADE_MS ≈ 1200ms — the hold MUST outlast it so clip2 isn't still
+  // lingering centered while the globe slides, which would double-image), then
+  // glides left into its working pose.
+  const GLOBE_SLIDE_DELAY_MS = 1300;
+  const GLOBE_SLIDE_MS = 2000;
+  // Chrome boots once the globe is most of the way through its slide (cleared the
+  // right side) so the panels never appear over a still-centered globe.
+  const CHROME_AT_SLIDE_FRAC = 0.65;
+  // Submerge return: the globe gives up its offset pose and slides back to
+  // centre while the camera recenters onto the canonical pose. Both have to
+  // happen — clip3 opens on a CENTRED globe, so leaving the viewport offset in
+  // place would hand the bloom off to a globe sitting left of where the video
+  // picks it up. One constant drives the slide and the flyTo so they land
+  // together.
+  const GLOBE_RETURN_MS = 1200;
+  // Submerge: how long the chrome takes to animate OUT before clip3 blooms in —
+  // the reverse cascade (last slot 760ms delay + 600ms slide ≈ 1360ms).
+  const CHROME_EXIT_MS = 1450;
+  // Then a beat on the bare, centred globe before the video takes over, so the
+  // teardown (network out → panels out → globe back to centre) is allowed to
+  // land before clip3 blooms over it. Counted from the END of the chrome exit,
+  // which outlasts GLOBE_RETURN_MS, so everything is settled when it starts.
+  const SUBMERGE_HOLD_MS = 1000;
+  const [chromeReady, setChromeReady] = useState(false);
+  const [bootStage, setBootStage] = useState(0);
+  // `chromeExiting` keeps the panels mounted (with v1-exit-* classes) while they
+  // slide back out; `submergePlay` then tells IntroSequence to bloom into clip3.
+  const [chromeExiting, setChromeExiting] = useState(false);
+  const [submergePlay, setSubmergePlay] = useState(false);
+  const bootTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const submergeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => bootTimers.current.forEach(clearTimeout), []);
+  useEffect(
+    () => () => {
+      if (submergeTimer.current) clearTimeout(submergeTimer.current);
+    },
+    [],
+  );
+
+  // Reveal the live globe (first boot, or clip2 emerge cut): show the bare globe
+  // immediately, beam the network on after BEAM_DELAY_MS, then boot the chrome
+  // in stages once the globe has slid most of the way left (CHROME_AT_SLIDE_FRAC).
+  const handleReveal = useCallback(() => {
+    setRevealed(true);
+    setGlobeSlid(false); // appear centered (matches clip2's last frame)
+    bootTimers.current.forEach(clearTimeout);
+    const chromeStart =
+      GLOBE_SLIDE_DELAY_MS + Math.round(GLOBE_SLIDE_MS * CHROME_AT_SLIDE_FRAC);
+    const slide = setTimeout(() => setGlobeSlid(true), GLOBE_SLIDE_DELAY_MS);
+    const beam = setTimeout(() => {
+      setNetworkDormant(false);
+      setCableBootAt(performance.now());
+    }, BEAM_DELAY_MS);
+    const chrome = setTimeout(() => {
+      setChromeReady(true);
+      setBootStage(1);
+    }, chromeStart);
+    const stages = [2, 3, 4].map((stage, i) =>
+      setTimeout(() => setBootStage(stage), chromeStart + (i + 1) * BOOT_STEP_MS),
+    );
+    bootTimers.current = [slide, beam, chrome, ...stages];
+  }, []);
+
+  // clip3 (submerge) finished → reset to the dormant attract baseline so the
+  // next reveal is clean.
+  const handleReachedIdle = useCallback(() => {
+    bootTimers.current.forEach(clearTimeout);
+    bootTimers.current = [];
+    if (submergeTimer.current) clearTimeout(submergeTimer.current);
+    setRevealed(false);
+    setGlobeSlid(false); // next reveal starts centered again (globe is hidden)
+    setSubmerging(false);
+    setChromeExiting(false);
+    setSubmergePlay(false);
+    setNetworkDormant(true);
+    setCableBootAt(0);
+    setChromeReady(false);
+    setBootStage(0);
+    setSelectedCable(null);
+    setSelectedLandingPoint(null);
+    setExpandedPointId(null);
+    setOpenDialog(null);
+    setAutoRotate(false);
+  }, []);
+
+  // Inactivity while live (useIdleAttractor fires only when revealed) →
+  // submerge, torn down in the reverse order it was built: the network powers
+  // down, the chrome reverses out (panels slide back to their edges) and the
+  // globe recenters to the HOME pose (so it matches clip3's framing — the bloom
+  // must hand off at the same position/zoom). Once all three have landed,
+  // a SUBMERGE_HOLD_MS beat on the bare globe, then IntroSequence blooms it into
+  // clip3. The 1200ms recenter finishes inside the chrome exit, so the hold
+  // starts with everything already settled.
+  useEffect(() => {
+    if (isIdle && revealed && !submerging) {
+      setSubmerging(true);
+      setChromeExiting(true); // panels animate out (still mounted)
+      setNetworkDormant(true); // lines drop out ahead of the handoff
+      setCableBootAt(0); // so the next reveal re-runs the power-on trace
+      setGlobeSlid(false); // viewport offset glides back to centre
+      cancelFly();
+      // ...and the camera recenters over the same window (see GLOBE_RETURN_MS).
+      // DEFAULT_*, not MY_*: clip3 opens on the globe in the home pose, so
+      // handing off from anywhere else rotates the sphere under the bloom.
+      flyTo(
+        { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
+        GLOBE_RETURN_MS,
+      );
+      setOpenDialog(null);
+      setSelectedCable(null);
+      setSelectedLandingPoint(null);
+      setExpandedPointId(null);
+      if (submergeTimer.current) clearTimeout(submergeTimer.current);
+      submergeTimer.current = setTimeout(() => {
+        setChromeExiting(false);
+        setChromeReady(false); // unmount the (now hidden) panels
+        setBootStage(0);
+        submergeTimer.current = setTimeout(() => {
+          setSubmergePlay(true); // → IntroSequence blooms into clip3
+        }, SUBMERGE_HOLD_MS);
+      }, CHROME_EXIT_MS);
+    }
+  }, [isIdle, revealed, submerging, cancelFly, flyTo]);
 
   // Resize handler
   useEffect(() => {
@@ -231,8 +637,8 @@ export default function GlobeScene() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Solid line per segment. Travelling dots are NOT in this list — they're
-  // real THREE.Mesh spheres added directly to the scene (see RAF effect below).
+  // Solid line per segment. The flowing-energy pulses are not extra objects —
+  // they're a shader patch on these lines' materials (src/lib/cableFlow.ts).
   const pathsData: PathData[] = useMemo(() => {
     const out: PathData[] = [];
     for (const route of cableRoutes) {
@@ -241,65 +647,32 @@ export default function GlobeScene() {
       const status = cable?.status ?? "active";
       const colorByStatus =
         status === "retired" || status === "inactive"
-          ? TM_COLORS.cableRetired
+          ? V1_COLORS.mute // #C4C4C4 — dim grey, but glows like the rest
           : status === "planned"
-            ? TM_COLORS.cablePlanned
+            ? V1_COLORS.orange
             : baseColor;
-      for (const seg of route.segments) {
+      route.segments.forEach((seg, segIndex) => {
         out.push({
           coords: seg.coords,
           cableId: route.cableId,
           name: cable?.shortName || route.cableId,
           color: colorByStatus,
           status,
+          _segIndex: segIndex,
         });
-      }
+      });
     }
     return out;
   }, []);
 
-  // Per-segment metadata for the travelling-dot RAF: cumulative arc-length in
-  // km along each polyline, so we can map elapsed-time → sub-leg → lat/lng.
-  const dotSegments = useMemo(() => {
-    const haversine = (a: [number, number], b: [number, number]) => {
-      const R = 6371;
-      const dLat = ((b[0] - a[0]) * Math.PI) / 180;
-      const dLng = ((b[1] - a[1]) * Math.PI) / 180;
-      const la1 = (a[0] * Math.PI) / 180;
-      const la2 = (b[0] * Math.PI) / 180;
-      const x =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
-      return 2 * R * Math.asin(Math.sqrt(x));
-    };
-    type Seg = {
-      coords: [number, number][];
-      cumKm: number[];
-      totalKm: number;
-    };
-    const segs: Seg[] = [];
-    for (const route of cableRoutes) {
-      for (const seg of route.segments) {
-        const coords = seg.coords;
-        if (coords.length < 2) continue;
-        const cumKm = [0];
-        for (let i = 1; i < coords.length; i++) {
-          cumKm.push(cumKm[i - 1] + haversine(coords[i - 1], coords[i]));
-        }
-        segs.push({ coords, cumKm, totalKm: cumKm[cumKm.length - 1] });
-      }
-    }
-    return segs;
-  }, []);
-
-  // Greedy cluster: any landing points within CLUSTER_KM of an existing cluster
-  // centroid get merged. Avoids stacked dots/labels for near-duplicate sites
-  // (Sedili CLS1+CLS2, Bayan Baru/Pulau Jerejak, Katong/East Coast, etc.).
+  // Greedy cluster: any landing points within CLUSTER_KM of an existing
+  // cluster centroid get merged. Avoids stacked dots/labels for near-duplicate
+  // sites (Sedili CLS1+CLS2, Katong/East Coast, etc.).
   const CLUSTER_KM = 6;
   const pointClusters = useMemo(() => {
     const haversine = (
       a: { lat: number; lng: number },
-      b: { lat: number; lng: number }
+      b: { lat: number; lng: number },
     ) => {
       const R = 6371;
       const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -331,24 +704,22 @@ export default function GlobeScene() {
   }, []);
 
   // Switch between clustered (far/mid zoom) and individual (close zoom) points.
-  // Close enough that the two dots no longer overlap visually -> show both.
   const useClusters = zoomLevel > 0.18;
 
-  // Prepare points data for globe — either cluster reps or raw points.
   const pointsData = useMemo(() => {
     if (!useClusters) {
       return landingPoints.map((p) => ({
         ...p,
         memberIds: [p.id],
         size: 0.4,
-        color: TM_COLORS.landingPointDefault,
+        color: LANDING_POINT_DEFAULT,
       }));
     }
     return pointClusters.map((c) => {
       const ids = c.members.map((m) => m.id);
       const cities = Array.from(new Set(c.members.map((m) => m.city)));
       const cableIds = Array.from(
-        new Set(c.members.flatMap((m) => m.cableIds))
+        new Set(c.members.flatMap((m) => m.cableIds)),
       );
       return {
         id: ids.join("+"),
@@ -361,70 +732,22 @@ export default function GlobeScene() {
         cableIds,
         memberIds: ids,
         size: 0.4,
-        color: TM_COLORS.landingPointDefault,
+        color: LANDING_POINT_DEFAULT,
       };
     });
   }, [useClusters, pointClusters]);
 
-  // Country labels — derived once from countries.json. We pick the largest
-  // polygon per feature (so MultiPolygon countries label on their main body,
-  // not a stray island), then use its outer-ring bbox centre. Tiny countries
-  // are filtered out to keep the globe uncluttered at far zoom.
-  const countryLabels = useMemo(() => {
-    const out: { lat: number; lng: number; name: string; area: number }[] = [];
-    const ringArea = (ring: number[][]) => {
-      let a = 0;
-      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
-      }
-      return Math.abs(a) / 2;
-    };
-    const ringCentre = (ring: number[][]) => {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const [x, y] of ring) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-      return [(minX + maxX) / 2, (minY + maxY) / 2];
-    };
-    for (const f of (countries as any).features) {
-      const g = f.geometry;
-      if (!g) continue;
-      const polys =
-        g.type === "Polygon"
-          ? [g.coordinates]
-          : g.type === "MultiPolygon"
-            ? g.coordinates
-            : [];
-      let bestRing: number[][] | null = null;
-      let bestArea = 0;
-      for (const poly of polys) {
-        const outer = poly[0];
-        if (!outer || outer.length < 3) continue;
-        const a = ringArea(outer);
-        if (a > bestArea) {
-          bestArea = a;
-          bestRing = outer;
-        }
-      }
-      if (!bestRing || bestArea < 4) continue; // skip tiny countries (~degrees²)
-      const [lng, lat] = ringCentre(bestRing);
-      out.push({
-        lat,
-        lng,
-        name: (f.properties?.name || "").toUpperCase(),
-        area: bestArea,
-      });
-    }
-    return out;
-  }, []);
+  // Country labels — largest-polygon centroids precomputed at build time by
+  // scripts/trim-countries.mjs (verbatim port of the old runtime shoelace/
+  // bbox-centre computation).
+  const countryLabels = useMemo(
+    () =>
+      countryLabelData as { lat: number; lng: number; name: string; area: number }[],
+    [],
+  );
 
-  // City labels are built from pointClusters directly (NOT from pointsData),
-  // so their identity stays stable across the dot-cluster flip at alt 0.18.
-  // Sharing pointsData previously caused every label's TextGeometry to be
-  // disposed + rebuilt the moment the user zoomed past 1147 km.
+  // City labels are built from pointClusters directly (NOT pointsData) so
+  // identity stays stable across the cluster flip at alt 0.18.
   const cityLabelsData = useMemo(
     () =>
       pointClusters.map((c) => {
@@ -438,12 +761,9 @@ export default function GlobeScene() {
           lng: c.lng,
         };
       }),
-    [pointClusters]
+    [pointClusters],
   );
 
-  // Combined labels feed: cities + country names. We branch accessors on the
-  // `kind` field so each type gets its own size/color. Stable identity since
-  // both inputs are stable — no unnecessary labels-layer rebuilds.
   const allLabels = useMemo(() => {
     const cities = cityLabelsData.map((p) => ({ ...p, kind: "city" as const }));
     const countriesL = countryLabels.map((c) => ({
@@ -453,70 +773,89 @@ export default function GlobeScene() {
     return [...countriesL, ...cities];
   }, [cityLabelsData, countryLabels]);
 
-  // Initialize globe view centered on SEA
+  // First boot: once the globe is loaded (LoadingScreen has had its run), drop
+  // the loading cover and reveal the live globe directly — beam the network on
+  // and boot the chrome, same as a post-emerge reveal. The attract video stays
+  // dormant until the app later goes idle.
+  useEffect(() => {
+    if (isLoaded && !booted) {
+      setBooted(true);
+      handleReveal();
+    }
+  }, [isLoaded, booted, handleReveal]);
+
+  // Initial view + globe controls
+  const bootHoldRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (bootHoldRef.current !== null) window.clearTimeout(bootHoldRef.current);
+    },
+    []
+  );
   const handleGlobeReady = useCallback(() => {
     if (globeRef.current) {
-      globeRef.current.pointOfView({ lat: 5, lng: 108, altitude: 2.2 }, 0);
+      globeRef.current.pointOfView(
+        { lat: DEFAULT_LAT, lng: DEFAULT_LNG, altitude: DEFAULT_ALT },
+        0,
+      );
+      // Cap the render resolution: react-globe.gl defaults to the full
+      // devicePixelRatio, which is 4× the fragment work on a DPR-2 kiosk
+      // panel — invisible at touchscreen viewing distance. 1.5 keeps text
+      // and cable edges crisp at a fraction of the fill cost.
+      globeRef.current
+        .renderer()
+        ?.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       const controls = globeRef.current.controls();
       if (controls) {
         controls.autoRotate = false;
         controls.autoRotateSpeed = 0.3;
         controls.enableDamping = true;
         controls.dampingFactor = 0.1;
-        // Touch support
         controls.enablePan = false;
-        controls.touches = {
-          ONE: 0, // THREE.TOUCH.ROTATE
-          TWO: 2, // THREE.TOUCH.DOLLY_PAN
-        };
+        controls.touches = { ONE: 0, TWO: 2 };
+        // Clamp the dolly so zoom-out stops before the globe gets tiny and
+        // zoom-in can't punch through the surface.
+        controls.minDistance = MIN_CAM_DISTANCE;
+        controls.maxDistance = MAX_CAM_DISTANCE;
       }
     }
-    setTimeout(() => setIsLoaded(true), 500);
+    // Hold the loading screen for a minimum of 3000ms even when textures are
+    // cached, so the kiosk gets a clean intro frame (§H.9) and the loading-bar
+    // sweep (3s, see LoadingScreen.FILL_MS) plays out in full.
+    bootHoldRef.current = window.setTimeout(() => setIsLoaded(true), 3000);
   }, []);
 
-  // Sync auto-rotate state with controls
+  // Drive controls.autoRotate from the React state. The state itself is set
+  // by the useIdleAttractor sync effect — pause-on-interaction is handled
+  // implicitly because any touch wakes the attractor (isIdle → false).
   useEffect(() => {
     if (!globeRef.current) return;
     const controls = globeRef.current.controls();
     if (controls) controls.autoRotate = autoRotate;
   }, [autoRotate, isLoaded]);
 
-  // Pause auto-rotation on interaction, resume after idle
-  useEffect(() => {
-    if (!globeRef.current) return;
-    const controls = globeRef.current.controls();
-    if (!controls) return;
-
-    let idleTimer: ReturnType<typeof setTimeout>;
-
-    const stopAutoRotate = () => {
-      controls.autoRotate = false;
-      clearTimeout(idleTimer);
-      if (autoRotate) {
-        idleTimer = setTimeout(() => {
-          controls.autoRotate = true;
-        }, 8000);
-      }
-    };
-
-    const el = globeRef.current.renderer().domElement;
-    el.addEventListener("pointerdown", stopAutoRotate);
-    el.addEventListener("touchstart", stopAutoRotate, { passive: true });
-
-    return () => {
-      el.removeEventListener("pointerdown", stopAutoRotate);
-      el.removeEventListener("touchstart", stopAutoRotate);
-      clearTimeout(idleTimer);
-    };
-  }, [isLoaded, autoRotate]);
-
-  // Track camera altitude. The throttle threshold matters a lot: each
-  // setZoomLevel triggers a React re-render, which makes three-globe re-run
-  // every layer's update() (because inline accessors get fresh refs and
-  // bucketed scalars may step). 0.1 ≈ 5–8 updates across a full pinch range
-  // instead of 30–50.
+  // While the opaque attract/idle video owns the screen the globe is pure
+  // waste — on a kiosk that's the majority of 24/7 uptime. Pause the whole
+  // react-globe.gl render loop (draw calls, controls, tweens) and resume on
+  // reveal. Gated on isLoaded so the initial 3s LoadingScreen window still
+  // renders — first-draw shader compilation must happen there, not at the
+  // reveal cut. The satellite rAF loops below gate on the same signal.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
+    if (revealed) globeRef.current.resumeAnimation?.();
+    else globeRef.current.pauseAnimation?.();
+  }, [isLoaded, revealed]);
+
+  // Ref mirror for rAF loops that must not re-run their setup on reveal
+  // flips (e.g. the SEA overlay effect owns a texture load).
+  const revealedRef = useRef(revealed);
+  useEffect(() => {
+    revealedRef.current = revealed;
+  }, [revealed]);
+
+  // Camera altitude polling — throttled so React re-renders don't blow up.
+  useEffect(() => {
+    if (!isLoaded || !revealed || !globeRef.current) return;
     let rafId: number;
     let lastReported = -1;
     const poll = () => {
@@ -531,245 +870,452 @@ export default function GlobeScene() {
     };
     rafId = requestAnimationFrame(poll);
     return () => cancelAnimationFrame(rafId);
-  }, [isLoaded]);
+  }, [isLoaded, revealed]);
 
-  // Quantize zoom into a discrete bucket — accessors that read this only
-  // change when crossing a threshold, not on every continuous tick.
   const zoomBucket = useMemo(() => bucketForAltitude(zoomLevel), [zoomLevel]);
 
-  // Handle cable selection
-  const handleSelectCable = useCallback((cable: CableSystem | null) => {
-    setSelectedCable(cable);
-    if (cable && globeRef.current) {
-      const points = landingPoints.filter((p) =>
-        cable.landingPointIds.includes(p.id)
-      );
-      if (points.length === 0) return;
-      const avgLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-      const avgLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
-
-      const latSpread =
-        Math.max(...points.map((p) => p.lat)) -
-        Math.min(...points.map((p) => p.lat));
-      const lngSpread =
-        Math.max(...points.map((p) => p.lng)) -
-        Math.min(...points.map((p) => p.lng));
-      const spread = Math.max(latSpread, lngSpread);
-      const altitude = Math.max(0.4, Math.min(2.8, spread / 18));
-
-      globeRef.current.pointOfView(
-        { lat: avgLat, lng: avgLng, altitude },
-        1500
-      );
-    } else if (!cable && globeRef.current) {
-      globeRef.current.pointOfView({ lat: 5, lng: 108, altitude: 2.2 }, 1500);
-    }
-  }, []);
-
-  // Handle point click
-  const handlePointClick = useCallback((point: LandingPoint) => {
-    if (globeRef.current) {
-      globeRef.current.pointOfView(
-        { lat: point.lat, lng: point.lng, altitude: 0.15 },
-        1500
-      );
-    }
-  }, []);
-
-  // Click on a globe point: pan to it and select its first associated cable.
-  const handleGlobePointClick = useCallback(
-    (point: any) => {
-      handlePointClick(point);
-      const firstCableId = point.cableIds?.[0];
-      if (firstCableId && cablesById[firstCableId]) {
-        setSelectedCable(cablesById[firstCableId]);
-      }
+  // Cable selection — fly to the cable's default view (the home pose when
+  // deselecting).
+  const handleSelectCable = useCallback(
+    (cable: CableSystem | null) => {
+      setSelectedCable(cable);
+      setSelectedLandingPoint(null);
+      setExpandedPointId(null);
+      flyTo(cablePose(cable), 1500);
     },
-    [handlePointClick]
+    [flyTo],
   );
 
-  // Handle globe path click
   const handlePathClick = useCallback(
     (path: PathData) => {
       const cable = cablesById[path.cableId];
       if (cable) handleSelectCable(cable);
     },
-    [handleSelectCable]
+    [handleSelectCable],
   );
 
-  // Path color: muted lines on a light canvas need a dark stroke or they
-  // vanish into the basemap. Dots are now real meshes — see RAF effect.
-  const isLightCanvas = theme === "light";
-  const mutedCableColor = isLightCanvas
-    ? "rgba(30, 40, 60, 0.35)"
-    : TM_COLORS.cableMuted;
-  const dotColor = isLightCanvas ? "#0B1A3A" : "#FFFFFF";
+  // Camera view captured when an info panel opens, so closing can glide back.
+  const prevPovRef = useRef<{
+    lat: number;
+    lng: number;
+    altitude: number;
+  } | null>(null);
+
+  // Close the expanded info panel and restore the globe to the view it had
+  // when the panel was opened (the user may have rotated/zoomed while reading).
+  // Also drop the selected point so the globe falls back to markers-only.
+  const closeExpanded = useCallback(() => {
+    const prev = prevPovRef.current;
+    if (prev) {
+      flyTo(prev, 700);
+      prevPovRef.current = null;
+    }
+    setExpandedPointId(null);
+    setSelectedLandingPoint(null);
+  }, [flyTo]);
+
+  // Back button — pops one navigation step:
+  //  1. If the location panel is open → close it and re-frame the selected
+  //     cable's default view. Deliberately NOT closeExpanded's glide back to
+  //     the snapshot: Back means "up a level to the cable", so it lands on the
+  //     cable's framing no matter how far the user rotated while reading. The
+  //     stale snapshot is dropped so a later × can't undo the move.
+  //  2. Otherwise, if a cable is selected → deselect it (camera home), which
+  //     also hides the back button.
+  const handleBack = useCallback(() => {
+    if (expandedPointId !== null || selectedLandingPoint) {
+      setExpandedPointId(null);
+      setSelectedLandingPoint(null);
+      prevPovRef.current = null;
+      flyTo(cablePose(selectedCable), 700);
+    } else if (selectedCable) {
+      handleSelectCable(null);
+    }
+  }, [
+    expandedPointId,
+    selectedLandingPoint,
+    selectedCable,
+    handleSelectCable,
+    flyTo,
+  ]);
+
+  // Expand a landing-point callout: snapshot the current view, then simply
+  // rotate the point to the globe's centre (same altitude — no zoom). The panel
+  // anchors above that point, so it ends up centred over the globe with the
+  // marker at its bottom. closeExpanded glides back to the snapshot.
+  const handleToggleExpand = useCallback(
+    (p: LandingPoint) => {
+      if (expandedPointId === p.id) {
+        closeExpanded();
+        return;
+      }
+      const pov = globeRef.current?.pointOfView?.();
+      if (pov && !prevPovRef.current) {
+        prevPovRef.current = {
+          lat: pov.lat,
+          lng: pov.lng,
+          altitude: pov.altitude,
+        };
+      }
+      const alt = pov?.altitude ?? DEFAULT_ALT;
+      flyTo({ lat: p.lat, lng: p.lng, altitude: alt }, 700);
+      setExpandedPointId(p.id);
+    },
+    [expandedPointId, closeExpanded, flyTo],
+  );
+
+  // Open a landing point's info directly (the expanded card), independent of
+  // cable selection. No auto-selecting a cable. Shared by globe-dot taps and
+  // reticle-marker taps.
+  const openLandingPoint = useCallback(
+    (lp: LandingPoint) => {
+      setSelectedLandingPoint(lp);
+      handleToggleExpand(lp);
+    },
+    [handleToggleExpand],
+  );
+
+  // Click on a globe marker dot → resolve the landing point and open its info.
+  const handleGlobePointClick = useCallback(
+    (point: any) => {
+      const memberIds: string[] = point.memberIds || [point.id];
+      const lp = landingPoints.find((p) => memberIds.includes(p.id));
+      if (!lp) return;
+      openLandingPoint(lp);
+    },
+    [openLandingPoint],
+  );
+
+  // Touch ripple — an expanding ring on the sphere at the tapped point
+  // (src/lib/touchRipple.ts), spawned from handleGlobeClick below. Gives
+  // every globe tap visible feedback, including misses that select nothing.
+  // (Declared before handleGlobeClick so the ref mutation in the effect
+  // precedes the callback that captures it — react-hooks/immutability.)
+  const touchRippleRef = useRef<TouchRipple | null>(null);
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    const ripple = attachTouchRipple(scene);
+    touchRippleRef.current = ripple;
+    return () => {
+      touchRippleRef.current = null;
+      ripple.detach();
+    };
+  }, [isLoaded]);
+
+  // ── Tap forgiveness ──
+  // Globe dots are a few px and cable strokes thinner still, so a fingertip
+  // that just misses raycasts through to the bare globe. onGlobeClick catches
+  // that miss and retargets it: the nearest landing point within an
+  // altitude-scaled reach (≈ a fingertip at any zoom), else the nearest cable
+  // vertex within a tighter reach. Zooming in shrinks the reach, so precision
+  // returns once targets are big enough to hit directly.
+  const handleGlobeClick = useCallback(
+    ({ lat, lng }: { lat: number; lng: number }) => {
+      if (!revealed || submerging || activeCall) return;
+      // Hologram disturbance at the touched point — fires for every globe
+      // tap, hit or miss, so the kiosk always acknowledges the finger.
+      touchRippleRef.current?.spawn(lat, lng);
+      const alt = globeRef.current?.pointOfView?.()?.altitude ?? DEFAULT_ALT;
+      const cosLat = Math.cos((lat * Math.PI) / 180);
+      const distDeg = (aLat: number, aLng: number) => {
+        const dLat = aLat - lat;
+        let dLng = aLng - lng;
+        while (dLng > 180) dLng -= 360;
+        while (dLng < -180) dLng += 360;
+        return Math.hypot(dLat, dLng * cosLat);
+      };
+
+      const pointReach = 1.6 * alt + 0.2; // alt 2.2 → ~3.7°, alt 0.5 → ~1°
+      let bestPoint: (typeof pointsData)[number] | null = null;
+      let bestPointD = Infinity;
+      for (const p of pointsData) {
+        const d = distDeg(p.lat, p.lng);
+        if (d < bestPointD) {
+          bestPointD = d;
+          bestPoint = p;
+        }
+      }
+      if (bestPoint && bestPointD <= pointReach) {
+        handleGlobePointClick(bestPoint);
+        return;
+      }
+
+      // Cables get a tighter reach so a stray land tap doesn't surprise-select.
+      const cableReach = pointReach * 0.7;
+      let bestCableId: string | null = null;
+      let bestCableD = Infinity;
+      for (const path of pathsData) {
+        for (const [cLat, cLng] of path.coords) {
+          const d = distDeg(cLat, cLng);
+          if (d < bestCableD) {
+            bestCableD = d;
+            bestCableId = path.cableId;
+          }
+        }
+      }
+      if (bestCableId && bestCableD <= cableReach) {
+        const cable = cablesById[bestCableId];
+        if (cable) handleSelectCable(cable);
+      }
+    },
+    [
+      revealed,
+      submerging,
+      activeCall,
+      pointsData,
+      pathsData,
+      handleGlobePointClick,
+      handleSelectCable,
+    ],
+  );
+
+  // Any touch immediately takes the camera back from a programmatic flight
+  // (cable zoom, recenter, arrival, …) so the globe never fights the finger.
+  // Calls are exempt — their camera is scripted, and TAP TO SKIP is the out.
+  //
+  // It also invalidates the landing-point card's "glide back on close"
+  // snapshot when the user grabs the GLOBE while a card is open: the snapshot
+  // exists to undo the card's auto-centering, not the user's own navigation —
+  // closing should leave the camera where they deliberately put it. Canvas
+  // target only: tapping the card itself (HTML) to close it also lands here,
+  // and that one must keep the snapshot or the glide-back would never happen.
+  const handleScenePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (activeCall) return;
+      cancelFly();
+      if (
+        expandedPointId !== null &&
+        (e.target as HTMLElement).tagName === "CANVAS"
+      ) {
+        prevPovRef.current = null;
+      }
+    },
+    [activeCall, cancelFly, expandedPointId],
+  );
+
+  // Centre button — re-frames the camera and dismisses nothing: back to the
+  // selected cable's default view, or the home pose when nothing is selected.
+  // An open location panel stays open, by design (that's the whole difference
+  // from Back). Clearing the snapshot follows the same rule as grabbing the
+  // canvas — this is the user's own navigation, so a later × shouldn't undo it.
+  const recenterView = useCallback(() => {
+    setAutoRotate(false);
+    prevPovRef.current = null;
+    flyTo(cablePose(selectedCable), 1200);
+  }, [flyTo, selectedCable]);
+
+  // Cables the in-progress call rides — highlighted bright for the call's
+  // duration so the viewer sees exactly which systems carry the signal.
+  const activeCallCableIds = useMemo(
+    () => (activeCall ? new Set(activeCall.route.cableIds) : null),
+    [activeCall],
+  );
+
+  // Flowing-energy wave on the cable lines (src/lib/cableFlow.ts). The flow
+  // loop reads selection/call state through a ref so the rAF never restarts
+  // on state changes — it just sees the latest values each frame.
+  const flowStateRef = useRef<CableFlowState>({
+    selectedCableId: null,
+    callCableIds: null,
+    dormant: false,
+    bootAt: 0,
+    hidden: false,
+  });
+  useEffect(() => {
+    flowStateRef.current = {
+      selectedCableId: selectedCable?.id ?? null,
+      callCableIds: activeCallCableIds,
+      dormant: networkDormant,
+      bootAt: cableBootAt,
+      hidden: !revealed,
+    };
+  }, [selectedCable, activeCallCableIds, networkDormant, cableBootAt, revealed]);
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    return attachCableFlow(scene, () => flowStateRef.current);
+  }, [isLoaded]);
+
+  // Hologram fresnel rim — crisp electric edge on the sphere's silhouette
+  // (src/lib/hologramRim.ts). The stock atmosphere stays on for the soft
+  // outer falloff; this shell provides the sharp inner edge.
+  useEffect(() => {
+    if (!isLoaded || !globeRef.current) return;
+    const scene = globeRef.current.scene?.();
+    if (!scene) return;
+    return attachHologramRim(scene);
+  }, [isLoaded]);
+
+  // Scanline sweep — a radar-style band of light circling the sphere every
+  // ~20s (src/lib/scanSweep.ts), so the globe reads as continuously scanned.
+  // HIDDEN for now (commented by client) — the radar sweep is disabled.
+  // useEffect(() => {
+  //   if (!isLoaded || !globeRef.current) return;
+  //   const scene = globeRef.current.scene?.();
+  //   if (!scene) return;
+  //   return attachScanSweep(scene);
+  // }, [isLoaded]);
+
+  // (v8) Idle umbilical tethers + underwater attract removed — the idle/emerge
+  // experience is now the IntroSequence video layer. idleTethers and
+  // UnderwaterOverlay are archived (src/lib/_archive/, src/components/_archive/).
+
+  // Render order: muted siblings first → halo rings → cores.
+  // Later entries in pathsData paint over earlier ones in three-globe, so
+  // each core sits on top of its own translucent halo.
+  const renderedPaths = useMemo(() => {
+    // During a call: spotlight only the cables the call uses (neon stack),
+    // mute the rest — same layering as a selection but for a SET of cables.
+    if (activeCallCableIds) {
+      const others: PathData[] = [];
+      const core: PathData[] = [];
+      for (const p of pathsData) {
+        if (activeCallCableIds.has(p.cableId)) core.push(p);
+        else others.push(p);
+      }
+      const halos = core.map((p) => ({ ...p, _halo: 2 }) as PathData);
+      return [...others, ...halos, ...core];
+    }
+    if (!selectedCable) {
+      // Nothing selected — every cable gets the neon stack (white-hot core +
+      // glow ring) so the network reads consistently "lit up". Each glows in
+      // its own colour: active = identity hue, planned = orange, inactive /
+      // retired = dim grey.
+      const out: PathData[] = [];
+      for (const p of pathsData) {
+        if (p.color.startsWith("#")) {
+          out.push({ ...p, _halo: 2 }, p);
+        } else {
+          out.push(p);
+        }
+      }
+      return out;
+    }
+    const others: PathData[] = [];
+    const core: PathData[] = [];
+    for (const p of pathsData) {
+      if (p.cableId === selectedCable.id) core.push(p);
+      else others.push(p);
+    }
+    const halos: PathData[] = [];
+    for (const p of core) {
+      halos.push({ ...p, _halo: 2 });
+    }
+    return [...others, ...halos, ...core];
+  }, [pathsData, selectedCable, activeCallCableIds]);
+
+  // Path color: selected core → red 3px; selected halos → translucent red;
+  // muted siblings (non-selected when a cable is selected) → white 30%, flat;
+  // nothing selected → identity colour core + identity-colour translucent halo.
   const getPathColor = useCallback(
     (path: PathData) => {
-      const isSel = selectedCable && path.cableId === selectedCable.id;
-      const isMuted = selectedCable && !isSel;
-      if (isMuted) return mutedCableColor;
-      return path.color;
+      // Active call: ridden cables keep their identity neon, others mute out.
+      if (activeCallCableIds) {
+        if (!activeCallCableIds.has(path.cableId)) return CABLE_MUTED_COLOR;
+        if (path._halo === 2)
+          return hexToRgba(path.color, CABLE_HALO_DEFAULT_OUTER_ALPHA);
+        return path.color.startsWith("#") ? neonCore(path.color) : path.color;
+      }
+      if (selectedCable) {
+        if (path.cableId !== selectedCable.id) return CABLE_MUTED_COLOR;
+        // Selected cable gets the same neon stack, in hot red.
+        if (path._halo === 2)
+          return hexToRgba(CABLE_SELECTED_COLOR, CABLE_HALO_DEFAULT_OUTER_ALPHA);
+        return neonCore(CABLE_SELECTED_COLOR);
+      }
+      if (path._halo === 2)
+        return hexToRgba(path.color, CABLE_HALO_DEFAULT_OUTER_ALPHA);
+      return path.color.startsWith("#") ? neonCore(path.color) : path.color;
     },
-    [selectedCable, mutedCableColor]
+    [selectedCable, activeCallCableIds],
   );
-
   const getPathStroke = useCallback(
     (path: PathData) => {
-      const isSel = selectedCable && path.cableId === selectedCable.id;
-      return isSel ? 4 : 2;
+      const s = GLOW_SCALE_BY_BUCKET[zoomBucket];
+      if (activeCallCableIds) {
+        if (!activeCallCableIds.has(path.cableId)) return 1;
+        if (path._halo === 2) return 4 * s;
+        return 1.5;
+      }
+      if (selectedCable) {
+        const isSel = path.cableId === selectedCable.id;
+        if (!isSel) return 1;
+        // Same neon widths as default, a touch thicker so selection reads.
+        if (path._halo === 2) return 4 * s;
+        return 1.5;
+      }
+      if (path._halo === 2) return 3.5 * s;
+      return 1;
     },
-    [selectedCable]
+    [selectedCable, activeCallCableIds, zoomBucket],
   );
 
-  // Set of active landing-point IDs for the selected cable (O(1) lookup in the
-  // per-point callbacks below).
+  // Point color: highlights cluster members of the selected cable in lime.
   const selectedLPSet = useMemo(
     () => (selectedCable ? new Set(selectedCable.landingPointIds) : null),
-    [selectedCable]
+    [selectedCable],
   );
-
-  // Point color based on selection state. Cluster points highlight when ANY
-  // member id is in the selected set.
-  const mutedPointColor = isLightCanvas
-    ? "rgba(30, 40, 60, 0.35)"
-    : "rgba(100, 100, 100, 0.3)";
   const isPointSelected = useCallback(
     (point: any) => {
       if (!selectedLPSet) return false;
       const ids: string[] = point.memberIds || [point.id];
       return ids.some((id) => selectedLPSet.has(id));
     },
-    [selectedLPSet]
+    [selectedLPSet],
   );
   const getPointColor = useCallback(
     (point: any) => {
-      if (!selectedLPSet) return TM_COLORS.landingPointDefault;
-      if (isPointSelected(point)) return TM_COLORS.cableHighlight;
-      return mutedPointColor;
+      if (!selectedLPSet) return LANDING_POINT_DEFAULT;
+      if (isPointSelected(point)) return LANDING_POINT_ACTIVE;
+      return LANDING_POINT_MUTED;
     },
-    [selectedLPSet, isPointSelected, mutedPointColor]
+    [selectedLPSet, isPointSelected],
   );
 
-  // Flatten dots onto the globe surface (no cylinder height) so they read as
-  // pinned markers, not floating poles.
   const getPointAltitude = useCallback(() => 0.001, []);
 
-  // Both mono modes use a pre-baked offline texture — no tile streaming.
-  // Hoisted before the accessor refs so polygonStrokeColor can read it.
-  const usesBakedMap = renderStyle === "mono";
-
-  // Stable accessor refs. Three-globe is reference-equality based — every new
-  // closure looks like a "changed prop" and re-runs the layer's full update().
-  // For labels that means TextGeometry rebuild × every label, which is the
-  // single biggest stutter source (see three-globe.mjs:3592-3606).
+  // Stable accessor refs (three-globe is reference-equality based — every new
+  // closure looks like a "changed prop" and re-runs the layer's full update).
   const pathPointLat = useCallback((p: any) => p[0], []);
   const pathPointLng = useCallback((p: any) => p[1], []);
   const pathPointAlt = useCallback(() => 0.003, []);
-  const polygonGeoJsonGeometry = useCallback((d: any) => d.geometry, []);
-  const polygonCapColor = useCallback(
-    () => style.countryFill || "rgba(0,0,0,0)",
-    [style.countryFill]
-  );
-  const polygonSideColor = useCallback(() => "rgba(0,0,0,0)", []);
-  const polygonStrokeColor = useCallback(
-    () => style.countryStroke || "rgba(0,0,0,0)",
-    [style.countryStroke]
-  );
   const labelText = useCallback(
     (l: any) => (l.kind === "country" ? l.name : l.city),
-    []
+    [],
   );
   const labelColor = useCallback(
-    (l: any) => {
-      if (l.kind === "country") {
-        return isLightCanvas
-          ? "rgba(60, 70, 95, 0.65)"
-          : "rgba(180, 200, 230, 0.55)";
-      }
-      return isLightCanvas
-        ? "rgba(15, 23, 42, 0.9)"
-        : "rgba(226, 232, 240, 0.85)";
-    },
-    [isLightCanvas]
+    (l: any) =>
+      l.kind === "country"
+        ? "rgba(180, 200, 230, 0.55)"
+        : "rgba(226, 232, 240, 0.85)",
+    [],
   );
-  // Both label kinds now use a fixed base size + per-frame mesh.scale (see
-  // the label scaler effect). TextGeometry is built once and never rebuilt.
   const labelSize = useCallback(
     (l: any) =>
       l.kind === "country" ? COUNTRY_LABEL_BASE_SIZE : CITY_LABEL_BASE_SIZE,
-    []
+    [],
   );
-  // labels never carry a dot — landing-station markers are the points layer's
-  // job (with selection-aware colour); a dot baked into the label was just a
-  // visual duplicate of the same coordinate.
   const labelDotRadius = useCallback(() => 0, []);
   const labelIncludeDot = useCallback(() => false, []);
   const pointRadius = POINT_RADIUS_BY_BUCKET[zoomBucket];
 
-  const [useTiles, setUseTiles] = useState(false);
-  useEffect(() => {
-    // Outline mode = vector polygons only, no raster tiles.
-    if (renderStyle === "outline") {
-      if (useTiles) setUseTiles(false);
-      return;
-    }
-    // Mono = baked basemap, no tiles.
-    if (usesBakedMap) {
-      if (useTiles) setUseTiles(false);
-      return;
-    }
-    if (!useTiles && zoomLevel < TILE_ZOOM_THRESHOLD) {
-      setUseTiles(true);
-    } else if (useTiles && zoomLevel > TILE_ZOOM_THRESHOLD + 0.15) {
-      setUseTiles(false);
-    }
-  }, [zoomLevel, useTiles, renderStyle, usesBakedMap]);
-
-  // Tile URL provider switches with render style.
-  const tileUrl = useMemo(() => {
-    if (renderStyle === "mono") {
-      return theme === "dark" ? CARTO_DARK_TILE_URL : CARTO_LIGHT_TILE_URL;
-    }
-    return SATELLITE_TILE_URL;
-  }, [renderStyle, theme]);
-
-  // Three modes for the globe sphere material:
-  //   1. outline   — solid colored sphere, dispose any texture, set emissive
-  //                  so the night side doesn't render dark on MeshPhongMaterial
-  //   2. baked map — equirectangular texture; flat-bright by routing the map
-  //                  through emissiveMap so day/night terminator disappears
-  //   3. textured  — real earth bitmap, default lit shading
-  // We wait one tick after globeImageUrl propagates so the texture three.js
-  // just loaded is actually attached when we read mat.map.
+  // Globe sphere material — baked equirectangular dark map routed through
+  // emissiveMap so the day/night terminator disappears (mono basemap is
+  // already shaded; we want it rendered flat-bright).
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     const id = setTimeout(() => {
       const mat = globeRef.current?.globeMaterial?.();
       if (!mat) return;
-      if (style.globeColor) {
-        if (mat.map) {
-          mat.map.dispose?.();
-          mat.map = null;
-        }
-        mat.emissiveMap = null;
-        mat.color?.set?.(style.globeColor);
-        mat.emissive?.set?.(style.globeColor);
-        if ("emissiveIntensity" in mat) mat.emissiveIntensity = 1;
-      } else if (usesBakedMap && mat.map) {
+      if (mat.map) {
         mat.emissiveMap = mat.map;
         mat.color?.set?.("#000000");
         mat.emissive?.set?.("#ffffff");
         if ("emissiveIntensity" in mat) mat.emissiveIntensity = 1;
-      } else {
-        mat.emissiveMap = null;
-        mat.color?.set?.("#ffffff");
-        mat.emissive?.set?.("#000000");
-        if ("emissiveIntensity" in mat) mat.emissiveIntensity = 0;
       }
-      // Anisotropic filtering — dramatically sharpens textures viewed at
-      // oblique angles (i.e., everywhere except the dead-centre of the globe).
-      // Free GPU feature; default 1, max is hardware-dependent (commonly 16).
       const renderer = globeRef.current?.renderer?.();
       if (renderer && mat.map) {
         const maxAniso = renderer.capabilities?.getMaxAnisotropy?.() ?? 1;
@@ -781,93 +1327,21 @@ export default function GlobeScene() {
       mat.needsUpdate = true;
     }, 60);
     return () => clearTimeout(id);
-  }, [isLoaded, style.globeColor, style.globe, usesBakedMap]);
+  }, [isLoaded]);
 
-  // Travelling dots — one THREE.Sphere mesh per cable segment, all animated
-  // continuously regardless of selection. Self-contained RAF; meshes share a
-  // single geometry + material to keep GPU state changes minimal.
+  // Regional sharpness overlay (SEA window). Single grid mesh, fades in at
+  // close zoom. Always dark in v1.0.
   useEffect(() => {
     if (!isLoaded || !globeRef.current) return;
     const scene = globeRef.current.scene?.();
     if (!scene) return;
 
-    const geo = new THREE.SphereGeometry(DOT_RADIUS, 12, 8);
-    const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(dotColor),
-      depthTest: false,
-      transparent: true,
-    });
-    const meshes: THREE.Mesh[] = dotSegments.map(() => {
-      const m = new THREE.Mesh(geo, mat);
-      m.renderOrder = 999;
-      m.frustumCulled = false;
-      scene.add(m);
-      return m;
-    });
-
-    let raf = 0;
-    const start = performance.now();
-    const tick = () => {
-      const elapsedSec = (performance.now() - start) / 1000;
-      // Scale the spheres inversely with camera distance to keep their
-      // on-screen size constant — like pathStroke (px-based) instead of a
-      // fixed world radius that would balloon at close zoom.
-      const pov = globeRef.current?.pointOfView?.();
-      const alt = pov?.altitude ?? 1;
-      const scale = Math.max(0.12, Math.min(3, (1 + alt) / 2.0));
-      for (let i = 0; i < dotSegments.length; i++) {
-        const seg = dotSegments[i];
-        if (seg.totalKm <= 0) continue;
-        const speed = Math.min(
-          DOT_SPEED_KM_PER_SEC,
-          seg.totalKm / DOT_MIN_LOOP_SEC
-        );
-        const dist = (elapsedSec * speed) % seg.totalKm;
-        let j = 1;
-        while (j < seg.cumKm.length && seg.cumKm[j] < dist) j++;
-        if (j >= seg.cumKm.length) j = seg.cumKm.length - 1;
-        const a = seg.coords[j - 1];
-        const b = seg.coords[j];
-        const legKm = seg.cumKm[j] - seg.cumKm[j - 1];
-        const t = legKm > 0 ? (dist - seg.cumKm[j - 1]) / legKm : 0;
-        const lat = a[0] + (b[0] - a[0]) * t;
-        const lng = a[1] + (b[1] - a[1]) * t;
-        const xyz = globeRef.current.getCoords(lat, lng, 0.005);
-        meshes[i].position.set(xyz.x, xyz.y, xyz.z);
-        meshes[i].scale.setScalar(scale);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      for (const m of meshes) scene.remove(m);
-      geo.dispose();
-      mat.dispose();
-    };
-  }, [isLoaded, dotSegments, dotColor]);
-
-  // Regional sharpness overlay — a single grid mesh covering the SEA window,
-  // textured with a 4K bake of just that region. Built from getCoords samples
-  // so it lives in the same coord frame as everything else; OrbitControls
-  // orbits the camera (not the globe), so a fixed-position mesh tracks
-  // visually. Material starts at opacity 0 and fades in as we zoom past the
-  // SEA_FADE_IN_ALT threshold — at far zoom the overlay would just be a
-  // visible "patch", and at close zoom it covers most of the visible region.
-  useEffect(() => {
-    if (!isLoaded || !globeRef.current) return;
-    if (!usesBakedMap) return;
-    const scene = globeRef.current.scene?.();
-    if (!scene) return;
-
-    const url = theme === "dark" ? SEA_OVERLAY_DARK_URL : SEA_OVERLAY_LIGHT_URL;
     const loader = new THREE.TextureLoader();
     let mesh: THREE.Mesh | null = null;
     let raf = 0;
     let cancelled = false;
 
-    loader.load(url, (texture) => {
+    loader.load(SEA_OVERLAY_DARK_URL, (texture) => {
       if (cancelled) {
         texture.dispose();
         return;
@@ -926,19 +1400,28 @@ export default function GlobeScene() {
       mesh.frustumCulled = false;
       scene.add(mesh);
 
+      let lastOpacity = -1;
       const tick = () => {
-        const pov = globeRef.current?.pointOfView?.();
-        const alt = pov?.altitude ?? 1;
-        const opacity =
-          alt >= SEA_FADE_IN_ALT
-            ? 0
-            : Math.min(
-                1,
-                (SEA_FADE_IN_ALT - alt) /
-                  (SEA_FADE_IN_ALT - SEA_FADE_OUT_ALT)
-              );
-        mat.opacity = opacity;
-        mat.visible = opacity > 0.001;
+        // Idle-cheap: no camera read or material write while the attract
+        // video covers the globe, and no write when the value hasn't moved
+        // (the overlay spends most of its life pinned at 0 or 1).
+        if (revealedRef.current) {
+          const pov = globeRef.current?.pointOfView?.();
+          const alt = pov?.altitude ?? 1;
+          const opacity =
+            alt >= SEA_FADE_IN_ALT
+              ? 0
+              : Math.min(
+                  1,
+                  (SEA_FADE_IN_ALT - alt) /
+                    (SEA_FADE_IN_ALT - SEA_FADE_OUT_ALT),
+                );
+          if (opacity !== lastOpacity) {
+            lastOpacity = opacity;
+            mat.opacity = opacity;
+            mat.visible = opacity > 0.001;
+          }
+        }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -955,27 +1438,13 @@ export default function GlobeScene() {
         (mesh.geometry as THREE.BufferGeometry).dispose();
       }
     };
-  }, [isLoaded, usesBakedMap, theme]);
-
-  // Country polygons only render in outline mode. Tried using them as a
-  // close-zoom "sharpening" overlay on the baked texture, but 242 extruded
-  // meshes (some with thousands of vertices) crushed the framerate even when
-  // faded out. The 1-draw-call texture is unbeatable here; if you ever need
-  // crisper strokes, do a higher-density bake of just the relevant region
-  // and overlay that as a second sphere texture, NOT a polygon mesh.
-  const polygonsData = useMemo(
-    () =>
-      renderStyle === "outline" ? (countries as any).features : [],
-    [renderStyle]
-  );
+  }, [isLoaded]);
 
   // Per-frame label scaler — both kinds drive visibility + size via
-  // mesh.scale on the label Group; TextGeometry is built once at a fixed
-  // base size and never rebuilt. Group refs attached by three-globe's
-  // ThreeDigest as `__threeObjLabel` on each labelsData entry.
+  // mesh.scale on the label Group; TextGeometry is built once and never
+  // rebuilt.
   useEffect(() => {
-    if (!isLoaded || !globeRef.current) return;
-
+    if (!isLoaded || !revealed || !globeRef.current) return;
     let raf = 0;
     const tick = () => {
       const pov = globeRef.current?.pointOfView?.();
@@ -988,60 +1457,194 @@ export default function GlobeScene() {
           | undefined;
         if (!group) continue;
         group.scale.setScalar(
-          label.kind === "country" ? countryScale : cityScale
+          label.kind === "country" ? countryScale : cityScale,
         );
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [isLoaded, allLabels]);
+  }, [isLoaded, revealed, allLabels]);
+
+  // Cable-scoped landing-point list passed to MorseCodePop.
+  const cableLandingPoints = useMemo(() => {
+    if (!selectedCable) return [];
+    const lookup = new Map(landingPoints.map((p) => [p.id, p]));
+    return selectedCable.landingPointIds
+      .map((id) => lookup.get(id))
+      .filter((p): p is LandingPoint => Boolean(p));
+  }, [selectedCable]);
+
+  // Points that get an on-globe reticle marker: every landing point on the
+  // selected cable, plus whichever point is currently open (covers the case of
+  // tapping a point that isn't on the selected cable). Markers are dropped when
+  // no cable is selected and nothing is open — just the bare globe dots remain.
+  const markerPoints = useMemo(() => {
+    const map = new Map<string, LandingPoint>();
+    for (const p of cableLandingPoints) map.set(p.id, p);
+    if (selectedLandingPoint) map.set(selectedLandingPoint.id, selectedLandingPoint);
+    return [...map.values()];
+  }, [cableLandingPoints, selectedLandingPoint]);
+
+  // Phase 2: GeoJSON features for the countries the selected cable lands in.
+  // Empty when no cable is selected → the polygon layer renders nothing.
+  const highlightedCountries = useMemo(() => {
+    if (cableLandingPoints.length === 0) return [];
+    const wanted = new Set(
+      cableLandingPoints.map((p) => COUNTRY_NAME_ALIASES[p.country] ?? p.country),
+    );
+    return (
+      landingCountries as { features: { properties?: { name?: string } }[] }
+    ).features.filter((f) => f.properties?.name && wanted.has(f.properties.name));
+  }, [cableLandingPoints]);
+
+  const countryCapColor = useCallback(() => COUNTRY_FILL_CAP, []);
+  const countrySideColor = useCallback(() => COUNTRY_FILL_SIDE, []);
+  const countryStrokeColor = useCallback(() => COUNTRY_FILL_STROKE, []);
+
+  // Track the screen position of every marked landing point so its reticle (and
+  // the open info card) anchor to the live marker as the globe rotates.
+  // Throttled to ~30 fps via a frame-skip to avoid a 60Hz React storm.
+  useEffect(() => {
+    if (!isLoaded || markerPoints.length === 0 || !globeRef.current) {
+      setCalloutScreens({});
+      return;
+    }
+    let raf = 0;
+    let frame = 0;
+    // Reused scratch vector (no per-marker allocation) + last-published
+    // positions: while the camera is at rest (damping settled, user reading
+    // the panel) positions don't move, so skipping the setState spares the
+    // whole React tree a 30fps re-render for zero visual change.
+    const scratch = new THREE.Vector3();
+    let last: Record<string, { x: number; y: number; visible: boolean }> = {};
+    const tick = () => {
+      frame = (frame + 1) & 1;
+      if (frame === 0) {
+        const camera: THREE.Camera | null =
+          globeRef.current?.camera?.() ?? null;
+        const renderer = globeRef.current?.renderer?.();
+        if (camera && renderer) {
+          const dom = renderer.domElement as HTMLCanvasElement;
+          const offX = globeProjectionOffsetX(dom.clientWidth);
+          const next: Record<string, { x: number; y: number; visible: boolean }> = {};
+          let changed = false;
+          for (const p of markerPoints) {
+            const xyz = globeRef.current.getCoords(p.lat, p.lng, 0.01);
+            scratch.set(xyz.x, xyz.y, xyz.z);
+            // Near-hemisphere test: the marker is visible while the camera sits
+            // above the tangent plane at the point (dot(C,P) > |P|²). NDC z is
+            // useless for this — the far plane is ~125k units out, so every
+            // globe-surface point projects comfortably inside z ≤ 1.
+            const visible = scratch.dot(camera.position) > scratch.lengthSq();
+            const v = scratch.project(camera);
+            const x = ((v.x + 1) / 2) * dom.clientWidth + offX;
+            const y = ((1 - v.y) / 2) * dom.clientHeight;
+            next[p.id] = { x, y, visible };
+            const prev = last[p.id];
+            if (
+              !prev ||
+              prev.visible !== visible ||
+              Math.abs(prev.x - x) > 0.5 ||
+              Math.abs(prev.y - y) > 0.5
+            ) {
+              changed = true;
+            }
+          }
+          if (changed) {
+            last = next;
+            setCalloutScreens(next);
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isLoaded, markerPoints]);
+
+  // Panel animation class: the enter class on reveal; on submerge swap to the
+  // reverse exit and replace the enter stagger with a cascade slot (1 = leaves
+  // first … 5 = leaves last) so the panels exit one after another.
+  const chromeCls = (enterCls: string, exitOrder: number) =>
+    chromeExiting
+      ? `${enterCls
+          .replace(/v1-enter/g, "v1-exit")
+          .replace(/\s*v1-delay-\d/g, "")} v1-exit-d${exitOrder}`
+      : enterCls;
 
   return (
     <div
-      className="relative w-full h-screen overflow-hidden bg-[#06013A]"
-      style={{ touchAction: "none" }}
+      className="relative w-full h-screen overflow-hidden"
+      style={{ background: "var(--v1-bg)", touchAction: "none" }}
+      onPointerDownCapture={handleScenePointerDown}
     >
-      {!isLoaded && <LoadingScreen />}
+      {/* One-time boot cover: LoadingScreen → live globe. (z below the globe's
+          own backdrop is fine — it paints over the globe; the IntroSequence
+          layer above is transparent in its dormant `live` phase.) */}
+      {!booted && <LoadingScreen language={language} />}
 
-      <Globe
-        ref={globeRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        globeImageUrl={style.globe}
-        globeTileEngineUrl={useTiles ? tileUrl : undefined}
-        bumpImageUrl={renderStyle === "texture" ? BUMP_IMAGE : undefined}
-        showAtmosphere={renderStyle !== "mono"}
-        atmosphereColor={style.atmosphere}
-        atmosphereAltitude={0.18}
-        // Country outlines (only populated in outline mode)
-        polygonsData={polygonsData}
-        polygonGeoJsonGeometry={polygonGeoJsonGeometry}
-        polygonAltitude={0.001}
-        polygonCapColor={polygonCapColor}
-        polygonSideColor={polygonSideColor}
-        polygonStrokeColor={polygonStrokeColor}
-        polygonsTransitionDuration={0}
-        // Paths (cable routes)
-        pathsData={pathsData}
+      <div
+        style={{
+          // clip2 ends centered, so the globe is revealed centered then slides
+          // left into its working pose (clears the right-side panels). The bleed
+          // margin keeps the oversized canvas edges off-screen throughout the
+          // slide, in both directions. `globeSlid` false→true animates out over
+          // GLOBE_SLIDE_MS; on submerge it animates back to centre over the
+          // shorter GLOBE_RETURN_MS, so clip3 blooms onto a centred globe. The
+          // final reset (handleReachedIdle) lands while the globe is hidden and
+          // is already at centre by then, so it's left non-transitioning. (v8)
+          transform: `translateX(${globeSlid ? globeOffsetX(dimensions.width) : 0}px)`,
+          transition: globeSlid
+            ? `transform ${GLOBE_SLIDE_MS}ms cubic-bezier(0.45, 0, 0.55, 1)`
+            : submerging
+              ? `transform ${GLOBE_RETURN_MS}ms cubic-bezier(0.45, 0, 0.55, 1)`
+              : "none",
+          willChange: "transform",
+        }}
+      >
+        <div
+          style={{
+            willChange: "transform",
+            // Static half-bleed shift — centres the oversized canvas so its
+            // edges stay off-screen at both ends of the idle⇄active slide.
+            marginLeft: -globeBleedX(dimensions.width),
+          }}
+        >
+        <Globe
+          ref={globeRef}
+          width={globeCanvasWidth(dimensions.width)}
+          height={dimensions.height}
+        backgroundColor="#040E1F"
+        backgroundImageUrl={STARFIELD_URL}
+        globeImageUrl={WORLD_MAP_DARK_URL}
+        showAtmosphere={true}
+        atmosphereColor={ATMOSPHERE_COLOR}
+        atmosphereAltitude={0.12}
+        polygonsData={highlightedCountries}
+        polygonCapColor={countryCapColor}
+        polygonSideColor={countrySideColor}
+        polygonStrokeColor={countryStrokeColor}
+        polygonAltitude={COUNTRY_FILL_ALTITUDE}
+        polygonsTransitionDuration={300}
+        pathsData={renderedPaths}
         pathPoints="coords"
         pathPointLat={pathPointLat}
         pathPointLng={pathPointLng}
         pathPointAlt={pathPointAlt}
         pathColor={getPathColor as any}
         pathStroke={getPathStroke as any}
-        pathLabel={renderPathLabel}
+        pathResolution={0.05}
+        pathTransitionDuration={0}
         onPathClick={handlePathClick as any}
-        // Points (landing stations)
+        onGlobeClick={handleGlobeClick as any}
         pointsData={pointsData}
         pointLat="lat"
         pointLng="lng"
         pointColor={getPointColor as any}
         pointAltitude={getPointAltitude as any}
         pointRadius={pointRadius}
-        pointLabel={renderPointLabel}
         onPointClick={handleGlobePointClick}
-        // Labels — combined feed (countries + cities), accessors branch on kind
         labelsData={allLabels}
         labelLat="lat"
         labelLng="lng"
@@ -1050,201 +1653,248 @@ export default function GlobeScene() {
         labelSize={labelSize}
         labelDotRadius={labelDotRadius}
         labelAltitude={0.005}
-        labelResolution={renderStyle === "mono" ? 1 : 2}
+        labelResolution={1}
         labelTypeFace={robotoMedium as any}
         labelIncludeDot={labelIncludeDot}
-        // Events
-        onGlobeReady={handleGlobeReady}
-        animateIn={true}
-      />
+          onGlobeReady={handleGlobeReady}
+          animateIn={true}
+          rendererConfig={RENDERER_CONFIG}
+        />
+        </div>
+      </div>
 
-      <Header />
+      {/* Chrome shows once the globe is revealed (post-emerge) and boots in
+          subsystem order; on submerge it stays mounted with v1-exit-* classes
+          (chromeExiting) to slide back out, then unmounts. (v8) */}
+      {revealed && chromeReady && (!submerging || chromeExiting) && (
+        <>
+          {/* Each panel slides in from its nearest edge on wake (v1-enter-*),
+              applied straight to the panel's own element so it stays fully
+              interactive — no overlay wrappers. */}
 
-      {/* Altitude readout — tucked under the header. react-globe.gl reports
-          altitude in Earth-radius units; we convert to km (× 6371) for
-          human-readable display. */}
-      <div className="absolute top-[88px] right-6 z-10 pointer-events-none">
-        <div className="flex items-center gap-3 px-3 py-1.5 bg-[#06013A]/85 backdrop-blur-md border border-[#1800E7]/40 rounded">
-          <span className="font-display text-[9px] font-bold tracking-[0.2em] text-[#A8B0D6] uppercase">
-            Altitude
-          </span>
-          <span className="font-display text-[11px] font-bold text-white tabular-nums">
-            {Math.round(zoomLevel * 6371).toLocaleString()} km
-          </span>
-          <div className="relative w-24 h-1 bg-white/10 rounded overflow-hidden">
-            <div
-              className="absolute top-0 left-0 h-full bg-[#FF5E00]"
-              style={{
-                // Camera range ~127 km (alt 0.02) → ~25,500 km (alt 4.0).
-                // Bar fills from left = far out, right = close in.
-                width: `${Math.max(2, Math.min(100, (1 - Math.log(Math.max(0.02, zoomLevel) / 0.02) / Math.log(4 / 0.02)) * 100))}%`,
-              }}
+          {/* Top-right: CableSystem panel (filter tabs + 3x3 grid + counts) */}
+          {bootStage >= 2 && (
+            <Sidebar
+              className={chromeCls("v1-enter-right", 4)}
+              selectedCable={selectedCable}
+              onSelectCable={handleSelectCable}
+              language={language}
             />
-          </div>
-        </div>
-      </div>
+          )}
 
-      <Sidebar
-        selectedCable={selectedCable}
-        onSelectCable={handleSelectCable}
-        onPointClick={handlePointClick}
-      />
+          {/* Left of Cable System panel: Back / Audio / Naration button column.
+              Back shows when a cable is selected OR a landing-point card is open
+              (handleBack pops the open card first, then deselects the cable). */}
+          {bootStage >= 2 && (
+            <SystemButtons
+              className={chromeCls("v1-enter-right v1-delay-1", 3)}
+              showBack={Boolean(selectedCable) || Boolean(selectedLandingPoint)}
+              onBack={handleBack}
+              onRecenter={recenterView}
+              muted={muted}
+              onAudioToggle={handleAudioToggle}
+              narrationOn={narrationOn}
+              onNarationToggle={handleNarationToggle}
+            />
+          )}
 
-      {/* Bottom-right control cluster — INFO + settings buttons.
-          Sits to the LEFT of the floating sidebar modal (which is at right-6
-          and 380px wide → so this cluster anchors at right-[420px]). */}
-      <div className="absolute bottom-6 right-[420px] z-10 flex items-end gap-2">
-        <button
-          onClick={() => setInfoOpen(true)}
-          aria-label="How to use"
-          className="flex items-center justify-center w-12 h-12 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg text-[#A8B0D6] active:bg-white/5 transition-colors"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-5 h-5"
+          {/* Right edge: CableInformation when a cable is selected, otherwise
+              the General Information panel sits in the same slot. */}
+          {bootStage < 3 ? null : selectedCable ? (
+            <CableInformation
+              className={chromeCls("v1-enter-right v1-delay-2", 2)}
+              cable={selectedCable}
+              language={language}
+            />
+          ) : (
+            <DidYouKnow
+              className={chromeCls("v1-enter-right v1-delay-2", 2)}
+              language={language}
+            />
+          )}
+
+          {/* Left edge centered: action cluster (Morse / Fun Fact / Help). The
+              outer div holds the fixed centring transform; the inner div carries
+              the slide-in animation so the two transforms don't collide. */}
+          {bootStage >= 4 && (
+          <div
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: 26,
+              transform: "translateY(-50%)",
+              zIndex: 25,
+            }}
           >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7v.5" />
-            <circle cx="12" cy="17" r="0.6" fill="currentColor" />
-          </svg>
-        </button>
+            <div className={chromeCls("v1-enter-left", 1)}>
+              <RightCluster openDialog={openDialog} onOpen={handleClusterOpen} />
 
-        <div className="relative">
-        <button
-          onClick={() => setSettingsOpen((v) => !v)}
-          aria-label="Display settings"
-          className="flex items-center justify-center w-12 h-12 bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg text-[#A8B0D6] active:bg-white/5 transition-colors"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-5 h-5"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
-
-        {settingsOpen && (
-          <div className="absolute bottom-14 right-0 flex flex-col gap-2 p-3 bg-[#06013A]/95 backdrop-blur-xl border border-[#1800E7]/40 rounded-lg min-w-[200px]">
-            <div className="font-display text-[10px] text-white font-bold tracking-[0.2em] mb-1 uppercase">
-              Display
+              {/* Language toggle — sits directly below the Help button, sharing
+                  the left-edge action stack. */}
+              <div style={{ marginTop: 31 }}>
+                <LanguageToggle value={language} onChange={setLanguage} />
+              </div>
             </div>
-
-            <button
-              onClick={() => setAutoRotate(!autoRotate)}
-              className="flex items-center gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
-            >
-              <div
-                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${autoRotate ? "bg-[#1800E7]" : "bg-[#0B0750]"}`}
-              >
-                <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${autoRotate ? "left-5 bg-white" : "left-0.5 bg-[#A8B0D6]"}`}
-                />
-              </div>
-              <span className="font-display text-[11px] font-bold tracking-wider text-[#A8B0D6]">
-                ROTATE
-              </span>
-            </button>
-
-            <button
-              onClick={() => setRenderStyle(nextStyle(renderStyle))}
-              className="flex items-center justify-between gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
-            >
-              <span className="font-display text-[11px] font-bold tracking-wider text-white">
-                STYLE
-              </span>
-              <span className="font-display text-[11px] font-bold tracking-wider text-[#FF7A00]">
-                {RENDER_STYLE_LABEL[renderStyle]}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="flex items-center gap-2 px-3 py-2 bg-[#06013A]/60 border border-[#1800E7]/30 rounded-md text-left active:bg-white/5 transition-colors min-h-[44px]"
-            >
-              <div
-                className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${theme === "dark" ? "bg-[#0B0750]" : "bg-[#1800E7]"}`}
-              >
-                <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-300 ${theme === "dark" ? "left-0.5 bg-[#A8B0D6]" : "left-5 bg-[#FF5E00]"}`}
-                />
-              </div>
-              <span className="font-display text-[11px] font-bold tracking-wider text-[#A8B0D6]">
-                {theme === "dark" ? "DARK" : "LIGHT"}
-              </span>
-            </button>
           </div>
-        )}
-        </div>
-      </div>
+          )}
 
-      {/* Bottom-left: MAKE A CALL primary action */}
-      <div className="absolute bottom-6 left-6 z-10">
-        <button
-          onClick={() => !activeCall && setCallOpen(true)}
-          disabled={!!activeCall}
-          aria-label="Make a call"
-          className="group flex items-center gap-3 pl-4 pr-5 py-3 rounded-xl bg-[#FF5E00] border border-[#FF5E00] shadow-[0_4px_24px_rgba(255,94,0,0.35)] active:bg-[#E65500] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-4 h-4"
-            >
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-          </span>
-          <span className="text-left">
-            <span className="block font-display font-bold text-[9px] tracking-[0.25em] text-white/80 uppercase leading-none">
-              {activeCall ? "Calling…" : "Demo"}
-            </span>
-            <span className="block font-display font-bold text-sm tracking-[0.15em] text-white uppercase leading-tight mt-0.5">
-              Make a Call
-            </span>
-          </span>
-        </button>
-      </div>
+          {/* Bottom: titlebar — first subsystem online. */}
+          {bootStage >= 1 && (
+            <Header
+              className={chromeCls("v1-enter-bottom v1-delay-1", 5)}
+              selectedCable={selectedCable}
+              language={language}
+            />
+          )}
 
-      {infoOpen && <InfoModal onClose={() => setInfoOpen(false)} />}
-      {callOpen && (
-        <CallDialog
-          onClose={() => setCallOpen(false)}
-          onSend={(message) => {
-            setCallOpen(false);
-            setActiveCall({ message, startedAt: performance.now() });
+        </>
+      )}
+
+      {/* Map overlay: a reticle marker for each landing point on the selected
+          cable (no text callout). Tapping a marker opens that point's expanded
+          info card; the open point renders the card instead of the bare marker.
+          Hidden during an active call so the dialing animation is unobstructed. */}
+      {!activeCall &&
+        markerPoints.map((p) => {
+          const pos = calloutScreens[p.id];
+          if (!pos || !pos.visible) return null;
+          const isExpanded = expandedPointId === p.id;
+          return (
+            <LandingPointCallout
+              key={p.id}
+              point={p}
+              screenPos={{ x: pos.x, y: pos.y }}
+              viewport={dimensions}
+              markerOnly={!isExpanded}
+              expanded={isExpanded}
+              // When one point is open, grey out the other cable markers.
+              dimmed={Boolean(expandedPointId) && !isExpanded}
+              onToggleExpand={() => openLandingPoint(p)}
+            />
+          );
+        })}
+
+      {/* Leader line from the active cluster button to its dialog title. */}
+      <ClusterStem openDialog={openDialog} viewport={dimensions} />
+
+      {/* Dialogs */}
+      {openDialog === "howto" && (
+        <HowToGuideDialog
+          onClose={() => setOpenDialog(null)}
+          language={language}
+        />
+      )}
+      {openDialog === "funfact" && (
+        <GeneralInfoDialog
+          onClose={() => setOpenDialog(null)}
+          language={language}
+          onHoldIdle={setHoldIdle}
+          onScreenChange={setInfoScreenRef}
+        />
+      )}
+      {openDialog === "morse" && (
+        <MorseCodePop
+          landingPoints={landingPoints}
+          language={language}
+          onClose={() => setOpenDialog(null)}
+          onSend={(message, fromId, toId) => {
+            setOpenDialog(null);
+            setActiveCall({
+              message,
+              route: resolveNetworkRoute(fromId, toId),
+              startedAt: performance.now(),
+            });
           }}
         />
       )}
 
       {activeCall && (
         <CallAnimationOverlay
+          // Keyed per call: a second Morse send must remount the overlay, not
+          // update props on the live one — its one-shot effect would keep
+          // driving the camera along the stale route and its onDone would kill
+          // the new call mid-flight. The key change unmounts the old run,
+          // whose cleanup cancels its timers/rAF/audio.
+          key={activeCall.startedAt}
           message={activeCall.message}
+          route={activeCall.route}
           onDone={() => setActiveCall(null)}
           globeRef={globeRef}
         />
       )}
+
+      {/* Pre-idle countdown — warns for the last 10s before the kiosk
+          submerges back to the attract video (otherwise it silently eats
+          in-progress work, e.g. a half-typed Morse message). Any tap resets the
+          idle timer via useIdleAttractor's window listeners, so the toast needs
+          no button — pointer-events: none keeps it out of the way. (z 55) */}
+      {warnSecondsLeft !== null && revealed && !submerging && (
+        <div
+          role="status"
+          style={{
+            position: "fixed",
+            top: 48,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 55,
+            pointerEvents: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 6,
+            padding: "16px 30px",
+            background: "rgba(4, 14, 31, 0.92)",
+            border: "1px solid var(--v1-orange)",
+            boxShadow: "0 6px 30px rgba(0, 0, 0, 0.55)",
+          }}
+        >
+          <span
+            className="v1-pulse"
+            style={{
+              fontFamily: "var(--v1-heading)",
+              fontWeight: 600,
+              fontSize: 22,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              color: "var(--v1-fg)",
+            }}
+          >
+            {t("stillThere")}
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--v1-mono)",
+              fontSize: 13,
+              color: "var(--v1-fg)",
+            }}
+          >
+            {t("idleReturningIn")}{" "}
+            <span style={{ color: "var(--v1-orange)", fontWeight: 700 }}>
+              {warnSecondsLeft}s
+            </span>
+            {" — "}
+            {t("idleTapToContinue").toLowerCase()}
+          </span>
+        </div>
+      )}
+
+      {/* Video idle/intro layer (clip1 attract → clip2 emerge → live → clip3
+          submerge). Owns the "tap to begin" prompt + launch countdown, and
+          hands the screen to the live globe on reveal. Top of the stack. */}
+      <IntroSequence
+        language={language}
+        requestSubmerge={submergePlay}
+        onReveal={handleReveal}
+        onReachedIdle={handleReachedIdle}
+      />
     </div>
   );
 }
 
+// BrandingFlash + BrandCross archived to ./_archive/BrandingFlash.tsx (v8 —
+// branding dropped from the video-driven intro; kept for future re-use).
+
+// ───────── CallAnimationOverlay ─────────
 // Drives the call animation: stitched cable polyline → bright orange pulse
 // mesh that traverses source → destination, camera lerps to follow, decoded
 // message floats above the pulse, then camera returns to world view on
@@ -1257,22 +1907,32 @@ const CALL_RETURN_LAT = 5;
 const CALL_RETURN_LNG = 108;
 const CALL_RETURN_ALT = 2.2;
 
+// Teleport (country-hub hand-off) tuning: how long one jump takes and how far
+// the dashed arc bows off the globe surface.
+const TELEPORT_LEG_MS = 650;
+const TELEPORT_ARC_LIFT = 0.16;
+
 function CallAnimationOverlay({
   message,
+  route,
   onDone,
   globeRef,
 }: {
   message: string;
+  route: ResolvedNetworkRoute;
   onDone: () => void;
   globeRef: React.MutableRefObject<any>;
 }) {
   const [labelPos, setLabelPos] = useState<{ x: number; y: number } | null>(
-    null
+    null,
   );
   const [phase, setPhase] = useState<
     "dial" | "connect" | "intro" | "travel" | "arrive" | "return"
   >("dial");
   const returnTriggeredRef = useRef(false);
+  // Populated by the effect with a "finish now" closure; the TAP TO SKIP chip
+  // calls it. Tears the animation down instantly: timers, rAF, meshes, audio.
+  const skipRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!globeRef.current) return;
@@ -1280,50 +1940,96 @@ function CallAnimationOverlay({
     const renderer = globeRef.current.renderer?.();
     if (!scene || !renderer) return;
 
-    const route = resolveCallRoute();
-    if (route.totalKm <= 0) {
+    const legs = route.legs;
+    if (legs.length === 0) {
       onDone();
       return;
     }
 
-    // Dramatic dialing build-up before the pulse launches:
-    //   dial    (1300ms) — DTMF-style descending pips
-    //   connect (1100ms) — rising tone + camera glides to the start
-    //   intro   ( 800ms) — pause at the start coord, then launch
-    //   travel  (varies) — pulse traverses + morse audio plays
-    //   arrive  (1500ms) — flash at destination
-    //   return  (1800ms) — camera back to world view
+    const hav = (a: [number, number], b: [number, number]) => {
+      const R = 6371;
+      const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+      const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+      const la1 = (a[0] * Math.PI) / 180;
+      const la2 = (b[0] * Math.PI) / 180;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(x));
+    };
+
+    // Turn the route's legs into a timed sequence: cable legs are paced by
+    // distance (km / speed); each teleport leg takes a fixed quick beat and
+    // traces a dashed arc that bows off the globe surface.
+    type TimedLeg =
+      | {
+          kind: "cable";
+          coords: [number, number][];
+          cum: number[];
+          km: number;
+          dur: number;
+        }
+      | {
+          kind: "teleport";
+          arc: { lat: number; lng: number; alt: number }[];
+          dur: number;
+        };
+    const timed: TimedLeg[] = legs.map((leg) => {
+      if (leg.kind === "cable") {
+        const coords = leg.coords;
+        const cum = [0];
+        for (let i = 1; i < coords.length; i++)
+          cum.push(cum[i - 1] + hav(coords[i - 1], coords[i]));
+        const km = cum[cum.length - 1] || 0;
+        return {
+          kind: "cable",
+          coords,
+          cum,
+          km,
+          dur: Math.max(300, (km / CALL_PULSE_SPEED_KM_PER_SEC) * 1000),
+        };
+      }
+      const steps = 26;
+      const arc: { lat: number; lng: number; alt: number }[] = [];
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        arc.push({
+          lat: leg.from[0] + (leg.to[0] - leg.from[0]) * t,
+          lng: leg.from[1] + (leg.to[1] - leg.from[1]) * t,
+          alt: 0.012 + TELEPORT_ARC_LIFT * Math.sin(Math.PI * t),
+        });
+      }
+      return { kind: "teleport", arc, dur: TELEPORT_LEG_MS };
+    });
+    const totalTravelMs = timed.reduce((s, l) => s + l.dur, 0);
+    if (totalTravelMs <= 0) {
+      onDone();
+      return;
+    }
+
     const dialMs = 1300;
     const connectMs = 1100;
     const introMs = 800;
-    const travelMsLocal =
-      (route.totalKm / CALL_PULSE_SPEED_KM_PER_SEC) * 1000;
 
-    // Phase 1: dialing tones immediately. Camera holds on whatever it was
-    // showing — gives the pre-launch suspense.
     playDialing();
 
-    // Phase 2: at end of dial, play connect tone + start camera glide to
-    // the start of the cable (not midpoint — we want to see the launch).
-    const start = route.coords[0];
-    setTimeout(() => {
+    const start: [number, number] = [route.fromPoint.lat, route.fromPoint.lng];
+    const connectTimer = setTimeout(() => {
       playConnect();
       globeRef.current?.pointOfView(
         { lat: start[0], lng: start[1], altitude: CALL_INTRO_ALT },
-        connectMs + introMs
+        connectMs + introMs,
       );
     }, dialMs);
 
-    // Phase 3: morse audio fires when the pulse actually launches.
-    setTimeout(
-      () => playMessage(message, travelMsLocal),
-      dialMs + connectMs + introMs
+    const messageTimer = setTimeout(
+      () => playMessage(message, totalTravelMs),
+      dialMs + connectMs + introMs,
     );
 
-    // Pulse mesh — bigger + brighter than the perpetual dots.
     const geo = new THREE.SphereGeometry(CALL_PULSE_RADIUS, 16, 12);
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color("#FF5E00"),
+      color: new THREE.Color(V1_COLORS.orangeHot),
       depthTest: false,
       transparent: true,
     });
@@ -1332,10 +2038,9 @@ function CallAnimationOverlay({
     pulse.frustumCulled = false;
     scene.add(pulse);
 
-    // Soft halo — additive sprite-ish shell that scales with the pulse.
     const haloGeo = new THREE.SphereGeometry(CALL_PULSE_RADIUS * 2.4, 16, 12);
     const haloMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color("#FF8A3D"),
+      color: new THREE.Color(V1_COLORS.orange),
       transparent: true,
       opacity: 0.35,
       depthTest: false,
@@ -1346,20 +2051,39 @@ function CallAnimationOverlay({
     halo.frustumCulled = false;
     scene.add(halo);
 
+    // One dashed arc line per teleport leg — hidden until that hand-off is live.
+    const teleLines: (THREE.Line | null)[] = timed.map((l) => {
+      if (l.kind !== "teleport") return null;
+      const pts = l.arc.map((p) => {
+        const c = globeRef.current.getCoords(p.lat, p.lng, p.alt);
+        return new THREE.Vector3(c.x, c.y, c.z);
+      });
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineDashedMaterial({
+        color: new THREE.Color(V1_COLORS.orangeHot),
+        dashSize: 1.4,
+        gapSize: 0.9,
+        transparent: true,
+        depthTest: false,
+      });
+      const line = new THREE.Line(lineGeo, lineMat);
+      line.computeLineDistances();
+      line.renderOrder = 1001;
+      line.frustumCulled = false;
+      line.visible = false;
+      scene.add(line);
+      return line;
+    });
+
     let raf = 0;
     let cancelled = false;
-    // The phase budgets above (dialMs/connectMs/introMs/travelMsLocal) are
-    // the source of truth for timing — alias them here under the names the
-    // RAF below already uses.
     const preLaunchMs = dialMs + connectMs + introMs;
-    const travelMs = travelMsLocal;
+    const travelMs = totalTravelMs;
     const arriveMs = 1500;
     const returnMs = 1800;
     const startTs = performance.now();
 
-    // react-globe.gl exposes the active perspective camera via .camera().
     const camera: THREE.Camera | null = globeRef.current?.camera?.() ?? null;
-
     const projectToScreen = (xyz: { x: number; y: number; z: number }) => {
       if (!camera) return null;
       const v = new THREE.Vector3(xyz.x, xyz.y, xyz.z).project(camera);
@@ -1367,27 +2091,73 @@ function CallAnimationOverlay({
       const w = dom.clientWidth;
       const h = dom.clientHeight;
       return {
-        x: ((v.x + 1) / 2) * w,
+        x: ((v.x + 1) / 2) * w + globeProjectionOffsetX(w),
         y: ((1 - v.y) / 2) * h,
       };
     };
 
-    const sampleRoute = (dist: number) => {
-      let j = 1;
-      while (j < route.cumKm.length && route.cumKm[j] < dist) j++;
-      if (j >= route.cumKm.length) j = route.cumKm.length - 1;
-      const a = route.coords[j - 1];
-      const b = route.coords[j];
-      const legKm = route.cumKm[j] - route.cumKm[j - 1];
-      const t = legKm > 0 ? (dist - route.cumKm[j - 1]) / legKm : 0;
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as [
-        number,
-        number,
-      ];
+    // Sample the pulse position at a given travel-elapsed time: find which leg
+    // we're in, then interpolate within it (cable = by distance, teleport = by
+    // arc parameter). Returns the leg index so the caller can light its arc.
+    const sampleTravel = (te: number) => {
+      let acc = 0;
+      for (let li = 0; li < timed.length; li++) {
+        const leg = timed[li];
+        if (te < acc + leg.dur || li === timed.length - 1) {
+          const lt = leg.dur > 0 ? Math.min(1, (te - acc) / leg.dur) : 1;
+          if (leg.kind === "cable") {
+            const dist = lt * leg.km;
+            let j = 1;
+            while (j < leg.cum.length && leg.cum[j] < dist) j++;
+            if (j >= leg.cum.length) j = leg.cum.length - 1;
+            const a = leg.coords[j - 1];
+            const b = leg.coords[j];
+            const segLen = leg.cum[j] - leg.cum[j - 1];
+            const tt = segLen > 0 ? (dist - leg.cum[j - 1]) / segLen : 0;
+            return {
+              li,
+              teleport: false,
+              lat: a[0] + (b[0] - a[0]) * tt,
+              lng: a[1] + (b[1] - a[1]) * tt,
+              alt: 0.012,
+            };
+          }
+          const f = lt * (leg.arc.length - 1);
+          const k = Math.min(leg.arc.length - 1, Math.floor(f));
+          const k2 = Math.min(leg.arc.length - 1, k + 1);
+          const tt = f - k;
+          const p1 = leg.arc[k];
+          const p2 = leg.arc[k2];
+          return {
+            li,
+            teleport: true,
+            lat: p1.lat + (p2.lat - p1.lat) * tt,
+            lng: p1.lng + (p2.lng - p1.lng) * tt,
+            alt: p1.alt + (p2.alt - p1.alt) * tt,
+          };
+        }
+        acc += leg.dur;
+      }
+      return {
+        li: timed.length - 1,
+        teleport: false,
+        lat: start[0],
+        lng: start[1],
+        alt: 0.012,
+      };
     };
 
-    // Hide the pulse + halo until launch; otherwise they sit at (0,0,0)
-    // (= globe centre) during the dial/connect build-up, peeking through.
+    // Final resting position (last leg's end — could be a cable exit OR the far
+    // end of a teleport, when the destination is reached by a hand-off).
+    const endLeg = timed[timed.length - 1];
+    const endLatLng: [number, number] =
+      endLeg.kind === "cable"
+        ? endLeg.coords[endLeg.coords.length - 1]
+        : [
+            endLeg.arc[endLeg.arc.length - 1].lat,
+            endLeg.arc[endLeg.arc.length - 1].lng,
+          ];
+
     pulse.visible = false;
     halo.visible = false;
 
@@ -1395,7 +2165,6 @@ function CallAnimationOverlay({
       if (cancelled) return;
       const elapsed = performance.now() - startTs;
 
-      // Phases: dial → connect → intro → travel → arrive → return
       if (elapsed < dialMs) {
         setPhase("dial");
       } else if (elapsed < dialMs + connectMs) {
@@ -1404,42 +2173,62 @@ function CallAnimationOverlay({
         setPhase("intro");
       } else if (elapsed < preLaunchMs + travelMs) {
         setPhase("travel");
-        if (!pulse.visible) { pulse.visible = true; halo.visible = true; }
-        const tt = (elapsed - preLaunchMs) / travelMs;
-        const dist = tt * route.totalKm;
-        const [lat, lng] = sampleRoute(dist);
-        const xyz = globeRef.current.getCoords(lat, lng, 0.012);
+        if (!pulse.visible) {
+          pulse.visible = true;
+          halo.visible = true;
+        }
+        const s = sampleTravel(elapsed - preLaunchMs);
+        const xyz = globeRef.current.getCoords(s.lat, s.lng, s.alt);
         pulse.position.set(xyz.x, xyz.y, xyz.z);
         halo.position.set(xyz.x, xyz.y, xyz.z);
-        // Pulse the halo opacity for visual life.
-        haloMat.opacity = 0.25 + 0.2 * Math.sin(elapsed / 120);
 
-        // Camera follow — smooth lerp toward the pulse.
+        // Light only the arc of the teleport leg currently in progress.
+        for (let li = 0; li < teleLines.length; li++) {
+          const ln = teleLines[li];
+          if (ln) ln.visible = s.teleport && li === s.li;
+        }
+
+        if (s.teleport) {
+          // Zap emphasis: pulse swells, halo flares, dashed arc shimmers.
+          pulse.scale.setScalar(1.5);
+          halo.scale.setScalar(1.7);
+          haloMat.opacity = 0.6;
+          const ln = teleLines[s.li];
+          if (ln)
+            (ln.material as THREE.LineDashedMaterial).opacity =
+              0.55 + 0.45 * Math.sin(elapsed / 55);
+        } else {
+          pulse.scale.setScalar(1);
+          halo.scale.setScalar(1);
+          haloMat.opacity = 0.25 + 0.2 * Math.sin(elapsed / 120);
+        }
+
         const pov = globeRef.current.pointOfView?.();
         if (pov) {
           const alpha = 0.06;
-          const nextLat = pov.lat + (lat - pov.lat) * alpha;
-          const nextLng = pov.lng + (lng - pov.lng) * alpha;
+          const nextLat = pov.lat + (s.lat - pov.lat) * alpha;
+          const nextLng = pov.lng + (s.lng - pov.lng) * alpha;
           const nextAlt =
             pov.altitude + (CALL_FOLLOW_ALT - pov.altitude) * alpha;
           globeRef.current.pointOfView(
             { lat: nextLat, lng: nextLng, altitude: nextAlt },
-            0
+            0,
           );
         }
 
-        // Project to screen for the floating message label.
         const screen = projectToScreen(xyz);
         if (screen) setLabelPos(screen);
       } else if (elapsed < preLaunchMs + travelMs + arriveMs) {
         setPhase("arrive");
-        // Park pulse at destination, scale flash-up.
-        const last = route.coords[route.coords.length - 1];
-        const xyz = globeRef.current.getCoords(last[0], last[1], 0.012);
+        for (const ln of teleLines) if (ln) ln.visible = false;
+        const xyz = globeRef.current.getCoords(
+          endLatLng[0],
+          endLatLng[1],
+          0.012,
+        );
         pulse.position.set(xyz.x, xyz.y, xyz.z);
         halo.position.set(xyz.x, xyz.y, xyz.z);
-        const arriveT =
-          (elapsed - preLaunchMs - travelMs) / arriveMs;
+        const arriveT = (elapsed - preLaunchMs - travelMs) / arriveMs;
         const flash = 1 + Math.sin(arriveT * Math.PI) * 1.4;
         pulse.scale.setScalar(flash);
         halo.scale.setScalar(flash);
@@ -1456,24 +2245,17 @@ function CallAnimationOverlay({
               lng: CALL_RETURN_LNG,
               altitude: CALL_RETURN_ALT,
             },
-            returnMs
+            returnMs,
           );
         }
-        // Fade the pulse out during return.
-        const rt =
-          (elapsed - preLaunchMs - travelMs - arriveMs) / returnMs;
+        const rt = (elapsed - preLaunchMs - travelMs - arriveMs) / returnMs;
         mat.opacity = Math.max(0, 1 - rt);
         haloMat.opacity = Math.max(0, 0.4 * (1 - rt));
         setLabelPos(null);
       } else {
         cancelled = true;
         cancelAnimationFrame(raf);
-        scene.remove(pulse);
-        scene.remove(halo);
-        geo.dispose();
-        mat.dispose();
-        haloGeo.dispose();
-        haloMat.dispose();
+        disposeAll();
         onDone();
         return;
       }
@@ -1482,15 +2264,52 @@ function CallAnimationOverlay({
     };
     raf = requestAnimationFrame(tick);
 
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
+    let disposed = false;
+    function disposeAll() {
+      if (disposed) return;
+      disposed = true;
       scene.remove(pulse);
       scene.remove(halo);
       geo.dispose();
       mat.dispose();
       haloGeo.dispose();
       haloMat.dispose();
+      for (const ln of teleLines) {
+        if (!ln) continue;
+        scene.remove(ln);
+        ln.geometry.dispose();
+        (ln.material as THREE.Material).dispose();
+      }
+    }
+
+    // TAP TO SKIP — jump straight to the end state: stop the scripted timers,
+    // the rAF loop, the pulse meshes and any scheduled morse audio, then glide
+    // the camera home and report done (parent unmounts us).
+    skipRef.current = () => {
+      if (cancelled) return;
+      cancelled = true;
+      clearTimeout(connectTimer);
+      clearTimeout(messageTimer);
+      cancelAnimationFrame(raf);
+      disposeAll();
+      stopAllAudio();
+      globeRef.current?.pointOfView(
+        { lat: CALL_RETURN_LAT, lng: CALL_RETURN_LNG, altitude: CALL_RETURN_ALT },
+        900,
+      );
+      onDone();
+    };
+
+    return () => {
+      cancelled = true;
+      clearTimeout(connectTimer);
+      clearTimeout(messageTimer);
+      cancelAnimationFrame(raf);
+      disposeAll();
+      // Unmount can arrive mid-call (a new call replaces this one via the
+      // overlay key); scheduled morse beeps must not outlive the run.
+      stopAllAudio();
+      skipRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1506,44 +2325,125 @@ function CallAnimationOverlay({
             transform: "translate(-50%, -100%)",
           }}
         >
-          <div className="px-4 py-2 rounded-lg bg-[#FF5E00] border border-white/20 shadow-[0_4px_24px_rgba(255,94,0,0.6)]">
-            <span className="font-display font-bold text-base tracking-[0.2em] text-white uppercase whitespace-nowrap">
+          <div
+            style={{
+              padding: "10px 18px",
+              background: "var(--v1-orange)",
+              border: "1px solid rgba(255, 255, 255, 0.30)",
+              boxShadow: "0 4px 24px rgba(240, 90, 34, 0.55)",
+            }}
+          >
+            <span
+              className="v1-h-display"
+              style={{
+                fontSize: 18,
+                color: "var(--v1-fg)",
+                letterSpacing: "0.18em",
+                whiteSpace: "nowrap",
+              }}
+            >
               {message}
             </span>
           </div>
-          <div className="w-px h-12 bg-gradient-to-b from-[#FF5E00] to-transparent mx-auto" />
+          <div
+            style={{
+              width: 1,
+              height: 48,
+              background:
+                "linear-gradient(180deg, var(--v1-orange) 0%, transparent 100%)",
+              margin: "0 auto",
+            }}
+          />
         </div>
       )}
-      <div className="fixed top-[40%] left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+      <div
+        style={{
+          position: "fixed",
+          top: "40%",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 30,
+          pointerEvents: "none",
+        }}
+      >
         {phase === "dial" && (
-          <div className="px-6 py-3 rounded-full bg-[#06013A]/90 backdrop-blur-xl border border-[#FF5E00]/60 shadow-[0_4px_24px_rgba(255,94,0,0.3)] animate-pulse">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-[#FF5E00] uppercase">
-              Dialing…
-            </span>
-          </div>
+          <PhaseChip text="Dialing…" tone="orange" pulse />
         )}
         {phase === "connect" && (
-          <div className="px-6 py-3 rounded-full bg-[#06013A]/90 backdrop-blur-xl border border-[#1800E7]/60">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
-              Establishing Link…
-            </span>
-          </div>
+          <PhaseChip text="Establishing Link…" tone="blue" />
         )}
-        {phase === "intro" && (
-          <div className="px-6 py-3 rounded-full bg-[#1800E7]/80 backdrop-blur-xl border border-white/30">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
-              Transmitting
-            </span>
-          </div>
-        )}
-        {phase === "arrive" && (
-          <div className="px-6 py-3 rounded-full bg-[#FF5E00]/90 backdrop-blur-xl border border-white/30 shadow-[0_4px_24px_rgba(255,94,0,0.5)]">
-            <span className="font-display font-bold text-xs tracking-[0.4em] text-white uppercase">
-              Delivered
-            </span>
-          </div>
-        )}
+        {phase === "intro" && <PhaseChip text="Transmitting" tone="blue" />}
+        {phase === "arrive" && <PhaseChip text="Delivered" tone="orange" />}
       </div>
+
+      {/* Skip — the call runs 5-10s; impatient kiosk visitors need an out.
+          Hidden once the return glide starts (it's about to end anyway).
+          Outer div centres; the button carries the press-scale animation so
+          the two transforms don't collide. */}
+      {phase !== "return" && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 110,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 31,
+          }}
+        >
+          <button
+            type="button"
+            className="v1-pressable"
+            onClick={() => skipRef.current?.()}
+            style={{
+              minHeight: 48,
+              padding: "12px 26px",
+              background: "rgba(4, 14, 31, 0.85)",
+              border: "1px solid rgba(255, 255, 255, 0.45)",
+              color: "var(--v1-fg)",
+              fontFamily: "var(--v1-mono)",
+              fontSize: 14,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            Tap to skip ✕
+          </button>
+        </div>
+      )}
     </>
+  );
+}
+
+function PhaseChip({
+  text,
+  tone,
+  pulse = false,
+}: {
+  text: string;
+  tone: "orange" | "blue";
+  pulse?: boolean;
+}) {
+  return (
+    <div
+      className={pulse ? "v1-pulse" : undefined}
+      style={{
+        padding: "12px 24px",
+        background:
+          tone === "orange" ? "var(--v1-orange)" : "var(--v1-blue)",
+        border: "1px solid rgba(255, 255, 255, 0.40)",
+      }}
+    >
+      <span
+        className="v1-h-display"
+        style={{
+          fontSize: 13,
+          color: "var(--v1-fg)",
+          letterSpacing: "0.30em",
+        }}
+      >
+        {text}
+      </span>
+    </div>
   );
 }

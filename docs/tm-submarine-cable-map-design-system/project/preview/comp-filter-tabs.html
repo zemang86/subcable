@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Filter tabs</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card col" style="gap:10px;">
+  <div style="display:flex; gap:6px; width:460px;">
+    <button class="tm-filter-tab is-active">Show All</button>
+    <button class="tm-filter-tab">International</button>
+    <button class="tm-filter-tab">Domestic</button>
+  </div>
+  <div class="meta">44px tall · uppercase 0.15em · active = orange fill</div>
+</div></body></html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Landing point callout + Point HUD</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; position: relative;
+          display:flex; flex-direction:column; gap:14px; min-height: 360px; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+
+  /* Bracket-frame callout — V1.3 orange. Dark orange-brown fill + 4 lighter orange L-corners. */
+  .callout {
+    position: relative;
+    width: 380px;
+    padding: 22px 26px 18px;
+    background: rgba(188, 53, 20, 0.55);   /* #BC3514 at 55% */
+    backdrop-filter: blur(2px);
+    border: 1px solid rgba(0,0,0,0);
+  }
+  .callout::before, .callout::after,
+  .callout > .br-tl, .callout > .br-bl {
+    content:''; position:absolute; width:22px; height:22px;
+    border-color: var(--tm-orange);
+    border-style: solid;
+  }
+  .callout::before        { top:-3px; left:-3px;  border-width: 2.5px 0 0 2.5px; }
+  .callout::after         { top:-3px; right:-3px; border-width: 2.5px 2.5px 0 0; }
+  .callout > .br-tl       { bottom:-3px; left:-3px; border-width: 0 0 2.5px 2.5px; }
+  .callout > .br-bl       { bottom:-3px; right:-3px; border-width: 0 2.5px 2.5px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="callout">
+    <span class="br-tl"></span><span class="br-bl"></span>
+
+    <div style="font-family: var(--tm-heading); font-weight:700; font-size:32px;
+                color: var(--tm-fg); letter-spacing:0.02em; line-height:1;">KOTA KINABALU</div>
+    <div style="display:flex; justify-content:space-between; gap:14px; margin-top:8px;">
+      <div style="font-family: var(--tm-mono); font-size:11px;
+                  color: var(--tm-fg); letter-spacing:0.04em;">Sabah, Malaysia</div>
+      <div style="font-family: var(--tm-mono); font-size:11px;
+                  color: var(--tm-fg); letter-spacing:0.04em;">2.43, 103.84</div>
+    </div>
+  </div>
+
+  <!-- Drop line + Point HUD target -->
+  <svg width="64" height="170" viewBox="0 0 64 170" style="margin-left: 60px;" aria-hidden>
+    <line x1="32" y1="0" x2="32" y2="120" stroke="var(--tm-orange)" stroke-width="1.2"/>
+
+    <!-- Outer ring: 4 white arc quadrants with gaps -->
+    <g transform="translate(32 138)" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round">
+      <path d="M -22 -6 A 24 24 0 0 1 -6 -22"/>
+      <path d="M  22 -6 A 24 24 0 0 0  6 -22"/>
+      <path d="M -22  6 A 24 24 0 0 0 -6  22"/>
+      <path d="M  22  6 A 24 24 0 0 1  6  22"/>
+    </g>
+    <!-- Middle ring: 4 orange arc quadrants rotated 45° -->
+    <g transform="translate(32 138) rotate(45)" fill="none" stroke="var(--tm-orange)" stroke-width="3" stroke-linecap="round">
+      <path d="M -15 -4 A 16.5 16.5 0 0 1 -4 -15"/>
+      <path d="M  15 -4 A 16.5 16.5 0 0 0  4 -15"/>
+      <path d="M -15  4 A 16.5 16.5 0 0 0 -4  15"/>
+      <path d="M  15  4 A 16.5 16.5 0 0 1  4  15"/>
+    </g>
+    <!-- Inner lime dot -->
+    <circle cx="32" cy="138" r="5" fill="var(--tm-active)"/>
+  </svg>
+
+  <div class="meta" style="position:absolute; right:22px; bottom:14px; max-width:320px; text-align:right;">
+    V1.3 orange callout · `#BC3514` fill + 4 `#F05A22` L-corners · drop line 1.2px orange · Point HUD = white outer arcs + 45°-rotated orange arcs + lime dot.
+  </div>
+</div>
+</body></html>

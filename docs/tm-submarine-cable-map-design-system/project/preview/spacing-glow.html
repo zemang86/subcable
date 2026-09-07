@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Glow & shadow</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card row" style="gap:22px; padding-top:30px;">
+  <div class="col" style="gap:8px; align-items:center;">
+    <div style="width:54px; height:54px; border-radius:50%; background: rgba(255,255,255,0.04); border:2px solid var(--tm-active); box-shadow: 0 0 24px rgba(143,255,63,0.5);"></div>
+    <div class="meta">ACTIVE GLOW · 24px / 0.5 lime</div>
+  </div>
+  <div class="col" style="gap:8px; align-items:center;">
+    <div style="width:54px; height:54px; border-radius:50%; background: rgba(255,255,255,0.04); border:2px solid var(--tm-inactive); box-shadow: 0 0 24px rgba(237,27,46,0.5);"></div>
+    <div class="meta">INACTIVE GLOW · 24px / 0.5 red</div>
+  </div>
+  <div class="col" style="gap:8px; align-items:center;">
+    <div style="width:54px; height:54px; border-radius:50%; background: rgba(255,255,255,0.04); border:2px solid rgba(255,255,255,0.7);"></div>
+    <div class="meta">DEFAULT · no shadow</div>
+  </div>
+  <div class="col" style="gap:8px; align-items:center;">
+    <div style="height:54px; padding:10px 22px; background:linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.9) 60%, #000 100%); display:flex; align-items:center; font-family:var(--tm-display); font-size:14px; font-weight:700; letter-spacing:0.04em;">SUBMARINE</div>
+    <div class="meta">TITLEBAR · transparent→black gradient</div>
+  </div>
+</div></body></html>

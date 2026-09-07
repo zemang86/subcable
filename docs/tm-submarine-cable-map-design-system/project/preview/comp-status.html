@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Status indicator</title>
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  html,body { margin:0; padding:0; background: var(--tm-bg); color: var(--tm-fg);
+              font-family: var(--tm-mono); overflow:hidden; }
+  .card { padding: 18px 22px; box-sizing: border-box; }
+  .meta { font-family: var(--tm-mono); font-size: 9px; color: var(--tm-mute);
+          letter-spacing: 0.04em; }
+  .row { display:flex; align-items:center; gap: 12px; }
+  .col { display:flex; flex-direction:column; }
+  .grid { display:grid; }
+</style>
+</head><body>
+<div class="card row" style="gap:30px;">
+  <div class="col" style="gap:8px; align-items:center;">
+    <span class="tm-status"></span>
+    <div class="meta">ACTIVE · 14px</div>
+  </div>
+  <div class="col" style="gap:8px; align-items:center;">
+    <span class="tm-status tm-pulse"></span>
+    <div class="meta">ACTIVE · PULSING</div>
+  </div>
+  <div class="col" style="gap:8px; align-items:center;">
+    <span class="tm-status inactive"></span>
+    <div class="meta">INACTIVE · 14px</div>
+  </div>
+  <div class="col" style="gap:8px; align-items:center;">
+    <span class="tm-status" style="transform:scale(2);"></span>
+    <div class="meta">ACTIVE · 28px (×2)</div>
+  </div>
+  <div class="col" style="gap:8px; align-items:center;">
+    <span class="tm-status inactive" style="transform:scale(2.5);"></span>
+    <div class="meta">INACTIVE · 35px (×2.5)</div>
+  </div>
+</div></body></html>

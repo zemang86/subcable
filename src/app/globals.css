@@ -1,56 +1,129 @@
 @import "tailwindcss";
 
-/* HK Grotesk Wide — TM Global headline font, self-hosted from /public/fonts. */
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-regular.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-medium.otf") format("opentype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-bold.otf") format("opentype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-extrabold.otf") format("opentype");
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "HK Grotesk Wide";
-  src: url("/fonts/hkgroteskwide-black.otf") format("opentype");
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-}
+/* ───────── v1.0 — Tactical-HUD design tokens ─────────
+   Token names match docs/design_handoff_subcable_v1/styles-v1.css.
+   Local TTFs are served from /public/fonts/ via plain @font-face declarations
+   below — next/font was broken under Next 16 Turbopack and refused to apply.
+   Space Mono is the only family pulled from a CDN (Google Fonts @import) since
+   we don't have its files locally. */
+
+/* ───────── @font-face — Chakra Petch (display) ─────────
+   v10 perf: italics + unused weights pruned repo-wide (nothing in the app
+   renders italic; per-family weight audit in tasks/todo.md Phase A3). */
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Light.ttf")          format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Regular.ttf")        format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Medium.ttf")         format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-SemiBold.ttf")       format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chakra Petch"; src: url("/fonts/Chakra_Petch/ChakraPetch-Bold.ttf")           format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ───────── @font-face — Rajdhani (heading) ───────── */
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Light.ttf")    format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Regular.ttf")  format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Medium.ttf")   format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Rajdhani"; src: url("/fonts/Rajdhani/Rajdhani-Bold.ttf")     format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ───────── @font-face — IBM Plex Mono (body) ───────── */
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Light.ttf")           format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Regular.ttf")         format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Medium.ttf")          format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-SemiBold.ttf")        format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBM_Plex_Mono/IBMPlexMono-Bold.ttf")            format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ───────── @font-face — B612 Mono (stat) ───────── */
+@font-face { font-family: "B612 Mono"; src: url("/fonts/B612_Mono/B612Mono-Regular.ttf")    format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+
+/* ───────── @font-face — Space Mono (pixel/coords) ─────────
+   Self-hosted (was a Google Fonts <link> — dead on the offline kiosk). */
+@font-face { font-family: "Space Mono"; src: url("/fonts/Space_Mono/SpaceMono-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
 
 :root {
-  --background: #06013a;
-  --foreground: #f5f5f5;
-  --tm-cobalt: #1800e7;
-  --tm-navy: #180092;
-  --tm-dark: #06013a;
-  --tm-accent-orange: #ff5e00;
+  /* Surface */
+  --v1-bg:           #040E1F;
+  --v1-bg-deep:      #061630;
+  --v1-bg-cobalt:    #0A0449;
+  --v1-bg-line:      rgba(255, 255, 255, 0.06);
+
+  /* Primary blue */
+  --v1-blue:         #034DA1;
+  --v1-blue-2:       #0362A1;
+  --v1-blue-soft:    rgba(3, 77, 161, 0.30);
+  --v1-blue-fill:    rgba(3, 77, 161, 0.44);
+
+  /* Accent orange */
+  --v1-orange:       #F05A22;
+  --v1-orange-hot:   #FF4D00;
+  --v1-orange-60:    rgba(240, 90, 34, 0.60);
+  --v1-orange-43:    rgba(240, 90, 34, 0.43);
+  --v1-orange-40:    rgba(240, 90, 34, 0.40);
+  --v1-orange-deep:  #BC3514;
+
+  /* Status — lime/red dual state (new in v1.0) */
+  --v1-active:       #8FFF3F;
+  --v1-active-2:     #00FF4D;
+  --v1-active-bg:    #3F642E;
+  --v1-inactive:     #FF3F3F;
+  --v1-inactive-2:   #ED1B2E;
+  --v1-inactive-bg:  #642E2E;
+
+  /* Text */
+  --v1-fg:           #FFFFFF;
+  --v1-fg-cream:     #FFF6F6;
+  --v1-fg-iceblue:   #F1F7FF;
+  --v1-mute:         #C4C4C4;
+  --v1-mute-2:       #D9D9D9;
+  --v1-mute-dark:    #4E4F4E;
+  --v1-brown:        #78625A;          /* morse backspace key */
+
+  /* Bevel cut — Figma KeyStatistic path 335:263 */
+  --v1-bevel-cut:    17.5px;
+
+  /* Type families — point straight at the @font-face family names declared
+     above. No next/font indirection (it was broken under Next 16 Turbopack). */
+  --v1-display:  "Chakra Petch", "Rajdhani", system-ui, sans-serif;
+  --v1-heading:  "Rajdhani", "Helvetica Neue", sans-serif;
+  --v1-mono:     "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --v1-stat:     "B612 Mono", "IBM Plex Mono", monospace;
+  --v1-pixel:    "Space Mono", monospace;
+
+  /* Legacy aliases — the existing JSX uses `.font-display` and hex literals;
+     redirect both to the v1 stack so each rewrite phase can be incremental. */
+  --background: var(--v1-bg);
+  --foreground: var(--v1-fg);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-display: "HK Grotesk Wide", "Hanken Grotesk", system-ui, sans-serif;
-  --font-body: var(--font-roboto), "Roboto", system-ui, sans-serif;
+  /* Tailwind utility hooks */
+  --color-background:        var(--background);
+  --color-foreground:        var(--foreground);
+
+  --color-v1-bg:             var(--v1-bg);
+  --color-v1-bg-deep:        var(--v1-bg-deep);
+  --color-v1-bg-cobalt:      var(--v1-bg-cobalt);
+  --color-v1-blue:           var(--v1-blue);
+  --color-v1-blue-2:         var(--v1-blue-2);
+  --color-v1-orange:         var(--v1-orange);
+  --color-v1-orange-hot:     var(--v1-orange-hot);
+  --color-v1-active:         var(--v1-active);
+  --color-v1-active-2:       var(--v1-active-2);
+  --color-v1-active-bg:      var(--v1-active-bg);
+  --color-v1-inactive:       var(--v1-inactive);
+  --color-v1-inactive-2:     var(--v1-inactive-2);
+  --color-v1-inactive-bg:    var(--v1-inactive-bg);
+  --color-v1-fg:             var(--v1-fg);
+  --color-v1-fg-cream:       var(--v1-fg-cream);
+  --color-v1-fg-iceblue:     var(--v1-fg-iceblue);
+  --color-v1-mute:           var(--v1-mute);
+  --color-v1-mute-2:         var(--v1-mute-2);
+  --color-v1-mute-dark:      var(--v1-mute-dark);
+
+  /* Font utilities — `font-display`, `font-heading`, `font-mono`, `font-stat`, `font-pixel` */
+  --font-display: var(--v1-display);
+  --font-heading: var(--v1-heading);
+  --font-mono:    var(--v1-mono);
+  --font-stat:    var(--v1-stat);
+  --font-pixel:   var(--v1-pixel);
+  --font-body:    var(--v1-mono);
 }
 
 * {
@@ -63,20 +136,22 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-roboto), "Roboto", system-ui, sans-serif;
-  font-weight: 300;
+  background: var(--v1-bg);
+  color: var(--v1-fg);
+  font-family: var(--v1-mono);
+  font-weight: 400;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
 
+/* Legacy alias — many components still use .font-display.
+   Now resolves to Chakra Petch via the @theme map above. */
 .font-display {
-  font-family: "HK Grotesk Wide", "Hanken Grotesk", system-ui, sans-serif;
+  font-family: var(--v1-display);
 }
 
-/* Scrollbar styling for sidebar */
+/* Kiosk-safe scrollbar — narrow, hidden by default */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -84,11 +159,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(24, 0, 231, 0.35);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(24, 0, 231, 0.55);
+  background: rgba(255, 255, 255, 0.30);
 }
 
 /* Globe tooltip styling */
@@ -97,13 +172,501 @@ body {
   z-index: 100 !important;
 }
 
-/* Pulse animation for landing points */
+/* Pulse animation kept for legacy point pulses */
 @keyframes point-pulse {
   0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  100% { opacity: 1; }
+  50%  { opacity: 0.5; }
+}
+
+/* ───────── v1.0 utility classes (ported from styles-v1.css) ───────── */
+
+/* Tactical corner-bracket frame */
+.v1-bracket {
+  position: relative;
+}
+.v1-bracket::before,
+.v1-bracket::after,
+.v1-bracket > .bracket-tl,
+.v1-bracket > .bracket-br {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border-color: var(--v1-fg);
+  border-style: solid;
+}
+.v1-bracket::before { top: -1px; left: -1px;  border-width: 1px 0 0 1px; }
+.v1-bracket::after  { top: -1px; right: -1px; border-width: 1px 1px 0 0; }
+.v1-bracket > .bracket-tl { bottom: -1px; left: -1px;  top: auto; border-width: 0 0 1px 1px; }
+.v1-bracket > .bracket-br { bottom: -1px; right: -1px; top: auto; border-width: 0 1px 1px 0; }
+
+/* Hex / tag chip */
+.v1-tag {
+  display: inline-flex; align-items: center;
+  padding: 3px 8px;
+  font-family: var(--v1-heading); font-weight: 600;
+  font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Bevelled card — top-right corner cut (Figma Rectangle 53 gradient) */
+.v1-card-bevel {
+  --c: var(--v1-bevel-cut);
+  background:
+    linear-gradient(303.52deg, var(--v1-blue) -11.48%, rgba(3, 77, 161, 0) 82.93%),
+    linear-gradient(123.48deg, var(--v1-orange-60) -7.19%, rgba(240, 90, 34, 0) 100%);
+  clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, 0 100%);
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Inverse bevel — bottom-left corner cut */
+.v1-card-bevel-bl {
+  --c: var(--v1-bevel-cut);
+  background:
+    linear-gradient(303.52deg, var(--v1-blue) -11.48%, rgba(3, 77, 161, 0) 82.93%),
+    linear-gradient(123.48deg, var(--v1-orange-60) -7.19%, rgba(240, 90, 34, 0) 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--c) 100%, 0 calc(100% - var(--c)));
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Hide native scrollbar on the Cable System grid (custom orange thumb renders alongside) */
+.v1-cable-grid-scroll::-webkit-scrollbar { width: 0; height: 0; }
+.v1-cable-grid-scroll { scrollbar-width: none; }
+
+/* Mini Cable Card (3×3 grid) — Figma V1.3 (temp/cablesystem.css spec).
+   Unselected: bevel gradient bg + 0.51px white border + 3.55px radius.
+   Selected: translucent white bg + 2px orange outline + all-blue text/divider (inverted). */
+.v1-cablecard {
+  background:
+    linear-gradient(302.51deg, var(--v1-blue) -89.34%, rgba(3, 77, 161, 0) 54.67%),
+    linear-gradient(122.48deg, var(--v1-orange-60) -38.43%, rgba(240, 90, 34, 0) 58.47%);
+  border: 0.51px solid #FFFFFF;
+  border-radius: 3.55px;
+  padding: 0;
+  margin: 0;
+}
+.v1-cablecard.is-selected {
+  /* Force the base bevel gradient off; selected cards are translucent white
+     (per Figma temp/cablecards-active.css Rectangle 64) with a 2px orange
+     outline (Rectangle 65) — NOT a solid orange fill. */
+  background-image: none;
+  background-color: rgba(255, 255, 255, 0.56);
+  border: 2px solid var(--v1-orange);
+  border-radius: 3.55px;
+}
+.v1-cablecard.is-inactive { opacity: 0.85; }
+
+/* Triple concentric ring status indicator */
+.v1-status {
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1.4px solid var(--v1-active);
+  position: relative;
+}
+.v1-status::before {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 50%;
+  background: var(--v1-active-bg);
+}
+.v1-status::after {
+  content: '';
+  position: absolute; inset: 4px;
+  border-radius: 50%;
+  background: var(--v1-active);
+}
+.v1-status.inactive { border-color: var(--v1-inactive); }
+.v1-status.inactive::before { background: var(--v1-inactive-bg); }
+.v1-status.inactive::after  { background: var(--v1-inactive); }
+
+.v1-pulse { animation: v1-pulse 1.5s ease-in-out infinite; }
+@keyframes v1-pulse {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.85); }
+}
+
+/* Continuous "breathing" glow behind an active landing-point marker — a steady
+   pulse that signals the marker is tappable (touch affordance). It never fades
+   out; it gently swells and softens forever. Centre-anchored. */
+.v1-marker-pulse {
+  animation: v1-marker-pulse 1.8s ease-in-out infinite;
+}
+@keyframes v1-marker-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.65; }
+  50%      { transform: translate(-50%, -50%) scale(1.3);  opacity: 1; }
+}
+
+/* Chrome entrance — when the UI returns from idle attract mode, each panel
+   slides in from its nearest screen edge + fades + a touch of zoom. Applied to
+   full-bleed pointer-events:none wrappers so the fixed panels inside keep their
+   positions. `both` holds the resting state (transform 0 / opacity 1). */
+.v1-enter-right  { animation: v1-enter-right  1120ms cubic-bezier(0.2, 0.85, 0.25, 1) both; }
+.v1-enter-left   { animation: v1-enter-left   1120ms cubic-bezier(0.2, 0.85, 0.25, 1) both; }
+.v1-enter-bottom { animation: v1-enter-bottom 1120ms cubic-bezier(0.2, 0.85, 0.25, 1) both; }
+@keyframes v1-enter-right {
+  from { opacity: 0; transform: translateX(46px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+@keyframes v1-enter-left {
+  from { opacity: 0; transform: translateX(-46px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0)     scale(1); }
+}
+@keyframes v1-enter-bottom {
+  from { opacity: 0; transform: translateY(40px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+/* Exit — reverse of the enters: panels slide back out to their nearest edge +
+   fade as the kiosk submerges to idle. `both` holds the gone state (opacity 0)
+   until the panels unmount. Snappier than the enter so the reverse CASCADE
+   (v1-exit-d* below) reads as one panel leaving after another. */
+.v1-exit-right  { animation: v1-exit-right  600ms cubic-bezier(0.4, 0, 0.7, 0.2) both; }
+.v1-exit-left   { animation: v1-exit-left   600ms cubic-bezier(0.4, 0, 0.7, 0.2) both; }
+.v1-exit-bottom { animation: v1-exit-bottom 600ms cubic-bezier(0.4, 0, 0.7, 0.2) both; }
+@keyframes v1-exit-right {
+  from { opacity: 1; transform: translateX(0)    scale(1); }
+  to   { opacity: 0; transform: translateX(46px) scale(0.97); }
+}
+@keyframes v1-exit-left {
+  from { opacity: 1; transform: translateX(0)     scale(1); }
+  to   { opacity: 0; transform: translateX(-46px) scale(0.97); }
+}
+@keyframes v1-exit-bottom {
+  from { opacity: 1; transform: translateY(0)    scale(1); }
+  to   { opacity: 0; transform: translateY(40px) scale(0.97); }
+}
+/* Stagger helpers — must follow the enter and exit rules above so the longhand
+   delay overrides the shorthand's implicit 0. */
+.v1-delay-1 { animation-delay: 140ms; }
+.v1-delay-2 { animation-delay: 260ms; }
+.v1-delay-3 { animation-delay: 380ms; }
+/* Submerge exit cascade — last-in panels leave first, one after another. */
+.v1-exit-d1 { animation-delay: 0ms; }
+.v1-exit-d2 { animation-delay: 190ms; }
+.v1-exit-d3 { animation-delay: 380ms; }
+.v1-exit-d4 { animation-delay: 570ms; }
+.v1-exit-d5 { animation-delay: 760ms; }
+
+/* ── Universal press feedback ──────────────────────────────────────────────
+   Touch kiosk: no hover, no cursor — the finger needs an immediate "the tap
+   registered" response. Scale + brighten on :active; a filter-only variant
+   for elements whose transform is already in use (rotation, centering). */
+.v1-pressable { transition: transform 90ms ease, filter 130ms ease; }
+.v1-pressable:active { transform: scale(0.95); filter: brightness(1.3); }
+.v1-pressable-dim { transition: filter 130ms ease; }
+.v1-pressable-dim:active { filter: brightness(1.35); }
+/* Transparent hit-areas (Morse hotspots) — flash a visible fill instead. */
+.v1-pressflash:active { background: rgba(255, 255, 255, 0.16); }
+/* Language pills — brighten the inactive option under the finger. */
+.v1-pill__opt:active:not(.is-active) { background: rgba(255, 255, 255, 0.14); }
+
+/* Expanded landing-point callout — grows up from the stem on mount,
+   collapses back into the stem on close. The corner brackets are
+   children, so they appear to snap into / out of place. */
+.v1-callout-expand {
+  animation: v1-callout-expand 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: 50% 100%;
+}
+.v1-callout-shrink {
+  animation: v1-callout-shrink 200ms cubic-bezier(0.4, 0, 1, 1) both;
+  transform-origin: 50% 100%;
+}
+@keyframes v1-callout-expand {
+  0%   { opacity: 0; transform: scale(0.6) translateY(12px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes v1-callout-shrink {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.6) translateY(12px); }
+}
+
+/* Bottom titlebar gradient */
+.v1-titlebar {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.90) 60%, #000 100%);
+}
+
+/* Bracket frame backgrounds for content cards */
+.v1-info-frame {
+  background: linear-gradient(180deg, var(--v1-blue) 0%, rgba(3, 77, 161, 0.30) 60%, var(--v1-orange-43) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  position: relative;
+}
+
+/* Typography helpers */
+.v1-h-display { font-family: var(--v1-display); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.v1-h-heading { font-family: var(--v1-heading); font-weight: 600; letter-spacing: 0.04em; }
+.v1-h-label   { font-family: var(--v1-heading); font-weight: 500; font-size: 11px;  letter-spacing: 0.15em; text-transform: uppercase; color: var(--v1-mute); }
+.v1-h-eye     { font-family: var(--v1-heading); font-weight: 400; font-size: 10px;  letter-spacing: 0.20em; text-transform: uppercase; color: var(--v1-mute); }
+.v1-h-stat    { font-family: var(--v1-stat);    font-weight: 400; font-variant-numeric: tabular-nums; color: var(--v1-orange-hot); }
+.v1-mono      { font-family: var(--v1-mono); }
+.v1-coords    { font-family: var(--v1-pixel);   font-size: 9px;  letter-spacing: 0.04em; color: var(--v1-mute); }
+
+/* ── Emerge branding card — each line rises + fades in, staggered by an inline
+   animation-delay so the title leads and the HUD tagline trails. ──────────── */
+.v1-brand-rise {
+  animation: v1-brand-rise 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform, opacity;
+}
+@keyframes v1-brand-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Title — white→ice-blue gradient fill with a one-time specular shine that
+   sweeps across as it surfaces (both backgrounds clipped to the text). The
+   rise and the shine run as two animations on the one element. */
+.v1-brand-title {
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  background-image:
+    linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.92) 50%, transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, #b8e6ff 100%);
+  background-size: 230% 100%, 100% 100%;
+  background-position: 160% 0, 0 0;
+  background-repeat: no-repeat;
+  animation:
+    v1-brand-rise 620ms cubic-bezier(0.2, 0.8, 0.2, 1) 0ms both,
+    v1-brand-shine 1000ms ease-in-out 680ms both;
+}
+@keyframes v1-brand-shine {
+  from { background-position: 160% 0, 0 0; }
+  to   { background-position: -60% 0, 0 0; }
+}
+
+/* Loading bar — white fill sweeps left→right across the dark track.
+   Animates transform (compositor thread) not width, so it keeps moving even
+   while the globe's heavy init saturates the main JS thread. */
+@keyframes v1-loadbar {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Blinking text caret for the Morse message field. Hard on/off (no fade) for
+   a classic terminal-cursor feel. */
+@keyframes v1-caret-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.v1-caret {
+  animation: v1-caret-blink 1s step-end infinite;
+}
+
+/* TV-wall background grid (3×3 wall divisions) */
+.v1-tv-grid {
+  background-image:
+    linear-gradient(to right,  rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: calc(100% / 3) calc(100% / 3);
+}
+
+/* ───────── Atomic UI components (ported from tm-* kit) ───────── */
+
+/* Circular cluster button (How-To / Info / Morse) — 76×76 per Figma V1.3 */
+.v1-circle-btn {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0) 80%),
+    rgba(255, 255, 255, 0.03);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  color: var(--v1-fg);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 200ms;
+}
+.v1-circle-btn.is-active {
+  border-color: var(--v1-active);
+  color: var(--v1-active);
+  box-shadow: 0 0 24px rgba(143, 255, 63, 0.5);
+}
+.v1-circle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Filter tab — 44px tall, orange when active */
+.v1-filter-tab {
+  flex: 1;
+  height: 44px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 500;
+  font-size: 11px; letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.v1-filter-tab.is-active {
+  background: var(--v1-orange);
+  border-color: var(--v1-orange-hot);
+}
+
+/* Language toggle pill — Figma V1.3 (screenshots/language-v2.png).
+   Outer pill has a visible 4px inner gutter; the active option renders
+   as a distinct white capsule with subtle inset highlight and drop shadow. */
+.v1-pill {
+  position: relative;
+  display: inline-flex;
+  height: 56px;
+  padding: 4px;
+  border-radius: 9999px;
+  background:
+    linear-gradient(to right,
+      rgba(3, 77, 161, 0.78)  0%,
+      rgba(3, 77, 161, 0.15)  35%,
+      rgba(240, 90, 34, 0.10) 65%,
+      rgba(240, 90, 34, 0.68) 100%),
+    var(--v1-bg);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 4px 18px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.v1-pill__opt {
+  flex: 1 1 0;
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 28px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 9999px;
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 500;
+  font-size: 18.5px; letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 200ms, background 200ms, box-shadow 200ms;
+  margin: 0;
+}
+.v1-pill__opt.is-active {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 65%, #D6E5F5 100%);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  font-weight: 700;
+}
+.v1-pill__opt:first-child.is-active { color: var(--v1-orange); }
+.v1-pill__opt:last-child.is-active  { color: var(--v1-blue); }
+
+/* Primary CTA — orange */
+.v1-btn-primary {
+  min-height: 48px;
+  padding: 0 18px;
+  background: var(--v1-orange);
+  border: 1px solid var(--v1-orange-hot);
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 13px; letter-spacing: 0.20em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Secondary CTA — blue */
+.v1-btn-blue {
+  min-height: 44px;
+  padding: 0 16px;
+  background: var(--v1-blue);
+  border: none;
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 12px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Destructive CTA — red */
+.v1-btn-danger {
+  min-height: 56px;
+  background: var(--v1-inactive-2);
+  border: none;
+  color: var(--v1-fg);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 13px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Send CTA — inverted white (Morse dialog only) */
+.v1-btn-send {
+  min-height: 56px;
+  background: var(--v1-fg);
+  border: none;
+  color: var(--v1-blue);
+  font-family: var(--v1-heading); font-weight: 700;
+  font-size: 14px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* ── v7 panel materialize ──────────────────────────────────────────────────
+   Panels assemble instead of just appearing. Sequence (runs once per mount):
+     0–160ms   corner crosshairs lock in (scale down from oversized)
+     60–340ms  title-strip background wipes in left→right
+     60–480ms  SVG bracket frames trace themselves (needs pathLength="1")
+     180–420ms body content resolves
+   Titles decrypt in parallel via the useScramble hook (src/lib/useScramble).
+   Touch targets stay live throughout — these are paint-only animations. */
+.v7-mat-cross {
+  animation: v7-mat-cross 160ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
+}
+@keyframes v7-mat-cross {
+  from { opacity: 0; transform: scale(2.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Left→right wipe for solid strips (backgrounds, borders). */
+.v7-mat-wipe {
+  animation: v7-mat-wipe 280ms cubic-bezier(0.4, 0, 0.2, 1) 60ms both;
+}
+@keyframes v7-mat-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+/* Self-drawing stroke for SVG frame paths. The path MUST set pathLength="1"
+   so one dash unit spans the whole path regardless of its true length. */
+.v7-mat-trace {
+  stroke-dasharray: 1;
+  animation: v7-mat-trace 420ms ease-out 60ms both;
+}
+@keyframes v7-mat-trace {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* Body content resolve — after the frame is mostly drawn. */
+.v7-mat-body {
+  animation: v7-mat-body 240ms ease-out 180ms both;
+}
+@keyframes v7-mat-body {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── General Information panel ──
+   `v1-gi-fade` cross-fades a screen in on a step or tab change
+   (GeneralInfoDialog). `v1-gi-fill` fills a countdown track left to right, its
+   duration set inline by whoever uses it — that is now only Did You Know's
+   ten-second rail; General Information's bar and auto-advance were dropped. */
+.v1-gi-fade {
+  animation: v1-gi-fade 420ms ease-in-out both;
+}
+@keyframes v1-gi-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.v1-gi-fill {
+  animation: v1-gi-fill linear both;
+}
+@keyframes v1-gi-fill {
+  from { width: 0%; }
+  to   { width: 100%; }
 }
